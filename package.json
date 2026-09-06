@@ -1,5 +1,5 @@
 {
-  "name": "hillmapper",
+  "name": "hillgpx",
   "version": "0.1.0",
   "private": true,
   "description": "Map every hill, staircase and tall block worth training elevation gain on.",

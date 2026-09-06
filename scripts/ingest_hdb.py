@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HillMapper — HDB block ingestion.
+hillGPX — HDB block ingestion.
 
 Pulls HDB block data from data.gov.sg, geocodes it via the OneMap Search API,
 and writes a plain JSON file that `build_data.py` folds into the app's static
@@ -400,7 +400,7 @@ def _safe_int(val) -> int | None:
 
 def main(limit: int | None = None) -> None:
     print("=" * 60)
-    print("HillMapper — HDB block ingestion")
+    print("hillGPX — HDB block ingestion")
     print(f"Started at: {datetime.now().isoformat()}")
     print("=" * 60)
 

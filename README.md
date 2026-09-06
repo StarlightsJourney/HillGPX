@@ -1,4 +1,4 @@
-# HillMapper
+# hillGPX
 
 **Find elevation gain to train on.** A map of every hill, staircase and tall HDB block in Singapore, with the routes that climb them — and a place to drop your own GPX and get an honest elevation profile back.
 
@@ -11,8 +11,8 @@ Built for people who train vertical: towerrunners, trail runners with a race in 
 ## Run it
 
 ```bash
-git clone https://github.com/StarlightsJourney/HillMapper.git
-cd HillMapper
+git clone https://github.com/StarlightsJourney/hillGPX.git
+cd hillGPX
 npm install
 npm run dev
 ```

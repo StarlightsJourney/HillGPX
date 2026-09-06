@@ -13,7 +13,10 @@ import { effectiveGain } from '../lib/venues';
  * neighbourhood.
  */
 
-export const HDB_MIN_ZOOM = 13.5;
+// Low enough that blocks are already on screen at the app's default zoom. The
+// first thing someone sees must include HDB blocks — an empty-looking map reads
+// as broken. A circle layer handles the few thousand visible here comfortably.
+export const HDB_MIN_ZOOM = 12;
 
 /** Colour ramp over metres of elevation gain. */
 export const GAIN_TIERS: { min: number; color: string; label: string }[] = [
@@ -128,7 +131,7 @@ const HDB_RADIUS: ExpressionSpecification = [
   ['linear'],
   ['zoom'],
   HDB_MIN_ZOOM,
-  3,
+  2.5,
   16,
   6,
   18,

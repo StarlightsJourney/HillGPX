@@ -25,9 +25,17 @@ interface MapViewProps {
   selectedSlug: string | null;
   activeRoute: RoutePoint[] | null;
   onSelectVenue: (slug: string | null) => void;
+  /** Reported so the UI can prompt to zoom in when blocks are still hidden. */
+  onZoomChange?: (zoom: number) => void;
 }
 
-export function MapView({ venues, selectedSlug, activeRoute, onSelectVenue }: MapViewProps) {
+export function MapView({
+  venues,
+  selectedSlug,
+  activeRoute,
+  onSelectVenue,
+  onZoomChange,
+}: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const readyRef = useRef(false);
@@ -36,6 +44,8 @@ export function MapView({ venues, selectedSlug, activeRoute, onSelectVenue }: Ma
   // network, so either can land first; whichever is last applies the state.
   const onSelectRef = useRef(onSelectVenue);
   onSelectRef.current = onSelectVenue;
+  const onZoomRef = useRef(onZoomChange);
+  onZoomRef.current = onZoomChange;
   const venuesRef = useRef(venues);
   venuesRef.current = venues;
   const selectedRef = useRef(selectedSlug);
@@ -48,7 +58,9 @@ export function MapView({ venues, selectedSlug, activeRoute, onSelectVenue }: Ma
       container: containerRef.current,
       style: STYLE_URL,
       center: [103.8198, 1.3521],
-      zoom: 11,
+      // Chosen so HDB blocks are already on screen on first paint — a map that
+      // looks empty reads as broken.
+      zoom: 12,
       maxBounds: SINGAPORE_BOUNDS,
       minZoom: 10,
       attributionControl: { compact: true },
@@ -103,6 +115,8 @@ export function MapView({ venues, selectedSlug, activeRoute, onSelectVenue }: Ma
     // Without this the canvas can stay a few pixels wide forever — the map then
     // requests no tiles and renders blank, with no error to go on. The observer
     // also covers the sidebar collapsing at the mobile breakpoint.
+    map.on('zoom', () => onZoomRef.current?.(map.getZoom()));
+
     const observer = new ResizeObserver(() => map.resize());
     observer.observe(containerRef.current);
     // The observer alone is not enough: its first callback can arrive while the

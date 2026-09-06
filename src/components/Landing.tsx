@@ -30,7 +30,7 @@ export function Landing({ onOpen }: LandingProps) {
   const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
-    fetch('data/stats.json')
+    fetch(`${import.meta.env.BASE_URL}data/stats.json`)
       .then((r) => (r.ok ? r.json() : null))
       .then(setStats)
       .catch(() => undefined);

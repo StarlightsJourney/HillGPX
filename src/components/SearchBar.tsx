@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Venue } from '../types';
 import { VENUE_TYPE_LABEL, effectiveGain, formatDistance, tallestWithin } from '../lib/venues';
+import { normaliseQuery } from '../lib/streetTerms';
 
 interface SearchBarProps {
   venues: Venue[];
@@ -36,14 +37,23 @@ export function SearchBar({ venues, onPick }: SearchBarProps) {
   );
 
   const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    // "ang mo kio ave 10" has to find "Ang Mo Kio Avenue 10", which is how the
+    // ingest stores it.
+    const q = normaliseQuery(query);
     if (q.length < 2) return [];
+
+    // Collect every match before trimming to MAX_RESULTS. Truncating during the
+    // scan would return the first eight blocks in file order and sort only
+    // those, so searching a long street would hide its tallest blocks — which
+    // is the one thing this app exists to surface. A full scan of ~10.8k
+    // entries costs a few milliseconds.
     const found: Venue[] = [];
-    for (let i = 0; i < haystack.length && found.length < MAX_RESULTS; i++) {
+    for (let i = 0; i < haystack.length; i++) {
       if (haystack[i].includes(q)) found.push(venues[i]);
     }
-    // Bigger climbs first among equally good name matches.
-    return found.sort((a, b) => (effectiveGain(b) ?? 0) - (effectiveGain(a) ?? 0));
+    return found
+      .sort((a, b) => (effectiveGain(b) ?? 0) - (effectiveGain(a) ?? 0))
+      .slice(0, MAX_RESULTS);
   }, [query, haystack, venues]);
 
   // Close the dropdown when clicking anywhere else.

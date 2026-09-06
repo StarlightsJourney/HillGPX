@@ -17,7 +17,15 @@ export interface Dataset {
   routeBySlug: Map<string, Route>;
 }
 
-export async function loadDataset(baseUrl = '/data'): Promise<Dataset> {
+/**
+ * Data lives under the deployment's base path, not the server root. Vite fills
+ * BASE_URL with '/' in dev and with the repository sub-path in a GitHub Pages
+ * build, so a root-absolute '/data' would 404 there — and resolves outside the
+ * page entirely when dist/index.html is opened straight off disk.
+ */
+export const DATA_BASE = `${import.meta.env.BASE_URL}data`;
+
+export async function loadDataset(baseUrl = DATA_BASE): Promise<Dataset> {
   const [venueData, routeData] = await Promise.all([
     fetchJson<VenueDataset>(`${baseUrl}/venues.json`),
     fetchJson<RouteDataset>(`${baseUrl}/routes.json`),

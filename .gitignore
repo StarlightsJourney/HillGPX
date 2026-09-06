@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment — the app itself needs no secrets, but the ingest scripts do
+.env
+.env.local
+.env.*.local
+
+# Python (data scripts)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Large intermediate data — the *outputs* under public/data are committed,
+# these raw downloads are not (see scripts/README.md)
+scripts/.cache/
+*.tif
+*.tiff
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+
+# Logs
+*.log
+npm-debug.*

@@ -1,0 +1,9 @@
+# build_data.py needs nothing beyond the standard library — that is deliberate,
+# so anyone can rebuild the app's datasets without a Python environment fight.
+
+# fetch_dem.py — decodes Terrarium elevation tiles
+Pillow>=10.0.0
+
+# ingest_hdb.py — only needed to regenerate the HDB block list (roughly annual)
+requests>=2.31.0
+python-dotenv>=1.0.0

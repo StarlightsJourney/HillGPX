@@ -1,0 +1,10 @@
+{
+  "west": 103.58,
+  "south": 1.18,
+  "east": 104.12,
+  "north": 1.5,
+  "width": 1572,
+  "height": 931,
+  "noData": -32768,
+  "attribution": "Elevation: AWS Open Data terrain tiles (Terrarium), derived from SRTM and other open sources. https://registry.opendata.aws/terrain-tiles/"
+}

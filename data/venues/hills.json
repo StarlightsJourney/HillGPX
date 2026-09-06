@@ -1,0 +1,152 @@
+{
+  "_readme": [
+    "Hand-curated non-HDB training venues. HDB blocks are NOT listed here — they are",
+    "generated into public/data/venues.json by scripts/ingest_hdb.py from data.gov.sg.",
+    "",
+    "IMPORTANT: the coordinates and elevations below are SEED VALUES. They are",
+    "approximate and every one of them is marked elevationSource: 'estimated'.",
+    "Correcting them is the single most useful first contribution to this project —",
+    "see CONTRIBUTING.md. When you verify a figure against a real source, update the",
+    "value, set elevationSource to 'verified', and cite the source in 'notes'.",
+    "",
+    "summitM = height above sea level at the top.",
+    "gainM   = elevation actually climbed from the usual start point. This is the",
+    "          number that matters for training and is often much smaller than",
+    "          summitM: Bukit Timah tops out around 163 m but the visitor centre is",
+    "          already well above sea level."
+  ],
+  "venues": [
+    {
+      "slug": "bukit-timah-hill",
+      "name": "Bukit Timah Hill",
+      "type": "hill",
+      "lat": 1.3546,
+      "lng": 103.7764,
+      "summitM": 163,
+      "gainM": null,
+      "elevationSource": "estimated",
+      "notes": "Highest natural point in Singapore. Summit figure is widely cited as ~163 m and is the one value here worth trusting; gain from the visitor centre still needs measuring. Nature reserve — check opening hours and closure days."
+    },
+    {
+      "slug": "hindhede-nature-park",
+      "name": "Hindhede Nature Park",
+      "type": "park",
+      "lat": 1.3489,
+      "lng": 103.7768,
+      "summitM": null,
+      "gainM": null,
+      "elevationSource": "estimated",
+      "notes": "Common approach to Bukit Timah Hill; shorter loops of its own. Needs survey."
+    },
+    {
+      "slug": "mount-faber",
+      "name": "Mount Faber",
+      "type": "hill",
+      "lat": 1.2716,
+      "lng": 103.8184,
+      "summitM": null,
+      "gainM": null,
+      "elevationSource": "estimated",
+      "notes": "Frequently cited around 105 m but unconfirmed here. Reached by road or by the Marang Trail steps. Anchor of the Southern Ridges."
+    },
+    {
+      "slug": "marang-trail",
+      "name": "Marang Trail",
+      "type": "stairs",
+      "lat": 1.2707,
+      "lng": 103.8214,
+      "summitM": null,
+      "gainM": null,
+      "elevationSource": "estimated",
+      "notes": "Continuous stepped ascent from near HarbourFront up to Mount Faber. Popular repeat-climb venue. Step count and gain both need measuring."
+    },
+    {
+      "slug": "telok-blangah-hill-park",
+      "name": "Telok Blangah Hill Park",
+      "type": "hill",
+      "lat": 1.277,
+      "lng": 103.8095,
+      "summitM": null,
+      "gainM": null,
+      "elevationSource": "estimated",
+      "notes": "Links to Mount Faber via Henderson Waves and to Kent Ridge via the Forest Walk."
+    },
+    {
+      "slug": "kent-ridge-park",
+      "name": "Kent Ridge Park",
+      "type": "hill",
+      "lat": 1.2836,
+      "lng": 103.7869,
+      "summitM": null,
+      "gainM": null,
+      "elevationSource": "estimated",
+      "notes": "Western end of the Southern Ridges. Canopy Walk plus a stepped climb from Pepys Road."
+    },
+    {
+      "slug": "bukit-batok-nature-park",
+      "name": "Bukit Batok Nature Park",
+      "type": "park",
+      "lat": 1.349,
+      "lng": 103.762,
+      "summitM": null,
+      "gainM": null,
+      "elevationSource": "estimated",
+      "notes": "Former quarry with a long stepped climb from the car park. Good repeat venue."
+    },
+    {
+      "slug": "bukit-gombak",
+      "name": "Bukit Gombak",
+      "type": "hill",
+      "lat": 1.3586,
+      "lng": 103.7519,
+      "summitM": null,
+      "gainM": null,
+      "elevationSource": "estimated",
+      "notes": "Access is partly restricted — confirm which paths are public before adding routes."
+    },
+    {
+      "slug": "dairy-farm-nature-park",
+      "name": "Dairy Farm Nature Park",
+      "type": "park",
+      "lat": 1.362,
+      "lng": 103.774,
+      "summitM": null,
+      "gainM": null,
+      "elevationSource": "estimated",
+      "notes": "Wallace Trail and the Singapore Quarry; connects into the Bukit Timah network."
+    },
+    {
+      "slug": "fort-canning-hill",
+      "name": "Fort Canning Hill",
+      "type": "hill",
+      "lat": 1.2945,
+      "lng": 103.8465,
+      "summitM": null,
+      "gainM": null,
+      "elevationSource": "estimated",
+      "notes": "Small central hill, often quoted near 48 m. Several stepped approaches — the Fort Canning Centre steps are the steepest. Useful for city-centre repeats."
+    },
+    {
+      "slug": "pearls-hill-city-park",
+      "name": "Pearl's Hill City Park",
+      "type": "hill",
+      "lat": 1.2853,
+      "lng": 103.841,
+      "summitM": null,
+      "gainM": null,
+      "elevationSource": "estimated",
+      "notes": "Small, central, quiet. Short stepped climb from Chin Swee Road."
+    },
+    {
+      "slug": "mount-emily-park",
+      "name": "Mount Emily Park",
+      "type": "hill",
+      "lat": 1.303,
+      "lng": 103.848,
+      "summitM": null,
+      "gainM": null,
+      "elevationSource": "estimated",
+      "notes": "Very small central rise; listed mainly for completeness of the city-centre set."
+    }
+  ]
+}

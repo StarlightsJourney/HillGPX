@@ -18,6 +18,9 @@ import { effectiveGain } from '../lib/venues';
 // as broken. A circle layer handles the few thousand visible here comfortably.
 export const HDB_MIN_ZOOM = 12;
 
+/** Above this, blocks swap from dots to labelled pills. */
+export const PILL_MIN_ZOOM = 14.5;
+
 /** Colour ramp over metres of elevation gain. */
 export const GAIN_TIERS: { min: number; color: string; label: string }[] = [
   { min: 0, color: '#4a90d9', label: 'Under 30 m' },
@@ -123,6 +126,100 @@ export async function loadVenueIcons(map: MlMap): Promise<void> {
       if (!map.hasImage(id)) map.addImage(id, image, { pixelRatio: 2 });
     }),
   );
+
+  for (const [id, fill, stroke] of [
+    ['pill', '#ffffff', '#d8d6d0'],
+    ['pill-active', '#1a2420', '#1a2420'],
+  ] as const) {
+    if (map.hasImage(id)) continue;
+    const pill = makePillImage(fill, stroke);
+    if (pill) map.addImage(id, pill.data, pill.options);
+  }
+}
+
+/**
+ * Extruded buildings, so a block's height is something you can see rather than
+ * only read. OpenMapTiles carries per-building heights in `render_height`;
+ * where it has none, storey count times a nominal floor height stands in.
+ */
+export function add3dBuildings(map: MlMap): void {
+  if (map.getLayer('buildings-3d')) return;
+  if (!map.getSource('openmaptiles')) return;
+
+  map.addLayer({
+    id: 'buildings-3d',
+    type: 'fill-extrusion',
+    source: 'openmaptiles',
+    'source-layer': 'building',
+    minzoom: 14,
+    paint: {
+      'fill-extrusion-color': '#b9b5ab',
+      'fill-extrusion-height': [
+        'coalesce',
+        ['get', 'render_height'],
+        ['*', ['coalesce', ['get', 'levels'], 3], 3],
+      ],
+      'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+      'fill-extrusion-opacity': 0.65,
+    },
+  });
+}
+
+export function set3dBuildings(map: MlMap, on: boolean): void {
+  const layer = map.getLayer('buildings-3d');
+  if (!layer) return;
+  map.setLayoutProperty('buildings-3d', 'visibility', on ? 'visible' : 'none');
+  map.easeTo({ pitch: on ? 55 : 0, duration: 600 });
+}
+
+/**
+ * The pill behind a marker's label — the shape Airbnb uses for prices, borrowed
+ * here because it shows the number itself rather than encoding it as a colour
+ * you have to decode against a legend.
+ *
+ * Built as a stretchable image: `stretchX`/`stretchY` mark the regions MapLibre
+ * may repeat, and `content` the box the label sits in, so one small bitmap
+ * resizes cleanly to fit any label.
+ */
+function makePillImage(fill: string, stroke: string): {
+  data: ImageData;
+  options: { pixelRatio: number; stretchX: [number, number][]; stretchY: [number, number][]; content: [number, number, number, number] };
+} | null {
+  const scale = 2;
+  const w = 40 * scale;
+  const h = 26 * scale;
+  const r = 11 * scale;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  ctx.beginPath();
+  ctx.moveTo(r, 1);
+  ctx.arcTo(w - 1, 1, w - 1, h - 1, r);
+  ctx.arcTo(w - 1, h - 1, 1, h - 1, r);
+  ctx.arcTo(1, h - 1, 1, 1, r);
+  ctx.arcTo(1, 1, w - 1, 1, r);
+  ctx.closePath();
+
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.lineWidth = 1 * scale;
+  ctx.strokeStyle = stroke;
+  ctx.stroke();
+
+  return {
+    data: ctx.getImageData(0, 0, w, h),
+    options: {
+      pixelRatio: scale,
+      // Only the flat middle may stretch; the rounded caps must not distort.
+      stretchX: [[r, w - r]],
+      stretchY: [[r, h - r]],
+      content: [r * 0.6, 3 * scale, w - r * 0.6, h - 3 * scale],
+    },
+  };
 }
 
 /** Dot size grows with zoom so blocks stay tappable without crowding. */
@@ -148,6 +245,7 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     source: 'venues',
     filter: ['==', ['get', 'venueType'], 'hdb_block'],
     minzoom: HDB_MIN_ZOOM,
+    maxzoom: PILL_MIN_ZOOM,
     paint: {
       'circle-radius': HDB_RADIUS,
       'circle-color': ['get', 'color'],
@@ -155,6 +253,27 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
       'circle-stroke-color': '#ffffff',
       'circle-opacity': 0.9,
     },
+  });
+
+  // Close in, blocks show their climb as a label. Below this the numbers would
+  // overlap into noise, so the dot layer above carries them instead.
+  map.addLayer({
+    id: 'venues-hdb-pill',
+    type: 'symbol',
+    source: 'venues',
+    filter: ['==', ['get', 'venueType'], 'hdb_block'],
+    minzoom: PILL_MIN_ZOOM,
+    layout: {
+      'icon-image': 'pill',
+      'icon-text-fit': 'both',
+      'text-field': ['concat', ['to-string', ['round', ['get', 'gainM']]], ' m'],
+      'text-font': ['Noto Sans Regular'],
+      'text-size': 11,
+      'icon-allow-overlap': false,
+      'text-allow-overlap': false,
+      'symbol-sort-key': ['-', 0, ['get', 'gainM']], // tallest wins a collision
+    },
+    paint: { 'text-color': '#1a2420' },
   });
 
   // Landmarks: always visible, always iconed.

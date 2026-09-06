@@ -371,9 +371,20 @@ button {
   inset: 0;
 }
 
-.map {
+/* MapLibre puts its own `maplibregl-map` class on this element, and
+   maplibre-gl.css sets `position: relative` on it. That stylesheet is imported
+   from MapView.tsx, so Vite emits it in the code-split MapView chunk which
+   loads AFTER this file — at equal specificity the later rule won, `inset: 0`
+   stopped applying, and the container collapsed to zero height. The map then
+   rendered into MapLibre's 300px fallback and showed nothing.
+
+   `.map-wrap > .map` outranks it, and the explicit 100% sizing means this holds
+   even if the positioning is overridden again. */
+.map-wrap > .map {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 /* ─── Detail panel: bottom sheet on phones ────────────────────────────── */
@@ -708,6 +719,41 @@ button {
 }
 
 /* ─── Map overlays ────────────────────────────────────────────────────── */
+
+.map-toggle {
+  position: absolute;
+  top: 108px;
+  right: 10px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 10%);
+}
+
+.map-toggle.on {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+
+.map-error {
+  position: absolute;
+  top: 62px;
+  left: 10px;
+  right: 58px;
+  z-index: 3;
+  background: var(--danger);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
 
 .legend {
   position: absolute;

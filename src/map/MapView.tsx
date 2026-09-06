@@ -3,8 +3,10 @@ import maplibregl, { type GeoJSONSource, type Map as MlMap } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { RoutePoint, Venue } from '../types';
 import {
+  add3dBuildings,
   addRouteLayers,
   addVenueLayers,
+  set3dBuildings,
   loadVenueIcons,
   setActiveRoute,
   setSelectedVenue,
@@ -32,6 +34,10 @@ interface MapViewProps {
    * twice still re-centres the map rather than being skipped as unchanged.
    */
   focus?: { lng: number; lat: number; nonce: number } | null;
+  /** Extruded buildings on/off. Also pitches the camera, since flat 3D is pointless. */
+  show3d?: boolean;
+  /** Raised when the basemap itself fails, so the failure is never silent. */
+  onMapError?: (message: string) => void;
 }
 
 export function MapView({
@@ -41,6 +47,8 @@ export function MapView({
   onSelectVenue,
   onZoomChange,
   focus,
+  show3d = false,
+  onMapError,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
@@ -56,6 +64,10 @@ export function MapView({
   venuesRef.current = venues;
   const selectedRef = useRef(selectedSlug);
   selectedRef.current = selectedSlug;
+  const onMapErrorRef = useRef(onMapError);
+  onMapErrorRef.current = onMapError;
+  const show3dRef = useRef(show3d);
+  show3dRef.current = show3d;
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -76,7 +88,16 @@ export function MapView({
     // Dev-only handle, so the map can be poked at from the browser console.
     if (import.meta.env.DEV) (window as unknown as { map: MlMap }).map = map;
 
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    // Without this a failed style or blocked tile host leaves a blank rectangle
+    // and nothing in the console but a warning — which is indistinguishable
+    // from the app being broken. Surface it instead.
+    map.on('error', (e) => {
+      const message = (e as unknown as { error?: Error }).error?.message ?? 'Unknown map error';
+      console.error('[map]', message);
+      onMapErrorRef.current?.(message);
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
     map.addControl(
       new maplibregl.GeolocateControl({
         positionOptions: { enableHighAccuracy: true },
@@ -91,10 +112,12 @@ export function MapView({
       // collection — the dataset may already have loaded while the style did.
       addVenueLayers(map, venuesToGeoJson(venuesRef.current));
       addRouteLayers(map);
+      add3dBuildings(map);
+      set3dBuildings(map, show3dRef.current);
       setSelectedVenue(map, selectedRef.current);
       readyRef.current = true;
 
-      for (const layer of ['venues-hdb', 'venues-landmark']) {
+      for (const layer of ['venues-hdb', 'venues-hdb-pill', 'venues-landmark']) {
         map.on('click', layer, (e) => {
           const slug = e.features?.[0]?.properties?.slug;
           if (typeof slug === 'string') onSelectRef.current(slug);
@@ -110,7 +133,7 @@ export function MapView({
       // A click on empty map clears the selection.
       map.on('click', (e) => {
         const hits = map.queryRenderedFeatures(e.point, {
-          layers: ['venues-hdb', 'venues-landmark'],
+          layers: ['venues-hdb', 'venues-hdb-pill', 'venues-landmark'],
         });
         if (hits.length === 0) onSelectRef.current(null);
       });
@@ -158,6 +181,12 @@ export function MapView({
     if (!map || !readyRef.current) return;
     setSelectedVenue(map, selectedSlug);
   }, [selectedSlug]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !readyRef.current) return;
+    set3dBuildings(map, show3d);
+  }, [show3d]);
 
   useEffect(() => {
     const map = mapRef.current;

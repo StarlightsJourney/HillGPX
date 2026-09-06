@@ -45,6 +45,8 @@ function MapApp() {
   const [zoom, setZoom] = useState(12);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [focus, setFocus] = useState<{ lng: number; lat: number; nonce: number } | null>(null);
+  const [show3d, setShow3d] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   useEffect(() => {
     loadDataset()
@@ -132,11 +134,27 @@ function MapApp() {
                 onSelectVenue={handleSelectVenue}
                 onZoomChange={setZoom}
                 focus={focus}
+                show3d={show3d}
+                onMapError={setMapError}
               />
             </Suspense>
           )}
 
           <SearchBar venues={dataset?.venues ?? []} onPick={handlePickFromSearch} />
+
+          <button
+            className={`map-toggle${show3d ? ' on' : ''}`}
+            onClick={() => setShow3d((v) => !v)}
+            aria-pressed={show3d}
+          >
+            3D
+          </button>
+
+          {mapError && (
+            <div className="map-error small">
+              The basemap failed to load: {mapError}
+            </div>
+          )}
 
           {zoom < HDB_MIN_ZOOM && <div className="zoom-hint small">Zoom in for HDB blocks</div>}
           <Legend />

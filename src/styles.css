@@ -385,27 +385,39 @@ button {
 }
 
 @media (min-width: 900px) {
-  .stage {
+  /* Only when the list is open. Without the modifier the grid column existed
+     unconditionally, so closing the list left an empty column and the map still
+     squeezed into half the screen. */
+  .stage.with-list {
     display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   }
-  .list-pane {
+  .stage.with-list .list-pane {
     position: relative;
     inset: auto;
     transform: none;
     transition: none;
     border-right: 1px solid var(--border);
   }
-  .map-wrap {
+  .stage.with-list .map-wrap {
     position: relative;
     inset: auto;
   }
 }
 
-@media (min-width: 900px) {
-  /* Declared after .list-toggle's own display rule, which would otherwise win
-     at equal specificity and leave the button showing beside the split view. */
-  .stage > .list-toggle {
+/* The map/list switch. On a phone only one can be shown, so "Show map" hides
+   the sheet; on a wide screen it collapses the column and gives the map the
+   whole width. */
+.list-toggle-hide {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+}
+
+@media (max-width: 899px) {
+  .list-toggle-hide {
+    /* The sheet has its own close button, and a floating pill over a full-height
+       sheet would sit on top of the cards. */
     display: none;
   }
 }

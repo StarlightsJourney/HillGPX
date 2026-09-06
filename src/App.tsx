@@ -46,7 +46,12 @@ function MapApp() {
   const [droppedRoute, setDroppedRoute] = useState<RoutePoint[] | null>(null);
   const [focus, setFocus] = useState<{ lng: number; lat: number; nonce: number } | null>(null);
   const [show3d, setShow3d] = useState(false);
-  const [listOpen, setListOpen] = useState(false);
+  // Open beside the map on a wide screen, closed over it on a phone. Either
+  // way it can be dismissed — previously the desktop pane ignored this entirely,
+  // so its close button did nothing and the list could not be got rid of.
+  const [listOpen, setListOpen] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 900px)').matches,
+  );
   const [gpxOpen, setGpxOpen] = useState(false);
   const [viewport, setViewport] = useState<
     { west: number; south: number; east: number; north: number } | null
@@ -105,7 +110,7 @@ function MapApp() {
         </button>
       </header>
 
-      <main className="stage">
+      <main className={`stage${listOpen ? ' with-list' : ''}`}>
         {/* List beside the map at desktop widths, a sheet over it on a phone —
             the split the reference uses. It is always mounted; the breakpoint
             decides whether it sits in the grid or slides up. */}
@@ -189,6 +194,15 @@ function MapApp() {
         {!listOpen && !gpxOpen && (
           <button className="list-toggle" onClick={() => setListOpen(true)}>
             <ListIcon /> Show list
+          </button>
+        )}
+
+        {listOpen && (
+          <button
+            className="list-toggle list-toggle-hide"
+            onClick={() => setListOpen(false)}
+          >
+            Show map
           </button>
         )}
       </main>

@@ -490,6 +490,9 @@ button {
   height: 100%;
   object-fit: cover;
   display: block;
+  /* Reserve the box before the file arrives so a scrolling list does not
+     reflow as each image lands. */
+  aspect-ratio: 20 / 19;
 }
 .card-thumb.placeholder svg {
   width: 100%;
@@ -617,6 +620,9 @@ button {
   height: 100%;
   object-fit: cover;
   display: block;
+  /* Reserve the box before the file arrives so a scrolling list does not
+     reflow as each image lands. */
+  aspect-ratio: 20 / 19;
 }
 
 .result-card-name {

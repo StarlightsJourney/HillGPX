@@ -220,21 +220,33 @@ NOTABLE_PERCENTILE = 0.97
 
 
 def mark_notable(venues: list[dict]) -> None:
-    heights = sorted(
-        (v.get("gainM") or v.get("summitM") or 0) for v in venues
-    )
-    if not heights:
-        return
-    index = min(len(heights) - 1, int(len(heights) * NOTABLE_PERCENTILE))
-    threshold = heights[index]
+    """
+    Flag the tallest slice of each venue type, separately.
 
-    count = 0
+    Ranking blocks and mountains on one scale makes the flag meaningless for
+    both: with 2,187 m summits in the list the 97th percentile lands at ~800 m,
+    so no HDB block anywhere in Singapore qualifies and the "tallest" highlight
+    silently marks nothing. A 140 m block is remarkable among blocks, which is
+    the comparison a person actually makes.
+    """
+    by_type: dict[str, list[dict]] = {}
     for v in venues:
-        height = v.get("gainM") or v.get("summitM") or 0
-        if height >= threshold and height > 0:
-            v["notable"] = True
-            count += 1
-    print(f"  {count:,} venues above the {NOTABLE_PERCENTILE:.0%} mark ({threshold:.0f} m)")
+        by_type.setdefault(v["type"], []).append(v)
+
+    for venue_type, group in sorted(by_type.items()):
+        heights = sorted((v.get("gainM") or v.get("summitM") or 0) for v in group)
+        if not heights:
+            continue
+        index = min(len(heights) - 1, int(len(heights) * NOTABLE_PERCENTILE))
+        threshold = heights[index]
+
+        count = 0
+        for v in group:
+            height = v.get("gainM") or v.get("summitM") or 0
+            if height >= threshold and height > 0:
+                v["notable"] = True
+                count += 1
+        print(f"  {venue_type}: {count:,} above the {NOTABLE_PERCENTILE:.0%} mark ({threshold:.0f} m)")
 
 
 def load_photos() -> dict[str, dict]:

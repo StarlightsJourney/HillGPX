@@ -28,8 +28,6 @@ interface MapViewProps {
   selectedSlug: string | null;
   activeRoute: RoutePoint[] | null;
   onSelectVenue: (slug: string | null) => void;
-  /** Reported so the UI can prompt to zoom in when blocks are still hidden. */
-  onZoomChange?: (zoom: number) => void;
   /**
    * Where to fly the camera. Carries a nonce so that picking the same venue
    * twice still re-centres the map rather than being skipped as unchanged.
@@ -56,7 +54,6 @@ export function MapView({
   selectedSlug,
   activeRoute,
   onSelectVenue,
-  onZoomChange,
   focus,
   show3d = false,
   onMapError,
@@ -70,8 +67,6 @@ export function MapView({
   // network, so either can land first; whichever is last applies the state.
   const onSelectRef = useRef(onSelectVenue);
   onSelectRef.current = onSelectVenue;
-  const onZoomRef = useRef(onZoomChange);
-  onZoomRef.current = onZoomChange;
   const venuesRef = useRef(venues);
   venuesRef.current = venues;
   const selectedRef = useRef(selectedSlug);
@@ -133,7 +128,7 @@ export function MapView({
       setSelectedVenue(map, selectedRef.current);
       readyRef.current = true;
 
-      for (const layer of ['venues-hdb-pill', 'venues-landmark']) {
+      for (const layer of ['venues-hdb-pill', 'venues-hdb-pill-top', 'venues-landmark']) {
         map.on('click', layer, (e) => {
           const slug = e.features?.[0]?.properties?.slug;
           if (typeof slug === 'string') onSelectRef.current(slug);
@@ -149,7 +144,7 @@ export function MapView({
       // A click on empty map clears the selection.
       map.on('click', (e) => {
         const hits = map.queryRenderedFeatures(e.point, {
-          layers: ['venues-hdb-pill', 'venues-landmark'],
+          layers: ['venues-hdb-pill', 'venues-hdb-pill-top', 'venues-landmark'],
         });
         if (hits.length === 0) onSelectRef.current(null);
       });
@@ -160,8 +155,6 @@ export function MapView({
     // Without this the canvas can stay a few pixels wide forever — the map then
     // requests no tiles and renders blank, with no error to go on. The observer
     // also covers the sidebar collapsing at the mobile breakpoint.
-    map.on('zoom', () => onZoomRef.current?.(map.getZoom()));
-
     // 'moveend' rather than 'move': the list only needs the settled view, and
     // recomputing it on every frame of a pan would be wasted work.
     const reportViewport = (e?: { originalEvent?: unknown }) => {

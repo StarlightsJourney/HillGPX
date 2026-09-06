@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import type { Venue } from '../types';
 import { VENUE_TYPE_LABEL, rankingHeight, venueHeight, venuesInBounds } from '../lib/venues';
 import { VenueThumb } from './VenueThumb';
@@ -21,7 +21,7 @@ const MAX_ROWS = 40;
  * anything yet, so ranking by the one fact we actually measured beats inventing
  * popularity.
  */
-export function ResultsList({ venues, bounds, onPick, onClose }: ResultsListProps) {
+function ResultsListInner({ venues, bounds, onPick, onClose }: ResultsListProps) {
   const rows = useMemo(() => {
     const inView = bounds ? venuesInBounds(venues, bounds) : venues;
     return [...inView]
@@ -77,3 +77,9 @@ export function ResultsList({ venues, bounds, onPick, onClose }: ResultsListProp
     </section>
   );
 }
+
+/**
+ * Memoised: this renders forty cards with images, and the map above it changes
+ * state far more often than the list's own inputs do.
+ */
+export const ResultsList = memo(ResultsListInner);

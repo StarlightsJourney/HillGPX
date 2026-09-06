@@ -1,4 +1,4 @@
-import type { Map as MlMap, GeoJSONSource } from 'maplibre-gl';
+import type { Map as MlMap, GeoJSONSource, SymbolLayerSpecification } from 'maplibre-gl';
 import type { Venue, VenueType } from '../types';
 import { venueHeight } from '../lib/venues';
 
@@ -17,6 +17,9 @@ import { venueHeight } from '../lib/venues';
 // first thing someone sees must include HDB blocks — an empty-looking map reads
 // as broken. A circle layer handles the few thousand visible here comfortably.
 export const HDB_MIN_ZOOM = 12;
+
+/** Below this only the tallest blocks are pill candidates; above it, all of them. */
+export const PILL_ALL_ZOOM = 14;
 
 /**
  * One accent, used only to mark the biggest climbs. The pill already prints the
@@ -228,8 +231,32 @@ function makePillImage(fill: string, stroke: string): {
   };
 }
 
+const PILL_LAYOUT: SymbolLayerSpecification['layout'] = {
+  'icon-image': ['case', ['get', 'notable'], 'pill-active', 'pill'],
+  'icon-text-fit': 'both',
+  'text-field': ['concat', ['to-string', ['round', ['get', 'heightM']]], ' m'],
+  'text-font': ['Noto Sans Regular'],
+  'text-size': 11.5,
+  'icon-allow-overlap': false,
+  'text-allow-overlap': false,
+  'icon-padding': 3,
+  'symbol-sort-key': ['-', 0, ['get', 'heightM']], // tallest wins a collision
+};
+
+const PILL_PAINT: SymbolLayerSpecification['paint'] = {
+  'text-color': ['case', ['get', 'notable'], '#ffffff', '#222222'],
+};
+
 export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): void {
-  map.addSource('venues', { type: 'geojson', data });
+  map.addSource('venues', {
+    type: 'geojson',
+    data,
+    // These points are exact locations, not shapes, so there is nothing to
+    // simplify and no need for a wide tile buffer. Both settings cut the work
+    // done re-tiling ~12k features as the map moves.
+    tolerance: 0,
+    buffer: 16,
+  });
 
   // A faint dot for every block, under the pills.
   //
@@ -243,11 +270,13 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     type: 'circle',
     source: 'venues',
     filter: ['==', ['get', 'venueType'], 'hdb_block'],
+    // Above this the pills carry the information and every dot is overdraw.
+    maxzoom: 15,
     paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.1, 13, 2, 16, 3],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.1, 13, 2, 15, 2.6],
       'circle-color': '#8a8178',
       // Fades out as the pills take over, so the two never fight.
-      'circle-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 0.45, 16, 0.15],
+      'circle-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 13.5, 0.45, 15, 0],
     },
   });
 
@@ -257,12 +286,31 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
   // that fit are drawn, and `symbol-sort-key` guarantees those are the biggest
   // climbs. Zooming in reveals the rest. It is the behaviour Airbnb's price
   // pins have, and it needs no density heuristic of our own.
+  // Two pill layers, split by zoom, rather than one covering the whole range.
+  //
+  // Symbol placement is the expensive part of rendering this map: MapLibre sorts
+  // every candidate and tests it against a collision grid on each placement
+  // pass. Handing it all 10,796 blocks at city zoom meant paying for thousands
+  // of symbols that lose their collision test and are never drawn. Below zoom 14
+  // only the tallest few hundred are candidates — which are the ones that would
+  // have won anyway — so the same picture costs a fraction of the work.
+  map.addLayer({
+    id: 'venues-hdb-pill-top',
+    type: 'symbol',
+    source: 'venues',
+    filter: ['all', ['==', ['get', 'venueType'], 'hdb_block'], ['get', 'notable']],
+    minzoom: HDB_MIN_ZOOM,
+    maxzoom: PILL_ALL_ZOOM,
+    layout: PILL_LAYOUT,
+    paint: PILL_PAINT,
+  });
+
   map.addLayer({
     id: 'venues-hdb-pill',
     type: 'symbol',
     source: 'venues',
     filter: ['==', ['get', 'venueType'], 'hdb_block'],
-    minzoom: HDB_MIN_ZOOM,
+    minzoom: PILL_ALL_ZOOM,
     layout: {
       'icon-image': ['case', ['get', 'notable'], 'pill-active', 'pill'],
       'icon-text-fit': 'both',

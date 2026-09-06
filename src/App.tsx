@@ -35,6 +35,26 @@ export default function App() {
   return <MapApp />;
 }
 
+/**
+ * Whether a viewport change is large enough to be worth recomputing the list
+ * for. A tenth of the current span in any direction is well below what would
+ * visibly reorder forty results.
+ */
+function boundsChangedMeaningfully(
+  prev: { west: number; south: number; east: number; north: number } | null,
+  next: { west: number; south: number; east: number; north: number },
+): boolean {
+  if (!prev) return true;
+  const tolX = Math.abs(next.east - next.west) * 0.1;
+  const tolY = Math.abs(next.north - next.south) * 0.1;
+  return (
+    Math.abs(prev.west - next.west) > tolX ||
+    Math.abs(prev.east - next.east) > tolX ||
+    Math.abs(prev.north - next.north) > tolY ||
+    Math.abs(prev.south - next.south) > tolY
+  );
+}
+
 function MapApp() {
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [elevationModel, setElevationModel] = useState<ElevationModel | null>(null);
@@ -145,7 +165,11 @@ function MapApp() {
                 show3d={show3d}
                 onMapError={setMapError}
                 onViewportChange={(b, userInitiated) => {
-                  setViewport(b);
+                  // Every zoom or pan ends here, and a new bounds object
+                  // re-runs the list's filter over ~12k venues and re-renders
+                  // forty image cards. Most gestures barely change what is on
+                  // screen, so ignore movements too small to alter the results.
+                  setViewport((prev) => (boundsChangedMeaningfully(prev, b) ? b : prev));
                   // A card left pinned over a map you have panned away from is
                   // describing somewhere no longer on screen. Only a real pan
                   // counts — a flyTo from search must not undo its own pick.

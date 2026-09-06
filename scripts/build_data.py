@@ -253,6 +253,20 @@ def load_venues() -> list[dict]:
             venues.append({**v, "routeSlugs": []})
     print(f"  {len(venues)} curated venues")
 
+    peaks_path = os.path.join(VENUE_DIR, "peaks.json")
+    if os.path.exists(peaks_path):
+        with open(peaks_path, encoding="utf-8") as fh:
+            peaks = json.load(fh)["venues"]
+        # Curated entries win on a slug clash: a hand-checked height beats an
+        # OSM tag of unknown provenance.
+        known = {v["slug"] for v in venues}
+        added = [p for p in peaks if p["slug"] not in known]
+        for v in added:
+            venues.append({**v, "routeSlugs": []})
+        print(f"  {len(added):,} OSM summits")
+    else:
+        print("  No OSM summits yet — run scripts/fetch_peaks.py --region sg-my")
+
     hdb_path = os.path.join(VENUE_DIR, "hdb-blocks.json")
     if os.path.exists(hdb_path):
         with open(hdb_path, encoding="utf-8") as fh:

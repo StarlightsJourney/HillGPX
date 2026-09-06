@@ -67,13 +67,19 @@ export function Landing({ onOpen }: LandingProps) {
       <main>
         <div className="shell">
           <section className="lp-hero">
-            <h1>Every hill and tall block in Singapore</h1>
+            <h1>Every hill and tall block, mapped by height</h1>
             <p className="lp-lede">
-              Mapped by height, so you can find a climb near you.
+              Find a climb near you — hills, staircases and the tallest HDB blocks, with the
+              elevation each one actually gives you.
             </p>
-            <button className="cta" onClick={onOpen}>
-              Open the map
-            </button>
+            <div className="lp-actions">
+              <button className="cta" onClick={onOpen}>
+                Open the map
+              </button>
+              <a className="cta-secondary" href={REPO_URL} target="_blank" rel="noreferrer">
+                Contribute
+              </a>
+            </div>
           </section>
         </div>
 
@@ -82,7 +88,7 @@ export function Landing({ onOpen }: LandingProps) {
         <div className="shell">
           <section className="lp-stats" aria-label="What is on the map">
             <Figure value={blocks != null ? formatCount(blocks) : '—'} label="HDB blocks" />
-            <Figure value={hills != null ? String(hills) : '—'} label="Hills & staircases" />
+            <Figure value={hills != null ? formatCount(hills) : '—'} label="Hills & summits" />
             <Figure value={stats ? String(stats.routes) : '—'} label="Routes" />
           </section>
 

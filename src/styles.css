@@ -112,28 +112,29 @@ button {
 
 /* ─── Landing ─────────────────────────────────────────────────────────── */
 
-/* A tool page, not a pitch. Type tops out at 46px rather than display sizes,
-   weight stays at 600, and the only saturated colour is the terrain line. */
+/* One screen, deliberately. Headline, a sentence, two buttons, and the terrain
+   the app is built on — nothing below the fold to scroll for. Dark, because the
+   page is a title card and the product behind it is light. */
 
 .landing {
-  min-height: 100%;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  overflow-x: hidden;
+  background: #141414;
+  color: #ffffff;
+  overflow: hidden;
 }
 
-.landing main {
-  flex: 1;
+.landing a {
+  color: #ffffff;
 }
 
 .shell {
   width: 100%;
-  max-width: 920px;
+  max-width: 960px;
   margin: 0 auto;
   padding: 0 var(--s3);
 }
-
-/* ── Nav ── */
 
 .lp-nav {
   display: flex;
@@ -142,187 +143,168 @@ button {
   padding: var(--s3) 0;
 }
 
-.mark {
-  display: block;
-  border-radius: 5px;
+.lp-nav .wordmark {
+  color: #ffffff;
 }
-.mark-bg {
-  fill: var(--ink);
+.lp-nav .mark-bg {
+  fill: #ffffff;
 }
-.mark-peak {
-  fill: var(--accent);
+.lp-nav .mark-peak {
+  fill: #141414;
 }
-.mark-snow {
-  fill: var(--ink);
-  opacity: 0.5;
+.lp-nav .mark-snow {
+  fill: #ffffff;
+  opacity: 0.6;
 }
 
-.icon-link {
-  display: inline-flex;
-  align-items: center;
+.lp-nav .icon-link {
+  color: rgb(255 255 255 / 62%);
+}
+.lp-nav .icon-link:hover {
+  color: #ffffff;
+  background: rgb(255 255 255 / 10%);
+}
+
+.landing main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  margin-right: -8px;
-  border-radius: 8px;
-  color: var(--muted);
+  min-height: 0;
 }
-.icon-link:hover {
-  color: var(--ink);
-  background: var(--bg-raised);
-}
-
-/* ── Hero ── */
 
 .lp-hero {
-  padding: var(--s5) 0 var(--s4);
+  text-align: center;
+  padding: 0 0 var(--s3);
 }
 
 .lp-hero h1 {
-  font-size: clamp(30px, 4.6vw, 46px);
-  line-height: 1.12;
-  letter-spacing: -0.025em;
-  font-weight: 600;
-  margin: 0;
-  max-width: 20ch;
+  font-size: clamp(34px, 6.4vw, 66px);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  font-weight: 700;
+  margin: 0 auto;
+  max-width: 15ch;
 }
 
 .lp-lede {
-  font-size: var(--t3);
-  line-height: 1.5;
-  color: var(--muted);
-  margin: var(--s2) 0 0;
-  max-width: 54ch;
+  font-size: clamp(15px, 1.7vw, 19px);
+  line-height: 1.45;
+  color: rgb(255 255 255 / 66%);
+  margin: var(--s2) auto 0;
+  max-width: 52ch;
+}
+
+.lp-actions {
+  display: flex;
+  gap: var(--s1);
+  justify-content: center;
+  margin-top: var(--s3);
+  flex-wrap: wrap;
 }
 
 .cta {
-  display: inline-block;
-  background: var(--ink);
-  color: var(--bg);
+  background: #ffffff;
+  color: #141414;
   border: none;
-  border-radius: 7px;
-  padding: 11px 20px;
+  border-radius: 8px;
+  padding: 12px 26px;
   font-size: var(--t2);
   font-weight: 600;
   cursor: pointer;
-  margin-top: var(--s3);
   transition: opacity 0.12s ease;
 }
 .cta:hover {
-  opacity: 0.85;
+  opacity: 0.88;
 }
 
-/* ── Terrain transect ── */
+.cta-secondary {
+  background: rgb(255 255 255 / 10%);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 26px;
+  font-size: var(--t2);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.cta-secondary:hover {
+  background: rgb(255 255 255 / 17%);
+}
+
+/* ── Terrain, as the hero's own image ── */
 
 .lp-transect {
-  margin: var(--s3) 0 0;
+  margin: 0;
   padding: 0;
+  flex: none;
 }
 
 .lp-transect svg {
   display: block;
   width: 100%;
-  height: clamp(92px, 13vw, 140px);
+  height: clamp(80px, 15vh, 190px);
 }
 
 .transect-fill {
-  fill: var(--accent);
-  opacity: 0.08;
+  fill: #ffffff;
+  opacity: 0.09;
 }
 
 .transect-line {
   fill: none;
-  stroke: var(--accent);
+  stroke: #ffffff;
   stroke-width: 1.25;
   stroke-linejoin: round;
-  opacity: 0.85;
+  opacity: 0.5;
 }
 
 .lp-transect figcaption {
-  max-width: 920px;
-  margin: var(--s1) auto 0;
-  padding: 0 var(--s3);
+  display: none;
 }
 
-/* ── Figures ── */
+/* ── Figures, on one line under the terrain ── */
 
 .lp-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--s2);
-  padding: var(--s4) 0;
-  border-bottom: 1px solid var(--border);
-  margin-top: var(--s4);
+  display: flex;
+  justify-content: center;
+  gap: clamp(20px, 5vw, 56px);
+  padding: var(--s2) 0 var(--s3);
+  flex-wrap: wrap;
 }
 
 .lp-figure {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  align-items: center;
+  gap: 1px;
 }
 
 .lp-figure-value {
-  font-size: var(--t5);
+  font-size: clamp(17px, 2.2vw, 23px);
   font-weight: 600;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
 }
 
 .lp-figure-label {
   font-size: var(--t1);
-  color: var(--muted);
+  color: rgb(255 255 255 / 52%);
 }
 
-/* ── Note ── */
-
-.lp-note {
-  padding: var(--s4) 0 var(--s5);
-  max-width: 62ch;
-}
-
-.lp-note h2 {
-  font-size: var(--t1);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--muted);
-  margin: 0 0 var(--s2);
-}
-
-.lp-note p {
-  margin: 0 0 var(--s2);
-  font-size: var(--t2);
-  line-height: 1.65;
-  color: var(--muted);
-}
-.lp-note p:last-child {
-  margin-bottom: 0;
-}
-
-/* ── Footer ── */
-
+.lp-note,
 .lp-foot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
-  justify-content: space-between;
-  align-items: baseline;
-  padding: var(--s3) 0 var(--s4);
-  border-top: 1px solid var(--border);
+  display: none;
 }
 
-.lp-foot a {
-  margin-left: var(--s2);
-  color: var(--muted);
-  text-decoration: none;
-}
-.lp-foot a:first-child {
-  margin-left: 0;
-}
-.lp-foot a:hover {
-  color: var(--ink);
-  text-decoration: underline;
+@media (max-height: 620px) {
+  .lp-transect svg {
+    height: 72px;
+  }
+  .lp-stats {
+    padding: var(--s1) 0 var(--s2);
+  }
 }
 
 /* ─── App shell ───────────────────────────────────────────────────────── */
@@ -375,6 +357,59 @@ button {
   inset: 0;
 }
 
+/* ── Split view ──
+   Desktop: the list takes the larger share and the map sits beside it, as in
+   the reference. Below the breakpoint the list becomes a sheet over a
+   full-bleed map, because a phone has room for one or the other, not both. */
+
+.list-pane {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: var(--surface);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transform: translateY(100%);
+  transition: transform 0.24s ease;
+  will-change: transform;
+}
+
+.list-pane.open {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .list-pane {
+    transition: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  }
+  .list-pane {
+    position: relative;
+    inset: auto;
+    transform: none;
+    transition: none;
+    border-right: 1px solid var(--border);
+  }
+  .map-wrap {
+    position: relative;
+    inset: auto;
+  }
+}
+
+@media (min-width: 900px) {
+  /* Declared after .list-toggle's own display rule, which would otherwise win
+     at equal specificity and leave the button showing beside the split view. */
+  .stage > .list-toggle {
+    display: none;
+  }
+}
+
 /* MapLibre puts its own `maplibregl-map` class on this element, and
    maplibre-gl.css sets `position: relative` on it. That stylesheet is imported
    from MapView.tsx, so Vite emits it in the code-split MapView chunk which
@@ -395,10 +430,10 @@ button {
 
 .venue-card {
   position: absolute;
-  z-index: 3;
-  left: var(--s3);
+  z-index: 4;
+  right: var(--s3);
   bottom: var(--s3);
-  width: 340px;
+  width: 330px;
   max-height: calc(100% - var(--s4));
   overflow-y: auto;
   background: var(--surface);
@@ -513,17 +548,6 @@ button {
 /* ─── Results list ────────────────────────────────────────────────────── */
 
 .results {
-  position: absolute;
-  z-index: 3;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  max-height: 62%;
-  overflow-y: auto;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  border-radius: 16px 16px 0 0;
-  box-shadow: 0 -8px 28px rgb(0 0 0 / 16%);
   padding: var(--s3);
 }
 
@@ -550,7 +574,7 @@ button {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: var(--s3) var(--s2);
 }
 

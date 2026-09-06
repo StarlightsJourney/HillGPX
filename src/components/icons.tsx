@@ -37,3 +37,15 @@ export function GitHubIcon({ size = 18 }: { size?: number }) {
     </svg>
   );
 }
+
+/** The list glyph on the map/list toggle. */
+export function ListIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <rect x="1" y="2.5" width="4" height="4" rx="1" />
+      <rect x="1" y="9.5" width="4" height="4" rx="1" />
+      <rect x="6.8" y="3.6" width="8.2" height="1.8" rx="0.9" />
+      <rect x="6.8" y="10.6" width="8.2" height="1.8" rx="0.9" />
+    </svg>
+  );
+}

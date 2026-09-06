@@ -7,6 +7,7 @@ import { SearchBar } from './components/SearchBar';
 import { ElevationModel } from './lib/elevation';
 import { loadDataset, routesForVenue, type Dataset } from './lib/venues';
 import type { RoutePoint } from './types';
+import { ListIcon } from './components/icons';
 
 // MapLibre is by far the largest dependency here. Code-splitting it keeps the
 // landing page down to a small bundle that paints immediately; the map is only
@@ -105,6 +106,20 @@ function MapApp() {
       </header>
 
       <main className="stage">
+        {/* List beside the map at desktop widths, a sheet over it on a phone —
+            the split the reference uses. It is always mounted; the breakpoint
+            decides whether it sits in the grid or slides up. */}
+        <div className={`list-pane${listOpen ? ' open' : ''}`}>
+          {dataset && (
+            <ResultsList
+              venues={dataset.venues}
+              bounds={viewport}
+              onPick={(slug) => selectVenue(slug, true)}
+              onClose={() => setListOpen(false)}
+            />
+          )}
+        </div>
+
         {loadError ? (
           <div className="empty">
             <h2>Nothing to show yet</h2>
@@ -159,15 +174,6 @@ function MapApp() {
           />
         )}
 
-        {listOpen && dataset && (
-          <ResultsList
-            venues={dataset.venues}
-            bounds={viewport}
-            onPick={(slug) => selectVenue(slug, true)}
-            onClose={() => setListOpen(false)}
-          />
-        )}
-
         {gpxOpen && (
           <div className="sheet">
             <div className="sheet-head">
@@ -180,9 +186,9 @@ function MapApp() {
           </div>
         )}
 
-        {!listOpen && !selectedVenue && !gpxOpen && (
+        {!listOpen && !gpxOpen && (
           <button className="list-toggle" onClick={() => setListOpen(true)}>
-            Show list
+            <ListIcon /> Show list
           </button>
         )}
       </main>

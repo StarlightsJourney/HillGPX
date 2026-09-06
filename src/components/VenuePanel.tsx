@@ -56,7 +56,7 @@ export function VenuePanel({
         <p className="callout small">
           These numbers are unverified seed values.{' '}
           <a
-            href="https://github.com/StarlightsJourney/hillGPX/blob/main/CONTRIBUTING.md"
+            href="https://github.com/StarlightsJourney/HillGPX/blob/main/CONTRIBUTING.md"
             target="_blank"
             rel="noreferrer"
           >

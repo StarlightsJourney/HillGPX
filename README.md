@@ -11,7 +11,7 @@ Built for people who train vertical: towerrunners, trail runners with a race in 
 ## Run it
 
 ```bash
-git clone https://github.com/StarlightsJourney/hillGPX.git
+git clone https://github.com/StarlightsJourney/HillGPX.git
 cd hillGPX
 npm install
 npm run dev

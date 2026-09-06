@@ -349,6 +349,69 @@ def build_routes(venues: list[dict], dem: Dem | None) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Landing-page stats
+# ---------------------------------------------------------------------------
+
+# The transect the landing page draws. Rather than a decorative mountain, it is
+# the real skyline of Singapore's terrain: for each step west-to-east, the
+# highest ground anywhere in the latitude band. Sampled from the same model the
+# app uses, so the page cannot drift out of step with the data.
+TRANSECT_SAMPLES = 200
+TRANSECT_LAT_MIN, TRANSECT_LAT_MAX = 1.24, 1.44
+TRANSECT_LAT_STEPS = 240
+
+
+def build_transect(dem: "Dem | None") -> list[int]:
+    if dem is None:
+        return []
+    west, east = dem.h["west"], dem.h["east"]
+    profile: list[int] = []
+    for i in range(TRANSECT_SAMPLES):
+        lng = west + (east - west) * i / (TRANSECT_SAMPLES - 1)
+        peak = 0.0
+        for j in range(TRANSECT_LAT_STEPS):
+            lat = TRANSECT_LAT_MIN + (TRANSECT_LAT_MAX - TRANSECT_LAT_MIN) * j / (
+                TRANSECT_LAT_STEPS - 1
+            )
+            value = dem.sample(lng, lat)
+            if value is not None and value > peak:
+                peak = value
+        profile.append(peak)
+
+    # A light 3-point mean. The max-over-band sampling is exact at each step but
+    # aliases badly between them, which reads as noise rather than landform;
+    # this removes the sampling artefact without inventing terrain.
+    return [
+        round(sum(profile[max(0, i - 1) : min(len(profile), i + 2)])
+              / len(profile[max(0, i - 1) : min(len(profile), i + 2)]))
+        for i in range(len(profile))
+    ]
+
+
+def write_stats(venues: list[dict], routes: list[dict], dem: "Dem | None", generated_at: str) -> None:
+    """
+    A few real numbers for the landing page, in a file small enough that showing
+    them costs nothing. The alternative — hardcoding figures in the markup — goes
+    stale the moment the data changes.
+    """
+    by_type: dict[str, int] = {}
+    for v in venues:
+        by_type[v["type"]] = by_type.get(v["type"], 0) + 1
+
+    stats = {
+        "generatedAt": generated_at,
+        "venues": len(venues),
+        "byType": by_type,
+        "routes": len(routes),
+        "demSamples": (dem.h["width"] * dem.h["height"]) if dem else 0,
+        "transect": build_transect(dem),
+        "transectLabel": "Highest ground, west to east across Singapore",
+    }
+    with open(os.path.join(OUT_DIR, "stats.json"), "w", encoding="utf-8") as fh:
+        json.dump(stats, fh, separators=(",", ":"))
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -389,6 +452,8 @@ def main() -> None:
         json.dump({"generatedAt": generated_at, "venues": venues}, fh, separators=(",", ":"))
     with open(os.path.join(OUT_DIR, "routes.json"), "w", encoding="utf-8") as fh:
         json.dump({"generatedAt": generated_at, "routes": routes}, fh, separators=(",", ":"))
+
+    write_stats(venues, routes, dem, generated_at)
 
     venues_kb = os.path.getsize(os.path.join(OUT_DIR, "venues.json")) / 1024
     routes_kb = os.path.getsize(os.path.join(OUT_DIR, "routes.json")) / 1024

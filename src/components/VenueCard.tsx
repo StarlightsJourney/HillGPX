@@ -1,5 +1,5 @@
 import type { Route, Venue } from '../types';
-import { VENUE_TYPE_LABEL, effectiveGain, formatDistance } from '../lib/venues';
+import { VENUE_TYPE_LABEL, formatDistance, venueHeight } from '../lib/venues';
 import { ElevationProfile } from './ElevationProfile';
 import { PhotoCredit, VenueThumb } from './VenueThumb';
 
@@ -16,9 +16,8 @@ interface VenueCardProps {
 /**
  * Detail for one venue, floating over the map.
  *
- * A card rather than a fixed panel: the map is the thing people came for, and a
- * permanent column takes a third of it away whether or not anything is selected.
- * This appears when you pick something and gets out of the way when you don't.
+ * A card rather than a fixed panel: the map is what people came for, and a
+ * permanent column takes a third of it whether or not anything is selected.
  */
 export function VenueCard({
   venue,
@@ -27,86 +26,91 @@ export function VenueCard({
   onSelectRoute,
   onClose,
 }: VenueCardProps) {
-  const gain = effectiveGain(venue);
+  const height = venueHeight(venue);
   const activeRoute = routes.find((r) => r.slug === activeRouteSlug) ?? null;
+
+  const detail = [
+    VENUE_TYPE_LABEL[venue.type],
+    venue.storeys != null ? `${venue.storeys} floors` : null,
+    venue.town,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <aside className="venue-card">
-      <button className="icon-btn card-close" onClick={onClose} aria-label="Close">
-        ×
-      </button>
-
       <div className="card-photo">
         <VenueThumb venue={venue} rounded={false} />
+        <button className="icon-btn card-close" onClick={onClose} aria-label="Close">
+          ×
+        </button>
       </div>
 
       <div className="card-body">
-        <p className="card-kicker small muted">
-          {VENUE_TYPE_LABEL[venue.type]}
-          {venue.town && ` · ${venue.town}`}
-        </p>
         <h2>{venue.name}</h2>
+        <p className="card-detail">{detail}</p>
 
-        <div className="card-stats">
-          {gain != null ? (
-            <>
-              <span className="card-gain">{Math.round(gain)} m</span>
-              <span className="small muted">
-                of climbing
-                {venue.storeys != null && ` · ${venue.storeys} floors`}
-              </span>
-            </>
-          ) : (
-            // A bare em dash reads as a rendering fault. Say what is actually
-            // true: nobody has measured this one.
-            <span className="small muted">Height not measured yet</span>
-          )}
-        </div>
+        {height ? (
+          <p className="card-height">
+            <strong>{Math.round(height.value)} m</strong>{' '}
+            {/* Summit height is not climbing height — nobody starts at sea
+                level — so the two are never labelled the same way. */}
+            {height.kind === 'gain' ? 'of climbing' : 'above sea level'}
+          </p>
+        ) : (
+          <p className="card-height muted">Height not recorded</p>
+        )}
 
-        {venue.elevationSource === 'estimated' && (
-          <p className="small muted card-note">
-            Estimated from floor count — nobody has measured this one yet.{' '}
+        {height?.kind === 'summit' && (
+          <p className="card-detail">
+            The climb from the usual start is smaller, and nobody has measured it.{' '}
             <a href={REPO_URL} target="_blank" rel="noreferrer">
-              Know the real figure?
+              Measure it
             </a>
           </p>
         )}
 
-        {venue.notes && <p className="small muted card-note">{venue.notes}</p>}
+        {venue.notes && <p className="card-detail">{venue.notes}</p>}
 
         <PhotoCredit venue={venue} />
 
-        <h3>Routes</h3>
+        <hr className="card-rule" />
+
         {routes.length === 0 ? (
-          <p className="small muted">
-            No routes here yet. If you have climbed it, your GPX would be the first.{' '}
+          <p className="card-detail">
+            No routes yet.{' '}
             <a href={REPO_URL} target="_blank" rel="noreferrer">
-              Add one
+              Add the first
             </a>
           </p>
         ) : (
-          <ul className="route-list">
-            {routes.map((route) => {
-              const isActive = route.slug === activeRouteSlug;
-              return (
-                <li key={route.slug}>
-                  <button
-                    className={`route-row${isActive ? ' active' : ''}`}
-                    onClick={() => onSelectRoute(isActive ? null : route.slug)}
-                  >
-                    <span className="route-name">{route.name}</span>
-                    <span className="small muted">
-                      {formatDistance(route.distanceM)} · {Math.round(route.gainM)} m up
-                      {route.loop ? ' · loop' : ''}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            <h3>
+              {routes.length} route{routes.length > 1 ? 's' : ''}
+            </h3>
+            <ul className="route-list">
+              {routes.map((route) => {
+                const isActive = route.slug === activeRouteSlug;
+                return (
+                  <li key={route.slug}>
+                    <button
+                      className={`route-row${isActive ? ' active' : ''}`}
+                      onClick={() => onSelectRoute(isActive ? null : route.slug)}
+                    >
+                      <span className="route-name">{route.name}</span>
+                      <span className="small muted">
+                        {formatDistance(route.distanceM)} · {Math.round(route.gainM)} m up
+                        {route.loop ? ' · loop' : ''}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
 
-        {activeRoute && <ElevationProfile points={activeRoute.coordinates} height={90} />}
+        {activeRoute && <ElevationProfile points={activeRoute.coordinates} height={80} />}
       </div>
     </aside>
   );

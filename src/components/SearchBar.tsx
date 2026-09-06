@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Venue } from '../types';
-import { VENUE_TYPE_LABEL, effectiveGain, formatDistance, tallestWithin } from '../lib/venues';
+import { VENUE_TYPE_LABEL, formatDistance, rankingHeight, venueHeight, tallestWithin } from '../lib/venues';
 import { normaliseQuery } from '../lib/streetTerms';
 
 interface SearchBarProps {
@@ -52,7 +52,7 @@ export function SearchBar({ venues, onPick }: SearchBarProps) {
       if (haystack[i].includes(q)) found.push(venues[i]);
     }
     return found
-      .sort((a, b) => (effectiveGain(b) ?? 0) - (effectiveGain(a) ?? 0))
+      .sort((a, b) => rankingHeight(b) - rankingHeight(a))
       .slice(0, MAX_RESULTS);
   }, [query, haystack, venues]);
 
@@ -144,14 +144,14 @@ export function SearchBar({ venues, onPick }: SearchBarProps) {
           )}
 
           {showing.map((venue) => {
-            const gain = effectiveGain(venue);
+            const height = venueHeight(venue);
             const distance = distanceFor(venue.slug);
             return (
               <button key={venue.slug} className="result-row" onClick={() => pick(venue.slug)}>
                 <span className="result-name">{venue.name}</span>
                 <span className="result-meta small muted">
                   {VENUE_TYPE_LABEL[venue.type]}
-                  {gain != null && ` · ${Math.round(gain)} m up`}
+                  {height && ` · ${Math.round(height.value)} m${height.kind === 'gain' ? ' up' : ''}`}
                   {distance != null && ` · ${formatDistance(distance)} away`}
                 </span>
               </button>

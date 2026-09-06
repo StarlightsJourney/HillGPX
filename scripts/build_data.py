@@ -190,7 +190,7 @@ def slugify(text: str) -> str:
 # Keys dropped from a venue when they carry no information. At ~10.8k blocks a
 # redundant key costs hundreds of kilobytes of JSON the browser has to parse, so
 # the output keeps only what the app actually reads.
-OPTIONAL_KEYS = ("summitM", "town", "yearCompleted", "notes", "storeys", "blkNo", "street", "photo")
+OPTIONAL_KEYS = ("summitM", "town", "yearCompleted", "notes", "storeys", "blkNo", "street", "photo", "notable")
 
 # ~1.1 m at the equator, which is finer than a building pin needs. OneMap
 # returns full float precision; writing all 16 digits is pure waste.
@@ -206,6 +206,32 @@ def compact(venue: dict) -> dict:
             v = round(v, COORD_DP)
         out[k] = v
     return out
+
+
+# What counts as "tall" is relative, not a round number. A fixed 90 m cut-off
+# said nothing about whether a block stands out among its neighbours — it just
+# split the list at an arbitrary point. This flags the top slice of everything
+# actually mapped, so the highlight keeps meaning as the dataset grows or moves
+# to another country.
+NOTABLE_PERCENTILE = 0.97
+
+
+def mark_notable(venues: list[dict]) -> None:
+    heights = sorted(
+        (v.get("gainM") or v.get("summitM") or 0) for v in venues
+    )
+    if not heights:
+        return
+    index = min(len(heights) - 1, int(len(heights) * NOTABLE_PERCENTILE))
+    threshold = heights[index]
+
+    count = 0
+    for v in venues:
+        height = v.get("gainM") or v.get("summitM") or 0
+        if height >= threshold and height > 0:
+            v["notable"] = True
+            count += 1
+    print(f"  {count:,} venues above the {NOTABLE_PERCENTILE:.0%} mark ({threshold:.0f} m)")
 
 
 def load_photos() -> dict[str, dict]:
@@ -457,6 +483,20 @@ def main() -> None:
 
     print("\nVenues")
     venues = load_venues()
+
+    photos = load_photos()
+    if photos:
+        attached = 0
+        for v in venues:
+            photo = photos.get(v["slug"])
+            if photo and photo.get("url"):
+                v["photo"] = {"url": photo["url"], "credit": photo.get("creator")}
+                attached += 1
+        print(f"  {attached:,} venues have a Mapillary photo")
+    else:
+        print("  No photos yet — run scripts/fetch_photos.py for real imagery")
+
+    mark_notable(venues)
 
     print("\nRoutes")
     routes = build_routes(venues, dem)

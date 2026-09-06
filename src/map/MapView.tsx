@@ -20,7 +20,8 @@ import {
  */
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 
-const SINGAPORE_BOUNDS: [number, number, number, number] = [103.6, 1.2, 104.1, 1.48];
+/** Where the data currently is — the opening view, not a fence. */
+const SINGAPORE_CENTRE: [number, number] = [103.8198, 1.3521];
 
 interface MapViewProps {
   venues: Venue[];
@@ -39,7 +40,15 @@ interface MapViewProps {
   /** Raised when the basemap itself fails, so the failure is never silent. */
   onMapError?: (message: string) => void;
   /** The area currently on screen, so the list can show what is actually in view. */
-  onViewportChange?: (bounds: { west: number; south: number; east: number; north: number }) => void;
+  onViewportChange?: (
+    bounds: { west: number; south: number; east: number; north: number },
+    /**
+     * True only when a person panned or zoomed. A programmatic flyTo — from
+     * search, say — also ends in 'moveend', and treating that as a user gesture
+     * would deselect the very venue that was just picked.
+     */
+    userInitiated: boolean,
+  ) => void;
 }
 
 export function MapView({
@@ -80,12 +89,14 @@ export function MapView({
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: STYLE_URL,
-      center: [103.8198, 1.3521],
+      center: SINGAPORE_CENTRE,
       // Chosen so HDB blocks are already on screen on first paint — a map that
       // looks empty reads as broken.
       zoom: 12,
-      maxBounds: SINGAPORE_BOUNDS,
-      minZoom: 10,
+      // Deliberately not fenced to Singapore. The data is Singapore-only today,
+      // but the project is meant to cover other countries, and a camera that
+      // refuses to pan anywhere else makes that look impossible.
+      minZoom: 2,
       attributionControl: { compact: true },
     });
     mapRef.current = map;
@@ -153,17 +164,21 @@ export function MapView({
 
     // 'moveend' rather than 'move': the list only needs the settled view, and
     // recomputing it on every frame of a pan would be wasted work.
-    const reportViewport = () => {
+    const reportViewport = (e?: { originalEvent?: unknown }) => {
       const b = map.getBounds();
-      onViewportRef.current?.({
-        west: b.getWest(),
-        south: b.getSouth(),
-        east: b.getEast(),
-        north: b.getNorth(),
-      });
+      onViewportRef.current?.(
+        {
+          west: b.getWest(),
+          south: b.getSouth(),
+          east: b.getEast(),
+          north: b.getNorth(),
+        },
+        // MapLibre attaches originalEvent only for input-driven movement.
+        Boolean(e?.originalEvent),
+      );
     };
     map.on('moveend', reportViewport);
-    map.once('load', reportViewport);
+    map.once('load', () => reportViewport());
 
     const observer = new ResizeObserver(() => map.resize());
     observer.observe(containerRef.current);

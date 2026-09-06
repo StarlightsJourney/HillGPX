@@ -124,7 +124,13 @@ function MapApp() {
                 focus={focus}
                 show3d={show3d}
                 onMapError={setMapError}
-                onViewportChange={setViewport}
+                onViewportChange={(b, userInitiated) => {
+                  setViewport(b);
+                  // A card left pinned over a map you have panned away from is
+                  // describing somewhere no longer on screen. Only a real pan
+                  // counts — a flyTo from search must not undo its own pick.
+                  if (userInitiated) setSelectedSlug(null);
+                }}
               />
             </Suspense>
 

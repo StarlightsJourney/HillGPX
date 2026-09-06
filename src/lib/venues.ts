@@ -79,14 +79,43 @@ export function tallestWithin(
   return venues
     .map((venue) => ({ venue, distanceM: haversineM(lng, lat, venue.lng, venue.lat) }))
     .filter((x) => x.distanceM <= radiusM)
-    .sort((a, b) => (effectiveGain(b.venue) ?? 0) - (effectiveGain(a.venue) ?? 0))
+    .sort((a, b) => rankingHeight(b.venue) - rankingHeight(a.venue))
     .slice(0, limit);
 }
 
 /**
- * The gain figure to rank and display a venue by: the measured climb where we
- * have one, otherwise the summit height as a rough stand-in.
+ * What a venue's height figure actually means.
+ *
+ * These are different facts and conflating them misleads: Bukit Timah's summit
+ * is ~163 m above sea level, but nobody starts at sea level, so the climb from
+ * the visitor centre is far less. Presenting the summit as "163 m of climbing"
+ * overstates it by a wide margin. Callers must render the two differently.
  */
+export type HeightKind = 'gain' | 'summit';
+
+export interface VenueHeight {
+  value: number;
+  kind: HeightKind;
+}
+
+export function venueHeight(venue: Venue): VenueHeight | null {
+  if (venue.gainM != null) return { value: venue.gainM, kind: 'gain' };
+  if (venue.summitM != null) return { value: venue.summitM, kind: 'summit' };
+  return null;
+}
+
+/**
+ * A single number for sorting only — never for display.
+ *
+ * Ranking has to put summit-only venues somewhere, and their summit is the best
+ * proxy available. Anything user-facing must go through venueHeight() so the
+ * label matches the fact.
+ */
+export function rankingHeight(venue: Venue): number {
+  return venue.gainM ?? venue.summitM ?? 0;
+}
+
+/** @deprecated Use venueHeight() for display or rankingHeight() for sorting. */
 export function effectiveGain(venue: Venue): number | null {
   return venue.gainM ?? venue.summitM ?? null;
 }

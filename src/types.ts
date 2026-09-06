@@ -65,6 +65,12 @@ export interface Venue {
    * credit must be shown wherever the image is.
    */
   photo?: { url: string; credit?: string | null };
+
+  /**
+   * In the tallest few percent of everything mapped. Relative rather than a
+   * fixed metre threshold, so it still means something in another country.
+   */
+  notable?: boolean;
 }
 
 export type RouteSurface = 'trail' | 'stairs' | 'road' | 'boardwalk' | 'mixed';

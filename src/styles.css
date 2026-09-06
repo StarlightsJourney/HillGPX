@@ -409,8 +409,8 @@ button {
 
 .card-close {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 10px;
+  right: 10px;
   z-index: 1;
   background: var(--surface);
   border-radius: 50%;
@@ -468,11 +468,30 @@ button {
   padding: var(--s2) var(--s2) var(--s3);
 }
 
-.card-kicker {
-  margin: 0 0 2px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  font-size: 11px;
+.card-detail {
+  margin: 0 0 4px;
+  font-size: var(--t2);
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.card-height {
+  margin: 6px 0 10px;
+  font-size: var(--t2);
+  color: var(--muted);
+}
+.card-height strong {
+  font-size: var(--t4);
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-rule {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: var(--s2) 0;
 }
 
 .venue-card h2 {
@@ -483,32 +502,13 @@ button {
 }
 
 .venue-card h3 {
-  font-size: var(--t1);
+  font-size: var(--t2);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-  margin: var(--s3) 0 var(--s1);
+  color: var(--ink);
+  margin: 0 0 var(--s1);
 }
 
-.card-stats {
-  display: flex;
-  align-items: baseline;
-  gap: 7px;
-  margin-bottom: var(--s2);
-}
 
-.card-gain {
-  font-size: 25px;
-  font-weight: 650;
-  letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-}
-
-.card-note {
-  margin: 0 0 var(--s2);
-  line-height: 1.55;
-}
 
 /* ─── Results list ────────────────────────────────────────────────────── */
 
@@ -785,7 +785,8 @@ button {
 
 .map-toggle {
   position: absolute;
-  top: 108px;
+  /* Below MapLibre's zoom and compass stack, which this used to sit on top of. */
+  top: 152px;
   right: 10px;
   z-index: 2;
   width: 34px;

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Venue } from '../types';
-import { VENUE_TYPE_LABEL, effectiveGain, venuesInBounds } from '../lib/venues';
+import { VENUE_TYPE_LABEL, rankingHeight, venueHeight, venuesInBounds } from '../lib/venues';
 import { VenueThumb } from './VenueThumb';
 
 interface ResultsListProps {
@@ -25,7 +25,7 @@ export function ResultsList({ venues, bounds, onPick, onClose }: ResultsListProp
   const rows = useMemo(() => {
     const inView = bounds ? venuesInBounds(venues, bounds) : venues;
     return [...inView]
-      .sort((a, b) => (effectiveGain(b) ?? 0) - (effectiveGain(a) ?? 0))
+      .sort((a, b) => rankingHeight(b) - rankingHeight(a))
       .slice(0, MAX_ROWS);
   }, [venues, bounds]);
 
@@ -47,7 +47,7 @@ export function ResultsList({ venues, bounds, onPick, onClose }: ResultsListProp
 
       <ul className="results-grid">
         {rows.map((venue) => {
-          const gain = effectiveGain(venue);
+          const height = venueHeight(venue);
           return (
             <li key={venue.slug}>
               <button className="result-card" onClick={() => onPick(venue.slug)}>
@@ -58,7 +58,14 @@ export function ResultsList({ venues, bounds, onPick, onClose }: ResultsListProp
                   {venue.storeys != null && ` · ${venue.storeys} floors`}
                 </span>
                 <span className="result-card-gain">
-                  <strong>{gain != null ? `${Math.round(gain)} m` : '—'}</strong> to climb
+                  {height ? (
+                    <>
+                      <strong>{Math.round(height.value)} m</strong>{' '}
+                      {height.kind === 'gain' ? 'to climb' : 'above sea level'}
+                    </>
+                  ) : (
+                    'Height not recorded'
+                  )}
                   {venue.routeSlugs.length > 0 &&
                     ` · ${venue.routeSlugs.length} route${venue.routeSlugs.length > 1 ? 's' : ''}`}
                 </span>

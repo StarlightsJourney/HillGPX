@@ -1,6 +1,6 @@
 import type { Map as MlMap, GeoJSONSource } from 'maplibre-gl';
 import type { Venue, VenueType } from '../types';
-import { effectiveGain } from '../lib/venues';
+import { venueHeight } from '../lib/venues';
 
 /**
  * Map layer construction.
@@ -24,10 +24,8 @@ export const HDB_MIN_ZOOM = 12;
  * asked you to decode a legend to learn something the label already said, and
  * turned the map into confetti.
  */
-export const BIG_CLIMB_M = 90;
-
-export function gainColor(gainM: number | null): string {
-  return gainM != null && gainM >= BIG_CLIMB_M ? '#1a2420' : '#ffffff';
+export function gainColor(notable: boolean): string {
+  return notable ? '#222222' : '#ffffff';
 }
 
 const LANDMARK_TYPES: VenueType[] = ['hill', 'stairs', 'park'];
@@ -40,7 +38,7 @@ export function venuesToGeoJson(venues: Venue[]): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: venues.map((v) => {
-      const gain = effectiveGain(v);
+      const height = venueHeight(v);
       return {
         type: 'Feature' as const,
         geometry: { type: 'Point' as const, coordinates: [v.lng, v.lat] },
@@ -51,8 +49,10 @@ export function venuesToGeoJson(venues: Venue[]): GeoJSON.FeatureCollection {
           slug: v.slug,
           name: v.name,
           venueType: v.type,
-          gainM: gain ?? -1,
-          color: gainColor(gain),
+          heightM: height?.value ?? -1,
+          heightKind: height?.kind ?? 'none',
+          notable: Boolean(v.notable),
+          color: gainColor(Boolean(v.notable)),
           icon: `venue-${v.type}`,
           storeys: v.storeys ?? -1,
           hasRoutes: v.routeSlugs.length > 0,
@@ -244,18 +244,18 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     filter: ['==', ['get', 'venueType'], 'hdb_block'],
     minzoom: HDB_MIN_ZOOM,
     layout: {
-      'icon-image': ['case', ['>=', ['get', 'gainM'], BIG_CLIMB_M], 'pill-active', 'pill'],
+      'icon-image': ['case', ['get', 'notable'], 'pill-active', 'pill'],
       'icon-text-fit': 'both',
-      'text-field': ['concat', ['to-string', ['round', ['get', 'gainM']]], ' m'],
+      'text-field': ['concat', ['to-string', ['round', ['get', 'heightM']]], ' m'],
       'text-font': ['Noto Sans Regular'],
       'text-size': 11.5,
       'icon-allow-overlap': false,
       'text-allow-overlap': false,
       'icon-padding': 3,
-      'symbol-sort-key': ['-', 0, ['get', 'gainM']], // tallest wins a collision
+      'symbol-sort-key': ['-', 0, ['get', 'heightM']], // tallest wins a collision
     },
     paint: {
-      'text-color': ['case', ['>=', ['get', 'gainM'], BIG_CLIMB_M], '#ffffff', '#1a2420'],
+      'text-color': ['case', ['get', 'notable'], '#ffffff', '#222222'],
     },
   });
 
@@ -269,7 +269,12 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
       'icon-image': ['get', 'icon'],
       'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 0.75, 17, 1],
       'icon-allow-overlap': true,
-      'text-field': ['get', 'name'],
+      'text-field': [
+        'case',
+        ['>', ['get', 'heightM'], 0],
+        ['concat', ['get', 'name'], '  ', ['to-string', ['round', ['get', 'heightM']]], ' m'],
+        ['get', 'name'],
+      ],
       'text-font': ['Noto Sans Regular'],
       'text-size': 12,
       'text-offset': [0, 1.4],
@@ -293,11 +298,10 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     source: 'venues',
     filter: ['==', ['get', 'slug'], '__none__'],
     paint: {
-      'circle-radius': 16,
-      'circle-color': 'transparent',
-      'circle-stroke-width': 3,
-      'circle-stroke-color': '#111827',
-      'circle-opacity': 0,
+      'circle-radius': 22,
+      'circle-color': '#222222',
+      'circle-opacity': 0.1,
+      'circle-blur': 0.5,
     },
   });
 }

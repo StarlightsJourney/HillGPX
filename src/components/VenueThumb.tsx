@@ -1,5 +1,5 @@
 import type { Venue } from '../types';
-import { effectiveGain } from '../lib/venues';
+import { rankingHeight } from '../lib/venues';
 
 /**
  * A venue's image.
@@ -19,7 +19,7 @@ export function VenueThumb({ venue, rounded = true }: { venue: Venue; rounded?: 
     );
   }
 
-  const gain = effectiveGain(venue) ?? 0;
+  const gain = rankingHeight(venue);
   // 163 m is Singapore's highest ground, so the silhouette reads as a fraction
   // of the tallest thing you could climb here.
   const fill = Math.max(0.1, Math.min(1, gain / 163));

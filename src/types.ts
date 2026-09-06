@@ -64,7 +64,7 @@ export interface Venue {
    * Street-level photo from Mapillary, attached at build time. CC-BY-SA, so the
    * credit must be shown wherever the image is.
    */
-  photo?: { url: string; credit?: string | null };
+  photo?: { file: string; credit?: string | null };
 
   /**
    * In the tallest few percent of everything mapped. Relative rather than a

@@ -503,8 +503,10 @@ def main() -> None:
         attached = 0
         for v in venues:
             photo = photos.get(v["slug"])
-            if photo and photo.get("url"):
-                v["photo"] = {"url": photo["url"], "credit": photo.get("creator")}
+            if photo and photo.get("file"):
+                # A path under public/, not Mapillary's signed CDN URL, which
+                # expires about a month after it is issued.
+                v["photo"] = {"file": photo["file"], "credit": photo.get("creator")}
                 attached += 1
         print(f"  {attached:,} venues have a Mapillary photo")
     else:

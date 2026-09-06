@@ -11,10 +11,15 @@ import { rankingHeight } from '../lib/venues';
  * scaled to the climb, which at least carries the fact the card is about.
  */
 export function VenueThumb({ venue, rounded = true }: { venue: Venue; rounded?: boolean }) {
-  if (venue.photo?.url) {
+  if (venue.photo?.file) {
     return (
       <span className={`card-thumb${rounded ? '' : ' square'}`}>
-        <img src={venue.photo.url} alt={venue.name} loading="lazy" decoding="async" />
+        <img
+          src={`${import.meta.env.BASE_URL}${venue.photo.file}`}
+          alt={venue.name}
+          loading="lazy"
+          decoding="async"
+        />
       </span>
     );
   }
@@ -41,7 +46,7 @@ export function VenueThumb({ venue, rounded = true }: { venue: Venue; rounded?: 
 
 /** Attribution line. Required by CC-BY-SA wherever the photo is shown. */
 export function PhotoCredit({ venue }: { venue: Venue }) {
-  if (!venue.photo?.url) return null;
+  if (!venue.photo?.file) return null;
   return (
     <p className="photo-credit small muted">
       Photo{venue.photo.credit ? ` by ${venue.photo.credit}` : ''} ·{' '}

@@ -11,10 +11,14 @@ Mapillary is crowdsourced street-level imagery licensed CC-BY-SA, which can be
 displayed and redistributed with attribution. It is the only free source of real
 photos for arbitrary Singapore addresses that a public project can actually use.
 
-This runs at BUILD time, not in the browser. It records an image id and its
-attribution against each venue; the app then loads Mapillary's CDN URL directly.
-That keeps the "no API key to run the app" property — the token is only needed
-to regenerate the data, the way the OneMap token is.
+This runs at BUILD time, not in the browser, and it DOWNLOADS each image rather
+than recording a link to it. Mapillary serves thumbnails from a Facebook CDN
+behind signed URLs carrying an `oe` expiry roughly a month out — committing those
+links would leave every image on the site broken a month after launch, silently.
+The files live in public/photos/ and are committed with everything else, so the
+site is self-contained and the token is only needed to regenerate, the way the
+OneMap one is. The Mapillary image id is recorded too, so any image can be traced
+back to its source.
 
 Get a free token at https://www.mapillary.com/dashboard/developers and put it in
 .env.local as MAPILLARY_TOKEN.
@@ -31,11 +35,17 @@ import argparse
 import json
 import os
 import sys
+import io
 import time
 import urllib.parse
 import urllib.request
 
 import dotenv
+
+try:
+    from PIL import Image
+except ImportError:
+    sys.exit("Pillow is required: pip install -r scripts/requirements.txt")
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.join(SCRIPT_DIR, "..")
@@ -43,6 +53,12 @@ dotenv.load_dotenv(os.path.join(REPO_ROOT, ".env.local"))
 
 TOKEN = os.environ.get("MAPILLARY_TOKEN")
 OUT_PATH = os.path.join(REPO_ROOT, "data", "photos.json")
+PHOTO_DIR = os.path.join(REPO_ROOT, "public", "photos")
+
+# Cards are ~210px wide and the detail image ~330px, so 640 covers both at 2x
+# without turning the repository into an image host.
+MAX_WIDTH = 640
+JPEG_QUALITY = 78
 GRAPH_URL = "https://graph.mapillary.com/images"
 
 # How far from a venue an image may be and still be considered a photo of it.
@@ -87,6 +103,25 @@ def closest_image(lng: float, lat: float) -> dict | None:
     }
 
 
+def download(url: str, slug: str) -> str | None:
+    """Fetch, downscale and save one image. Returns its path relative to public/."""
+    os.makedirs(PHOTO_DIR, exist_ok=True)
+    dest = os.path.join(PHOTO_DIR, f"{slug}.jpg")
+    try:
+        request = urllib.request.Request(url, headers={"User-Agent": "hillGPX/0.1"})
+        with urllib.request.urlopen(request, timeout=30) as resp:
+            raw = resp.read()
+        image = Image.open(io.BytesIO(raw)).convert("RGB")
+        if image.width > MAX_WIDTH:
+            height = round(image.height * MAX_WIDTH / image.width)
+            image = image.resize((MAX_WIDTH, height), Image.LANCZOS)
+        image.save(dest, "JPEG", quality=JPEG_QUALITY, optimize=True)
+        return f"photos/{slug}.jpg"
+    except Exception as exc:  # noqa: BLE001 — a failed download is just no photo
+        print(f"    download failed for {slug}: {exc}")
+        return None
+
+
 def main(limit: int | None, only_missing: bool) -> None:
     if not TOKEN:
         sys.exit(
@@ -121,9 +156,19 @@ def main(limit: int | None, only_missing: bool) -> None:
     found = 0
     for i, venue in enumerate(targets, 1):
         image = closest_image(venue["lng"], venue["lat"])
+        record: dict = {}
+        if image and image.get("url"):
+            saved = download(image["url"], venue["slug"])
+            if saved:
+                record = {
+                    "id": image["id"],
+                    "file": saved,
+                    "creator": image.get("creator"),
+                    "capturedAt": image.get("capturedAt"),
+                }
         # Record misses too, so a re-run does not pay for them again.
-        photos[venue["slug"]] = image or {}
-        if image:
+        photos[venue["slug"]] = record
+        if record:
             found += 1
         if i % 25 == 0 or i == len(targets):
             print(f"    {i:,}/{len(targets):,}  ({found:,} with imagery)")
@@ -144,6 +189,8 @@ def _save(photos: dict[str, dict]) -> None:
     payload = {
         "source": "Mapillary",
         "licence": "CC-BY-SA 4.0 — imagery © its contributors, via Mapillary",
+        "note": "Files live in public/photos/. Mapillary's own URLs are signed and "
+                "expire about a month out, so they are not stored.",
         "photos": photos,
     }
     tmp = OUT_PATH + ".tmp"

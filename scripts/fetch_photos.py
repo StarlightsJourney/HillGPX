@@ -55,10 +55,14 @@ TOKEN = os.environ.get("MAPILLARY_TOKEN")
 OUT_PATH = os.path.join(REPO_ROOT, "data", "photos.json")
 PHOTO_DIR = os.path.join(REPO_ROOT, "public", "photos")
 
-# Cards are ~210px wide and the detail image ~330px, so 640 covers both at 2x
-# without turning the repository into an image host.
-MAX_WIDTH = 640
-JPEG_QUALITY = 78
+# Sized to what the page actually displays: cards are ~210px wide and the detail
+# image ~330px, so 420 covers the largest of them at well over 1x and is
+# indistinguishable at normal viewing. WebP rather than JPEG because it is
+# roughly a third smaller at matching quality and is supported everywhere that
+# matters. Every contributor clones these files, so each kilobyte is paid many
+# times over.
+MAX_WIDTH = 420
+WEBP_QUALITY = 72
 GRAPH_URL = "https://graph.mapillary.com/images"
 
 # How far from a venue an image may be and still be considered a photo of it.
@@ -106,7 +110,7 @@ def closest_image(lng: float, lat: float) -> dict | None:
 def download(url: str, slug: str) -> str | None:
     """Fetch, downscale and save one image. Returns its path relative to public/."""
     os.makedirs(PHOTO_DIR, exist_ok=True)
-    dest = os.path.join(PHOTO_DIR, f"{slug}.jpg")
+    dest = os.path.join(PHOTO_DIR, f"{slug}.webp")
     try:
         request = urllib.request.Request(url, headers={"User-Agent": "hillGPX/0.1"})
         with urllib.request.urlopen(request, timeout=30) as resp:
@@ -115,8 +119,8 @@ def download(url: str, slug: str) -> str | None:
         if image.width > MAX_WIDTH:
             height = round(image.height * MAX_WIDTH / image.width)
             image = image.resize((MAX_WIDTH, height), Image.LANCZOS)
-        image.save(dest, "JPEG", quality=JPEG_QUALITY, optimize=True)
-        return f"photos/{slug}.jpg"
+        image.save(dest, "WEBP", quality=WEBP_QUALITY, method=6)
+        return f"photos/{slug}.webp"
     except Exception as exc:  # noqa: BLE001 — a failed download is just no photo
         print(f"    download failed for {slug}: {exc}")
         return None

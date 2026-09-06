@@ -231,6 +231,26 @@ function makePillImage(fill: string, stroke: string): {
 export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): void {
   map.addSource('venues', { type: 'geojson', data });
 
+  // A faint dot for every block, under the pills.
+  //
+  // Collision thinning keeps the pills readable, but it also means a zoomed-out
+  // view shows a scattering of labels and nothing else — so an area full of
+  // climbable blocks looks empty. These dots restore that sense of density
+  // without competing for attention: small, soft, and uniform, they read as
+  // texture rather than as markers you are meant to aim at.
+  map.addLayer({
+    id: 'venues-hdb-dot',
+    type: 'circle',
+    source: 'venues',
+    filter: ['==', ['get', 'venueType'], 'hdb_block'],
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.1, 13, 2, 16, 3],
+      'circle-color': '#8a8178',
+      // Fades out as the pills take over, so the two never fight.
+      'circle-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 0.45, 16, 0.15],
+    },
+  });
+
   // Blocks are labelled pills at every zoom they appear at. Letting MapLibre's
   // collision detection thin them — rather than drawing all 10,796 as dots — is
   // what keeps the map from reading as confetti: at city zoom only the handful

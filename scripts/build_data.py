@@ -39,6 +39,9 @@ DEM_DIR = os.path.join(OUT_DIR, "dem")
 # A venue is considered "on" a route if the track passes within this distance.
 VENUE_LINK_RADIUS_M = 150.0
 
+# Two summit records this close together are the same hill.
+DEDUPE_RADIUS_M = 250.0
+
 # Ignore rises smaller than this when accumulating gain. Mirrors the default in
 # src/lib/elevation.ts — keep the two in step or the app will disagree with the
 # numbers baked into routes.json.
@@ -257,13 +260,21 @@ def load_venues() -> list[dict]:
     if os.path.exists(peaks_path):
         with open(peaks_path, encoding="utf-8") as fh:
             peaks = json.load(fh)["venues"]
-        # Curated entries win on a slug clash: a hand-checked height beats an
-        # OSM tag of unknown provenance.
-        known = {v["slug"] for v in venues}
-        added = [p for p in peaks if p["slug"] not in known]
-        for v in added:
-            venues.append({**v, "routeSlugs": []})
-        print(f"  {len(added):,} OSM summits")
+        # Deduplicate by position, not by slug. OSM slugs carry the node id, so
+        # a slug comparison never matched and Bukit Timah appeared twice — the
+        # curated entry and the OSM node 10 m apart, with slightly different
+        # heights. Anything within DEDUPE_RADIUS_M of a venue already loaded is
+        # the same hill under another name.
+        added = []
+        for peak in peaks:
+            if any(
+                haversine_m(peak["lng"], peak["lat"], v["lng"], v["lat"]) < DEDUPE_RADIUS_M
+                for v in venues
+            ):
+                continue
+            venues.append({**peak, "routeSlugs": []})
+            added.append(peak)
+        print(f"  {len(added):,} OSM summits ({len(peaks) - len(added):,} merged as duplicates)")
     else:
         print("  No OSM summits yet — run scripts/fetch_peaks.py --region sg-my")
 
@@ -511,6 +522,14 @@ def main() -> None:
         print(f"  {attached:,} venues have a Mapillary photo")
     else:
         print("  No photos yet — run scripts/fetch_photos.py for real imagery")
+
+    # A venue whose height nobody has recorded cannot answer the one question
+    # this map exists to answer, so it is not carried into the dataset.
+    before = len(venues)
+    venues = [v for v in venues if v.get("gainM") is not None or v.get("summitM") is not None]
+    dropped = before - len(venues)
+    if dropped:
+        print(f"  {dropped:,} venues dropped for having no recorded height")
 
     mark_notable(venues)
 

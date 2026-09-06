@@ -68,23 +68,36 @@ export function venuesToGeoJson(venues: Venue[]): GeoJSON.FeatureCollection {
  * a build step to regenerate the sprite.
  */
 const ICON_SVG: Record<VenueType, string> = {
-  // A mountain. The thing you asked for: Bukit Timah reads as a peak, not a dot.
-  hill: `<path d="M4 26 L14 8 L20 18 L24 12 L32 26 Z" fill="currentColor"/>
-         <path d="M11 13.5 L14 8 L17 13.5 L14.6 12.6 L13 14 Z" fill="#ffffff" opacity="0.9"/>`,
-  stairs: `<path d="M5 27 h7 v-6 h7 v-6 h7 v-6 h4 v4 h-7 v6 h-7 v6 h-7 v6 h-4 z" fill="currentColor"/>`,
-  park: `<path d="M18 27 h-2 v-6 h4 v6 z" fill="currentColor"/>
-         <path d="M18 5 L27 20 H9 Z" fill="currentColor"/>`,
-  hdb_block: `<rect x="10" y="6" width="12" height="21" rx="1.5" fill="currentColor"/>
-              <g fill="#ffffff" opacity="0.85">
-                <rect x="12.5" y="9" width="3" height="3"/><rect x="17" y="9" width="3" height="3"/>
-                <rect x="12.5" y="14" width="3" height="3"/><rect x="17" y="14" width="3" height="3"/>
-                <rect x="12.5" y="19" width="3" height="3"/><rect x="17" y="19" width="3" height="3"/>
+  // Two peaks with a snow cap and a shadowed face — reads as a mountain at
+  // 16px, which a single flat triangle does not.
+  hill: `<path d="M2 25 L11.5 8.5 L17 18 L20.5 13 L30 25 Z" fill="currentColor"/>
+         <path d="M11.5 8.5 L17 18 L14.6 16.8 L12.6 18.4 L10.4 16.6 L8 18 Z" fill="#fff" opacity="0.92"/>
+         <path d="M11.5 8.5 L17 18 L11.5 25 Z" fill="#000" opacity="0.13"/>`,
+  // A flight of steps with a handrail, read left to right and rising.
+  stairs: `<path d="M4 26 h6 v-5 h6 v-5 h6 v-5 h6" fill="none" stroke="currentColor"
+             stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+           <path d="M4 26 h6 v-5 h6 v-5 h6 v-5 h6 v9 H4 z" fill="currentColor" opacity="0.22"/>`,
+  // A broadleaf canopy on a trunk, distinct from the mountain's silhouette.
+  park: `<path d="M16 25 v-5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+         <circle cx="16" cy="13" r="7.5" fill="currentColor"/>
+         <circle cx="10" cy="16.5" r="4.6" fill="currentColor"/>
+         <circle cx="22" cy="16.5" r="4.6" fill="currentColor"/>`,
+  // A slab block with a lit stairwell core — what you actually climb.
+  hdb_block: `<rect x="9" y="6" width="14" height="21" rx="1.5" fill="currentColor"/>
+              <rect x="14.4" y="9" width="3.2" height="18" fill="#fff" opacity="0.5"/>
+              <g fill="#fff" opacity="0.85">
+                <rect x="11" y="9" width="2.4" height="2.4"/><rect x="18.6" y="9" width="2.4" height="2.4"/>
+                <rect x="11" y="13.4" width="2.4" height="2.4"/><rect x="18.6" y="13.4" width="2.4" height="2.4"/>
+                <rect x="11" y="17.8" width="2.4" height="2.4"/><rect x="18.6" y="17.8" width="2.4" height="2.4"/>
               </g>`,
-  carpark: `<rect x="7" y="7" width="18" height="18" rx="3" fill="currentColor"/>
-            <text x="16" y="22" font-family="system-ui,sans-serif" font-size="15" font-weight="700"
-                  text-anchor="middle" fill="#ffffff">P</text>`,
-  bridge: `<path d="M4 20 q12 -12 24 0" stroke="currentColor" stroke-width="3" fill="none"/>
-           <path d="M4 20 v6 M28 20 v6 M16 14 v12" stroke="currentColor" stroke-width="2.5" fill="none"/>`,
+  carpark: `<rect x="6" y="6" width="20" height="20" rx="4" fill="currentColor"/>
+            <path d="M13 22 V11 h4.2 a3.4 3.4 0 0 1 0 6.8 H13" fill="none" stroke="#fff"
+              stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`,
+  bridge: `<path d="M3 19 q13 -11 26 0" stroke="currentColor" stroke-width="2.6" fill="none"
+             stroke-linecap="round"/>
+           <path d="M3 19 v7 M29 19 v7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+           <path d="M10 15.2 v10.8 M16 13.6 v12.4 M22 15.2 v10.8" stroke="currentColor"
+             stroke-width="1.7" opacity="0.75"/>`,
 };
 
 function iconSvg(type: VenueType, color: string): string {

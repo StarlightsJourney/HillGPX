@@ -1,6 +1,7 @@
 import type { Route, Venue } from '../types';
 import { VENUE_TYPE_LABEL, effectiveGain, formatDistance } from '../lib/venues';
 import { ElevationProfile } from './ElevationProfile';
+import { PhotoCredit, VenueThumb } from './VenueThumb';
 
 const REPO_URL = 'https://github.com/StarlightsJourney/HillGPX';
 
@@ -35,7 +36,9 @@ export function VenueCard({
         ×
       </button>
 
-      <PhotoSlot venue={venue} />
+      <div className="card-photo">
+        <VenueThumb venue={venue} rounded={false} />
+      </div>
 
       <div className="card-body">
         <p className="card-kicker small muted">
@@ -45,11 +48,19 @@ export function VenueCard({
         <h2>{venue.name}</h2>
 
         <div className="card-stats">
-          <span className="card-gain">{gain != null ? `${Math.round(gain)} m` : '—'}</span>
-          <span className="small muted">
-            of climbing
-            {venue.storeys != null && ` · ${venue.storeys} floors`}
-          </span>
+          {gain != null ? (
+            <>
+              <span className="card-gain">{Math.round(gain)} m</span>
+              <span className="small muted">
+                of climbing
+                {venue.storeys != null && ` · ${venue.storeys} floors`}
+              </span>
+            </>
+          ) : (
+            // A bare em dash reads as a rendering fault. Say what is actually
+            // true: nobody has measured this one.
+            <span className="small muted">Height not measured yet</span>
+          )}
         </div>
 
         {venue.elevationSource === 'estimated' && (
@@ -62,6 +73,8 @@ export function VenueCard({
         )}
 
         {venue.notes && <p className="small muted card-note">{venue.notes}</p>}
+
+        <PhotoCredit venue={venue} />
 
         <h3>Routes</h3>
         {routes.length === 0 ? (
@@ -96,33 +109,5 @@ export function VenueCard({
         {activeRoute && <ElevationProfile points={activeRoute.coordinates} height={90} />}
       </div>
     </aside>
-  );
-}
-
-/**
- * Where a contributed photo will go.
- *
- * Until someone adds one this draws a silhouette scaled to the venue's climb, so
- * a 20 m block and a 160 m hill look different at a glance. It is a placeholder
- * that still carries the one fact the card is about, rather than a grey box.
- */
-function PhotoSlot({ venue }: { venue: Venue }) {
-  const gain = effectiveGain(venue) ?? 0;
-  // 160 m is roughly Singapore's highest ground, so this reads as a fraction of
-  // the tallest thing you could climb here.
-  const fill = Math.max(0.08, Math.min(1, gain / 160));
-
-  return (
-    <div className="photo-slot" aria-hidden="true">
-      {venue.type === 'hdb_block' ? (
-        <svg viewBox="0 0 100 60" preserveAspectRatio="none" className="silhouette">
-          <rect x="34" y={60 - fill * 52} width="32" height={fill * 52} rx="1.5" />
-        </svg>
-      ) : (
-        <svg viewBox="0 0 100 60" preserveAspectRatio="none" className="silhouette">
-          <path d={`M8 60 L50 ${60 - fill * 52} L92 60 Z`} />
-        </svg>
-      )}
-    </div>
   );
 }

@@ -59,6 +59,12 @@ export interface Venue {
 
   /** Free-text context: access, gate hours, whether the stairwell is open. */
   notes?: string;
+
+  /**
+   * Street-level photo from Mapillary, attached at build time. CC-BY-SA, so the
+   * credit must be shown wherever the image is.
+   */
+  photo?: { url: string; credit?: string | null };
 }
 
 export type RouteSurface = 'trail' | 'stairs' | 'road' | 'boardwalk' | 'mixed';

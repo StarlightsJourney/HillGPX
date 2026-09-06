@@ -190,7 +190,7 @@ def slugify(text: str) -> str:
 # Keys dropped from a venue when they carry no information. At ~10.8k blocks a
 # redundant key costs hundreds of kilobytes of JSON the browser has to parse, so
 # the output keeps only what the app actually reads.
-OPTIONAL_KEYS = ("summitM", "town", "yearCompleted", "notes", "storeys", "blkNo", "street")
+OPTIONAL_KEYS = ("summitM", "town", "yearCompleted", "notes", "storeys", "blkNo", "street", "photo")
 
 # ~1.1 m at the equator, which is finer than a building pin needs. OneMap
 # returns full float precision; writing all 16 digits is pure waste.
@@ -206,6 +206,15 @@ def compact(venue: dict) -> dict:
             v = round(v, COORD_DP)
         out[k] = v
     return out
+
+
+def load_photos() -> dict[str, dict]:
+    """Mapillary photo records, if scripts/fetch_photos.py has been run."""
+    path = os.path.join(REPO_ROOT, "data", "photos.json")
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh).get("photos", {})
 
 
 def load_venues() -> list[dict]:

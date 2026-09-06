@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { Venue } from '../types';
 import { VENUE_TYPE_LABEL, effectiveGain, venuesInBounds } from '../lib/venues';
+import { VenueThumb } from './VenueThumb';
 
 interface ResultsListProps {
   venues: Venue[];
@@ -50,13 +51,14 @@ export function ResultsList({ venues, bounds, onPick, onClose }: ResultsListProp
           return (
             <li key={venue.slug}>
               <button className="result-card" onClick={() => onPick(venue.slug)}>
-                <span className="result-card-gain">
-                  {gain != null ? `${Math.round(gain)} m` : '—'}
-                </span>
+                <VenueThumb venue={venue} />
                 <span className="result-card-name">{venue.name}</span>
-                <span className="small muted">
+                <span className="result-card-meta">
                   {VENUE_TYPE_LABEL[venue.type]}
                   {venue.storeys != null && ` · ${venue.storeys} floors`}
+                </span>
+                <span className="result-card-gain">
+                  <strong>{gain != null ? `${Math.round(gain)} m` : '—'}</strong> to climb
                   {venue.routeSlugs.length > 0 &&
                     ` · ${venue.routeSlugs.length} route${venue.routeSlugs.length > 1 ? 's' : ''}`}
                 </span>

@@ -5,7 +5,7 @@ import { effectiveGain } from '../lib/venues';
 /**
  * Map layer construction.
  *
- * The central problem this file solves: there are ~13,000 HDB blocks and about a
+ * The central problem this file solves: there are ~10,800 HDB blocks and about a
  * dozen hills, and the hills must not drown. So the two are drawn as separate
  * layers with different rules — landmarks (hills, stairs, parks) carry an icon
  * and are visible at every zoom because they are the things people navigate by,

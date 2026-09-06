@@ -15,7 +15,7 @@ const NEARBY_RADIUS_M = 2000;
 /**
  * Search, and "what's the biggest climb near me".
  *
- * Matching runs over the whole venue list on every keystroke. At ~13k venues a
+ * Matching runs over the whole venue list on every keystroke. At ~10.8k venues a
  * lowercase substring scan is about a millisecond, so there is no index and no
  * debounce — both would be machinery for a cost that is not being paid. If the
  * dataset ever grows past a country, revisit that.

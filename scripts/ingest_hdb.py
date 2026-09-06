@@ -7,7 +7,7 @@ and writes a plain JSON file that `build_data.py` folds into the app's static
 dataset. There is no database: the output is a file you commit, so a correction
 to a block is a reviewable pull request rather than an invisible UPDATE.
 
-This is slow (~13k blocks at 250 ms per geocode) and only needs re-running when
+This is slow (~10,800 blocks at 250 ms per geocode) and only needs re-running when
 HDB publishes new data — roughly annually. Results are cached in
 scripts/.cache/geocode.json, so an interrupted run resumes almost instantly and
 a re-run only geocodes blocks it has never seen.
@@ -284,7 +284,7 @@ def geocode_onemap_search(query: str, token: str) -> tuple[float, float] | None:
 # ---------------------------------------------------------------------------
 # Geocode cache
 #
-# A full run is ~13k OneMap calls at 250 ms apiece — the better part of an hour.
+# A full run is ~10,800 OneMap calls at 250 ms apiece — the better part of an hour.
 # Caching by standardised address means an interrupted run resumes for free and
 # an annual refresh only pays for blocks that are genuinely new.
 # ---------------------------------------------------------------------------

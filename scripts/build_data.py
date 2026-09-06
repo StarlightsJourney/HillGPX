@@ -187,6 +187,27 @@ def slugify(text: str) -> str:
     return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", text.lower())).strip("-")
 
 
+# Keys dropped from a venue when they carry no information. At ~10.8k blocks a
+# redundant key costs hundreds of kilobytes of JSON the browser has to parse, so
+# the output keeps only what the app actually reads.
+OPTIONAL_KEYS = ("summitM", "town", "yearCompleted", "notes", "storeys", "blkNo", "street")
+
+# ~1.1 m at the equator, which is finer than a building pin needs. OneMap
+# returns full float precision; writing all 16 digits is pure waste.
+COORD_DP = 5
+
+
+def compact(venue: dict) -> dict:
+    out = {}
+    for k, v in venue.items():
+        if k in OPTIONAL_KEYS and v is None:
+            continue
+        if k in ("lat", "lng"):
+            v = round(v, COORD_DP)
+        out[k] = v
+    return out
+
+
 def load_venues() -> list[dict]:
     """Curated venues first, then generated HDB blocks if they have been built."""
     venues: list[dict] = []
@@ -194,7 +215,7 @@ def load_venues() -> list[dict]:
     hills_path = os.path.join(VENUE_DIR, "hills.json")
     with open(hills_path, encoding="utf-8") as fh:
         for v in json.load(fh)["venues"]:
-            venues.append({**v, "id": v["slug"], "routeSlugs": []})
+            venues.append({**v, "routeSlugs": []})
     print(f"  {len(venues)} curated venues")
 
     hdb_path = os.path.join(VENUE_DIR, "hdb-blocks.json")
@@ -202,7 +223,7 @@ def load_venues() -> list[dict]:
         with open(hdb_path, encoding="utf-8") as fh:
             blocks = json.load(fh)["venues"]
         for v in blocks:
-            venues.append({**v, "id": v["slug"], "routeSlugs": []})
+            venues.append({**v, "routeSlugs": []})
         print(f"  {len(blocks):,} HDB blocks")
     else:
         print("  No HDB blocks yet — run scripts/ingest_hdb.py to add them")
@@ -323,7 +344,6 @@ def build_routes(venues: list[dict], dem: Dem | None) -> list[dict]:
         is_loop = haversine_m(start[0], start[1], end[0], end[1]) < 100
 
         routes.append({
-            "id": slug,
             "slug": slug,
             "name": name,
             "venueSlugs": venue_slugs,
@@ -449,7 +469,11 @@ def main() -> None:
     generated_at = datetime.now(timezone.utc).isoformat()
 
     with open(os.path.join(OUT_DIR, "venues.json"), "w", encoding="utf-8") as fh:
-        json.dump({"generatedAt": generated_at, "venues": venues}, fh, separators=(",", ":"))
+        json.dump(
+            {"generatedAt": generated_at, "venues": [compact(v) for v in venues]},
+            fh,
+            separators=(",", ":"),
+        )
     with open(os.path.join(OUT_DIR, "routes.json"), "w", encoding="utf-8") as fh:
         json.dump({"generatedAt": generated_at, "routes": routes}, fh, separators=(",", ":"))
 

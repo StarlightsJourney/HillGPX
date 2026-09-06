@@ -6,7 +6,7 @@ import { haversineM } from './elevation';
  *
  * Everything is served from static JSON. There is no backend, so all filtering
  * and nearest-neighbour work happens here in the browser over the full dataset.
- * At ~13k venues a linear scan is well under a frame, so this deliberately uses
+ * At ~10.8k venues a linear scan is well under a frame, so this deliberately uses
  * no spatial index — reach for one only if that stops being true.
  */
 

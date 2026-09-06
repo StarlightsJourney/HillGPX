@@ -26,15 +26,18 @@ export type VenueType =
 export type ElevationSource = 'estimated' | 'dem' | 'community' | 'verified';
 
 export interface Venue {
-  id: string;
   slug: string;
   name: string;
   type: VenueType;
   lat: number;
   lng: number;
 
-  /** Elevation of the top above sea level, in metres. Null when unknown. */
-  summitM: number | null;
+  /**
+   * Elevation of the top above sea level, in metres. Absent when unknown — the
+   * generated dataset omits empty fields rather than writing them out ~10,800
+   * times over.
+   */
+  summitM?: number | null;
   /**
    * Elevation gained from the usual starting point to the top, in metres.
    * This — not `summitM` — is the number that matters for training: Bukit Timah
@@ -46,6 +49,7 @@ export interface Venue {
 
   /** HDB blocks only. */
   storeys?: number | null;
+  yearCompleted?: number | null;
   town?: string | null;
   blkNo?: string | null;
   street?: string | null;
@@ -64,7 +68,6 @@ export type RouteDifficulty = 'easy' | 'moderate' | 'hard';
 export type RoutePoint = [number, number, number];
 
 export interface Route {
-  id: string;
   slug: string;
   name: string;
 

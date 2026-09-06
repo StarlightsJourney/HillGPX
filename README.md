@@ -28,7 +28,7 @@ Everything the app needs is a static file:
 ```
 data/                       what humans edit
 ├── venues/hills.json       curated hills, stairs and parks
-├── venues/hdb-blocks.json  generated — 13k HDB blocks
+├── venues/hdb-blocks.json  generated — 10,796 HDB blocks
 └── routes/*.gpx            one GPX per route, plus an optional .json sidecar
         │
         │  scripts/build_data.py
@@ -50,7 +50,7 @@ python scripts/fetch_dem.py     # terrain model, ~3.5 MB — run once
 python scripts/build_data.py    # merge venues + routes -> public/data/
 ```
 
-`scripts/ingest_hdb.py` regenerates the 13,000 HDB blocks from data.gov.sg. It takes about an hour on a cold cache and only needs running when HDB publishes new data — roughly annually — so you almost certainly don't need to.
+`scripts/ingest_hdb.py` regenerates the 10,796 residential HDB blocks from data.gov.sg. It takes about an hour on a cold cache and only needs running when HDB publishes new data — roughly annually — so you almost certainly don't need to.
 
 ## Why elevation is re-sampled, not read
 
@@ -63,7 +63,7 @@ Singapore is small enough (~50 × 27 km) that the whole country at ~38 m resolut
 ## The map
 
 - **Hills, staircases and parks** carry an icon and are visible at every zoom. They're landmarks — you navigate by them.
-- **HDB blocks** are dots, and only appear once you've zoomed into a neighbourhood. There are 13,000 of them; shown at every zoom they'd bury everything else.
+- **HDB blocks** are dots, and only appear once you've zoomed into a neighbourhood. There are 10,796 of them; shown at every zoom they'd bury everything else.
 - Colour is elevation gain, from blue (under 30 m) through to purple (120 m and up). One ramp for hills and blocks alike, so a 40-storey block and a small hill read as the same size of climb — because they are.
 
 ## Roadmap

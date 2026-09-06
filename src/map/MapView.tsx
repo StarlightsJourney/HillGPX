@@ -27,6 +27,11 @@ interface MapViewProps {
   onSelectVenue: (slug: string | null) => void;
   /** Reported so the UI can prompt to zoom in when blocks are still hidden. */
   onZoomChange?: (zoom: number) => void;
+  /**
+   * Where to fly the camera. Carries a nonce so that picking the same venue
+   * twice still re-centres the map rather than being skipped as unchanged.
+   */
+  focus?: { lng: number; lat: number; nonce: number } | null;
 }
 
 export function MapView({
@@ -35,6 +40,7 @@ export function MapView({
   activeRoute,
   onSelectVenue,
   onZoomChange,
+  focus,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
@@ -152,6 +158,18 @@ export function MapView({
     if (!map || !readyRef.current) return;
     setSelectedVenue(map, selectedSlug);
   }, [selectedSlug]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !focus) return;
+    map.flyTo({
+      center: [focus.lng, focus.lat],
+      // Past the HDB threshold, so a searched block is actually drawn on arrival.
+      zoom: Math.max(map.getZoom(), 16),
+      duration: 900,
+      essential: true,
+    });
+  }, [focus]);
 
   useEffect(() => {
     const map = mapRef.current;

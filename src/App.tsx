@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react
 import { Landing } from './components/Landing';
 import { VenuePanel } from './components/VenuePanel';
 import { GpxDropzone } from './components/GpxDropzone';
+import { SearchBar } from './components/SearchBar';
 import { ElevationModel } from './lib/elevation';
 import { loadDataset, routesForVenue, type Dataset } from './lib/venues';
 import type { RoutePoint } from './types';
@@ -43,6 +44,7 @@ function MapApp() {
   const [droppedRoute, setDroppedRoute] = useState<RoutePoint[] | null>(null);
   const [zoom, setZoom] = useState(12);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [focus, setFocus] = useState<{ lng: number; lat: number; nonce: number } | null>(null);
 
   useEffect(() => {
     loadDataset()
@@ -76,6 +78,19 @@ function MapApp() {
     // On a phone the panel is a bottom sheet; picking something should raise it.
     if (slug) setSheetOpen(true);
   }, []);
+
+  // Picking from search or "near me" both selects the venue and flies to it.
+  const handlePickFromSearch = useCallback(
+    (slug: string) => {
+      const venue = dataset?.bySlug.get(slug);
+      if (!venue) return;
+      setSelectedSlug(slug);
+      setActiveRouteSlug(null);
+      setSheetOpen(true);
+      setFocus({ lng: venue.lng, lat: venue.lat, nonce: Date.now() });
+    },
+    [dataset],
+  );
 
   const closePanel = useCallback(() => {
     setSelectedSlug(null);
@@ -116,9 +131,12 @@ function MapApp() {
                 activeRoute={activeRoutePoints}
                 onSelectVenue={handleSelectVenue}
                 onZoomChange={setZoom}
+                focus={focus}
               />
             </Suspense>
           )}
+
+          <SearchBar venues={dataset?.venues ?? []} onPick={handlePickFromSearch} />
 
           {zoom < HDB_MIN_ZOOM && <div className="zoom-hint small">Zoom in for HDB blocks</div>}
           <Legend />

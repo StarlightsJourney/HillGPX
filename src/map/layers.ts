@@ -1,4 +1,4 @@
-import type { Map as MlMap, ExpressionSpecification, GeoJSONSource } from 'maplibre-gl';
+import type { Map as MlMap, GeoJSONSource } from 'maplibre-gl';
 import type { Venue, VenueType } from '../types';
 import { effectiveGain } from '../lib/venues';
 
@@ -18,23 +18,16 @@ import { effectiveGain } from '../lib/venues';
 // as broken. A circle layer handles the few thousand visible here comfortably.
 export const HDB_MIN_ZOOM = 12;
 
-/** Above this, blocks swap from dots to labelled pills. */
-export const PILL_MIN_ZOOM = 14.5;
-
-/** Colour ramp over metres of elevation gain. */
-export const GAIN_TIERS: { min: number; color: string; label: string }[] = [
-  { min: 0, color: '#4a90d9', label: 'Under 30 m' },
-  { min: 30, color: '#38a58a', label: '30–60 m' },
-  { min: 60, color: '#e8913a', label: '60–90 m' },
-  { min: 90, color: '#d9534f', label: '90–120 m' },
-  { min: 120, color: '#8e5bd0', label: '120 m and up' },
-];
+/**
+ * One accent, used only to mark the biggest climbs. The pill already prints the
+ * number, so a five-colour ramp was a second encoding of the same fact — it
+ * asked you to decode a legend to learn something the label already said, and
+ * turned the map into confetti.
+ */
+export const BIG_CLIMB_M = 90;
 
 export function gainColor(gainM: number | null): string {
-  if (gainM == null) return '#9aa0a6';
-  let color = GAIN_TIERS[0].color;
-  for (const tier of GAIN_TIERS) if (gainM >= tier.min) color = tier.color;
-  return color;
+  return gainM != null && gainM >= BIG_CLIMB_M ? '#1a2420' : '#ffffff';
 }
 
 const LANDMARK_TYPES: VenueType[] = ['hill', 'stairs', 'park'];
@@ -222,58 +215,35 @@ function makePillImage(fill: string, stroke: string): {
   };
 }
 
-/** Dot size grows with zoom so blocks stay tappable without crowding. */
-const HDB_RADIUS: ExpressionSpecification = [
-  'interpolate',
-  ['linear'],
-  ['zoom'],
-  HDB_MIN_ZOOM,
-  2.5,
-  16,
-  6,
-  18,
-  9,
-];
-
 export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): void {
   map.addSource('venues', { type: 'geojson', data });
 
-  // HDB blocks: plain dots, zoom-gated. Drawn first so landmarks sit above them.
-  map.addLayer({
-    id: 'venues-hdb',
-    type: 'circle',
-    source: 'venues',
-    filter: ['==', ['get', 'venueType'], 'hdb_block'],
-    minzoom: HDB_MIN_ZOOM,
-    maxzoom: PILL_MIN_ZOOM,
-    paint: {
-      'circle-radius': HDB_RADIUS,
-      'circle-color': ['get', 'color'],
-      'circle-stroke-width': 1.5,
-      'circle-stroke-color': '#ffffff',
-      'circle-opacity': 0.9,
-    },
-  });
-
-  // Close in, blocks show their climb as a label. Below this the numbers would
-  // overlap into noise, so the dot layer above carries them instead.
+  // Blocks are labelled pills at every zoom they appear at. Letting MapLibre's
+  // collision detection thin them — rather than drawing all 10,796 as dots — is
+  // what keeps the map from reading as confetti: at city zoom only the handful
+  // that fit are drawn, and `symbol-sort-key` guarantees those are the biggest
+  // climbs. Zooming in reveals the rest. It is the behaviour Airbnb's price
+  // pins have, and it needs no density heuristic of our own.
   map.addLayer({
     id: 'venues-hdb-pill',
     type: 'symbol',
     source: 'venues',
     filter: ['==', ['get', 'venueType'], 'hdb_block'],
-    minzoom: PILL_MIN_ZOOM,
+    minzoom: HDB_MIN_ZOOM,
     layout: {
-      'icon-image': 'pill',
+      'icon-image': ['case', ['>=', ['get', 'gainM'], BIG_CLIMB_M], 'pill-active', 'pill'],
       'icon-text-fit': 'both',
       'text-field': ['concat', ['to-string', ['round', ['get', 'gainM']]], ' m'],
       'text-font': ['Noto Sans Regular'],
-      'text-size': 11,
+      'text-size': 11.5,
       'icon-allow-overlap': false,
       'text-allow-overlap': false,
+      'icon-padding': 3,
       'symbol-sort-key': ['-', 0, ['get', 'gainM']], // tallest wins a collision
     },
-    paint: { 'text-color': '#1a2420' },
+    paint: {
+      'text-color': ['case', ['>=', ['get', 'gainM'], BIG_CLIMB_M], '#ffffff', '#1a2420'],
+    },
   });
 
   // Landmarks: always visible, always iconed.

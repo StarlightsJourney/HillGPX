@@ -65,10 +65,12 @@ body {
   background: var(--bg);
   color: var(--ink);
   font:
-    15px/1.55 system-ui,
+    15px/1.55 'Inter',
+    system-ui,
     -apple-system,
     'Segoe UI',
     sans-serif;
+  font-feature-settings: 'cv11'; /* single-storey a, closer to Airbnb's face */
   -webkit-font-smoothing: antialiased;
 }
 
@@ -91,14 +93,24 @@ button {
   color: var(--danger);
 }
 
+/* The gap here is for the logo lockup on the landing page and must NOT apply to
+   the plain text wordmark: "hill" and the "GPX" span are separate flex children,
+   so a gap wedges a space into the middle of the name. */
 .wordmark {
-  font-weight: 680;
+  font-weight: 620;
+  font-size: var(--t3);
   letter-spacing: -0.02em;
   text-decoration: none;
   color: var(--ink);
+  white-space: nowrap;
 }
 .wordmark .dot {
   color: var(--accent);
+}
+.lp-nav .wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
 }
 
 /* ─── Landing ─────────────────────────────────────────────────────────── */
@@ -131,21 +143,6 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: var(--s3) 0;
-}
-
-.wordmark {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  font-size: var(--t3);
-  font-weight: 620;
-  letter-spacing: -0.015em;
-  text-decoration: none;
-  color: var(--ink);
-}
-
-.wordmark .dot {
-  color: var(--accent);
 }
 
 .mark {
@@ -333,6 +330,10 @@ button {
 
 /* ─── App shell ───────────────────────────────────────────────────────── */
 
+/* Structured the way Airbnb structures a map search: a slim bar, the map filling
+   everything below it, and detail arriving as cards over the map rather than a
+   column permanently taking a third of the screen. */
+
 .app {
   display: flex;
   flex-direction: column;
@@ -341,26 +342,32 @@ button {
 }
 
 .topbar {
-  height: var(--topbar-h);
+  height: 64px;
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 14px;
+  gap: var(--s2);
+  padding: 0 var(--s3);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  z-index: 3;
+  z-index: 4;
 }
 
-.sheet-toggle {
-  background: var(--bg);
+.ghost-btn {
+  flex: none;
+  background: none;
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 7px 15px;
+  padding: 9px 16px;
+  font-size: var(--t2);
+  font-weight: 600;
   cursor: pointer;
 }
+.ghost-btn:hover {
+  background: var(--bg-raised);
+}
 
-.layout {
+.stage {
   flex: 1;
   position: relative;
   min-height: 0;
@@ -387,249 +394,247 @@ button {
   height: 100%;
 }
 
-/* ─── Detail panel: bottom sheet on phones ────────────────────────────── */
+/* ─── Venue card ──────────────────────────────────────────────────────── */
 
-.sidebar {
+.venue-card {
   position: absolute;
+  z-index: 3;
+  left: var(--s3);
+  bottom: var(--s3);
+  width: 340px;
+  max-height: calc(100% - var(--s4));
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
+}
+
+.card-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  background: var(--surface);
+  border-radius: 50%;
+  min-width: 32px;
+  min-height: 32px;
+  font-size: 20px;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 20%);
+}
+
+.photo-slot {
+  height: 150px;
+  background: var(--bg-raised);
+  border-radius: 14px 14px 0 0;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+
+.silhouette {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.silhouette rect,
+.silhouette path {
+  fill: var(--accent);
+  opacity: 0.42;
+}
+
+.card-body {
+  padding: var(--s2) var(--s2) var(--s3);
+}
+
+.card-kicker {
+  margin: 0 0 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 11px;
+}
+
+.venue-card h2 {
+  font-size: var(--t4);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--s1);
+}
+
+.venue-card h3 {
+  font-size: var(--t1);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: var(--s3) 0 var(--s1);
+}
+
+.card-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: var(--s2);
+}
+
+.card-gain {
+  font-size: 25px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-note {
+  margin: 0 0 var(--s2);
+  line-height: 1.55;
+}
+
+/* ─── Results list ────────────────────────────────────────────────────── */
+
+.results {
+  position: absolute;
+  z-index: 3;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 2;
-  max-height: 82%;
+  max-height: 62%;
+  overflow-y: auto;
   background: var(--surface);
   border-top: 1px solid var(--border);
-  border-radius: var(--radius) var(--radius) 0 0;
-  box-shadow: 0 -6px 24px rgb(0 0 0 / 10%);
-  padding: 4px 16px calc(16px + env(safe-area-inset-bottom));
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-
-  transform: translateY(calc(100% - var(--sheet-peek)));
-  transition: transform 0.22s ease;
-  will-change: transform;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 28px rgb(0 0 0 / 16%);
+  padding: var(--s3);
 }
 
-.sidebar.open {
-  transform: translateY(0);
-}
-
-.sheet-grip {
-  align-self: center;
-  flex: none;
-  width: 40px;
-  height: 4px;
-  padding: 0;
-  border: none;
-  border-radius: 2px;
-  background: var(--border);
-  margin: 8px 0 2px;
-  cursor: pointer;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sidebar {
-    transition: none;
-  }
-}
-
-@media (min-width: 861px) {
-  .layout {
-    display: grid;
-    grid-template-columns: 1fr 360px;
-  }
-  .map-wrap {
-    position: relative;
-    inset: auto;
-  }
-  .sidebar {
-    position: relative;
-    max-height: none;
-    transform: none;
-    border-top: none;
-    border-left: 1px solid var(--border);
-    border-radius: 0;
-    box-shadow: none;
-    padding: 16px;
-    transition: none;
-    will-change: auto;
-  }
-  .sheet-grip,
-  .sheet-toggle {
-    display: none;
-  }
-}
-
-/* ─── Panel contents ──────────────────────────────────────────────────── */
-
-.panel h2 {
-  font-size: 19px;
-  margin: 4px 0 2px;
-  letter-spacing: -0.015em;
-}
-
-.panel h3 {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--muted);
-  margin: 18px 0 8px;
-}
-
-.panel-head {
+.results-head {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
 }
 
-.icon-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 8px;
-  border-radius: 6px;
-  /* Comfortable touch target without visually enlarging the glyph. */
-  min-width: 44px;
-  min-height: 44px;
+.results-head h2 {
+  font-size: var(--t4);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.results-head p {
+  margin: 2px 0 0;
 }
 
-.chip {
-  display: inline-block;
-  padding: 2px 9px;
-  border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 650;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: #fff;
+.results-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--s2);
 }
 
-.stats {
-  display: flex;
-  gap: 22px;
-  flex-wrap: wrap;
-  margin: 12px 0;
-}
-
-.stat {
+.result-card {
+  width: 100%;
+  text-align: left;
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  background: var(--bg-raised);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: var(--s2);
+  cursor: pointer;
+}
+.result-card:hover {
+  border-color: var(--border);
 }
 
-.stat-value {
-  font-size: 23px;
+.result-card-gain {
+  font-size: var(--t4);
   font-weight: 650;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
-.stat-hint {
-  font-style: italic;
-}
-
-.callout {
-  background: var(--bg);
-  border-left: 3px solid var(--accent);
-  padding: 8px 10px;
-  border-radius: 0 6px 6px 0;
-  margin: 12px 0;
-}
-
-.notes {
-  color: var(--muted);
-}
-
-.route-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.route-row {
-  width: 100%;
-  text-align: left;
-  background: var(--bg);
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  padding: 11px 13px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.route-row.active {
-  border-color: var(--accent);
-}
-
-.route-name {
+.result-card-name {
   font-weight: 600;
+  font-size: var(--t2);
 }
 
-.profile {
-  margin: 10px 0;
+.list-toggle {
+  position: absolute;
+  z-index: 3;
+  bottom: var(--s3);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--bg);
+  border: none;
+  border-radius: 999px;
+  padding: 12px 22px;
+  font-size: var(--t2);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 26%);
 }
 
-.profile svg {
-  background: var(--bg);
-  border-radius: var(--radius);
+/* ─── GPX sheet ───────────────────────────────────────────────────────── */
+
+.sheet {
+  position: absolute;
+  z-index: 4;
+  right: var(--s3);
+  bottom: var(--s3);
+  width: 340px;
+  max-width: calc(100% - var(--s4));
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
+  padding: var(--s2);
 }
 
-.profile-axis {
+.sheet-head {
   display: flex;
   justify-content: space-between;
-  margin-top: 4px;
+  align-items: center;
 }
 
-/* ─── Dropzone ────────────────────────────────────────────────────────── */
-
-.dropzone {
-  border: 1.5px dashed var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  text-align: center;
-  margin-top: auto;
+.sheet-head h2 {
+  font-size: var(--t3);
+  font-weight: 600;
+  margin: 0;
 }
 
-.dropzone.dragging {
-  border-color: var(--accent);
-}
-
-.dropzone p {
-  margin: 0 0 6px;
-}
-
-.dropzone input {
-  margin-top: 10px;
-  font-size: 12px;
-  max-width: 100%;
-}
-
-.dropzone-result {
-  border-top: 1px solid var(--border);
-  padding-top: 14px;
+@media (max-width: 720px) {
+  .topbar {
+    height: auto;
+    flex-wrap: wrap;
+    padding: var(--s1) var(--s2);
+    gap: var(--s1);
+  }
+  .venue-card,
+  .sheet {
+    left: var(--s1);
+    right: var(--s1);
+    bottom: var(--s1);
+    width: auto;
+    max-width: none;
+  }
+  .results {
+    max-height: 72%;
+    padding: var(--s2);
+  }
 }
 
 /* ─── Search ──────────────────────────────────────────────────────────── */
 
 .searchbar {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  /* Clear of MapLibre's own controls in the top-right corner. */
-  right: 58px;
-  z-index: 2;
-  max-width: 460px;
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  max-width: 520px;
+  z-index: 5;
 }
 
 .searchbar-row {
@@ -645,10 +650,10 @@ button {
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  box-shadow: 0 2px 10px rgb(0 0 0 / 10%);
-  /* 16px on iOS or Safari zooms the page on focus; this stays above that. */
+  /* Airbnb's search is a pill; it reads as one control rather than a form. */
+  border-radius: 999px;
+  padding: 11px 18px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 8%);
 }
 
 .searchbar input:focus {
@@ -660,8 +665,8 @@ button {
   flex: none;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 14px;
+  border-radius: 999px;
+  padding: 11px 16px;
   font-size: var(--t2);
   font-weight: 600;
   cursor: pointer;
@@ -675,7 +680,10 @@ button {
 }
 
 .searchbar-results {
-  margin-top: 6px;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -755,52 +763,16 @@ button {
   padding: 8px 12px;
 }
 
-.legend {
-  position: absolute;
-  left: 10px;
-  bottom: calc(var(--sheet-peek) + 14px);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  box-shadow: 0 2px 10px rgb(0 0 0 / 8%);
-  pointer-events: none;
-}
 
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
 
-.legend-item i {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex: none;
-}
 
-.zoom-hint {
-  position: absolute;
-  top: 62px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 6px 14px;
-  box-shadow: 0 2px 10px rgb(0 0 0 / 8%);
-  pointer-events: none;
-  white-space: nowrap;
-}
+
+
+
+
 
 @media (min-width: 861px) {
-  .legend {
-    bottom: 28px;
-  }
+  
 }
 
 .empty {

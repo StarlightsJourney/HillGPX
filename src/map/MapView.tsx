@@ -38,6 +38,8 @@ interface MapViewProps {
   show3d?: boolean;
   /** Raised when the basemap itself fails, so the failure is never silent. */
   onMapError?: (message: string) => void;
+  /** The area currently on screen, so the list can show what is actually in view. */
+  onViewportChange?: (bounds: { west: number; south: number; east: number; north: number }) => void;
 }
 
 export function MapView({
@@ -49,6 +51,7 @@ export function MapView({
   focus,
   show3d = false,
   onMapError,
+  onViewportChange,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
@@ -68,6 +71,8 @@ export function MapView({
   onMapErrorRef.current = onMapError;
   const show3dRef = useRef(show3d);
   show3dRef.current = show3d;
+  const onViewportRef = useRef(onViewportChange);
+  onViewportRef.current = onViewportChange;
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -117,7 +122,7 @@ export function MapView({
       setSelectedVenue(map, selectedRef.current);
       readyRef.current = true;
 
-      for (const layer of ['venues-hdb', 'venues-hdb-pill', 'venues-landmark']) {
+      for (const layer of ['venues-hdb-pill', 'venues-landmark']) {
         map.on('click', layer, (e) => {
           const slug = e.features?.[0]?.properties?.slug;
           if (typeof slug === 'string') onSelectRef.current(slug);
@@ -133,7 +138,7 @@ export function MapView({
       // A click on empty map clears the selection.
       map.on('click', (e) => {
         const hits = map.queryRenderedFeatures(e.point, {
-          layers: ['venues-hdb', 'venues-hdb-pill', 'venues-landmark'],
+          layers: ['venues-hdb-pill', 'venues-landmark'],
         });
         if (hits.length === 0) onSelectRef.current(null);
       });
@@ -145,6 +150,20 @@ export function MapView({
     // requests no tiles and renders blank, with no error to go on. The observer
     // also covers the sidebar collapsing at the mobile breakpoint.
     map.on('zoom', () => onZoomRef.current?.(map.getZoom()));
+
+    // 'moveend' rather than 'move': the list only needs the settled view, and
+    // recomputing it on every frame of a pan would be wasted work.
+    const reportViewport = () => {
+      const b = map.getBounds();
+      onViewportRef.current?.({
+        west: b.getWest(),
+        south: b.getSouth(),
+        east: b.getEast(),
+        north: b.getNorth(),
+      });
+    };
+    map.on('moveend', reportViewport);
+    map.once('load', reportViewport);
 
     const observer = new ResizeObserver(() => map.resize());
     observer.observe(containerRef.current);

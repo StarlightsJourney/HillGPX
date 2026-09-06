@@ -1,12 +1,12 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { Landing } from './components/Landing';
-import { VenuePanel } from './components/VenuePanel';
+import { VenueCard } from './components/VenueCard';
+import { ResultsList } from './components/ResultsList';
 import { GpxDropzone } from './components/GpxDropzone';
 import { SearchBar } from './components/SearchBar';
 import { ElevationModel } from './lib/elevation';
 import { loadDataset, routesForVenue, type Dataset } from './lib/venues';
 import type { RoutePoint } from './types';
-import { GAIN_TIERS, HDB_MIN_ZOOM } from './map/layers';
 
 // MapLibre is by far the largest dependency here. Code-splitting it keeps the
 // landing page down to a small bundle that paints immediately; the map is only
@@ -38,23 +38,26 @@ function MapApp() {
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [elevationModel, setElevationModel] = useState<ElevationModel | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [activeRouteSlug, setActiveRouteSlug] = useState<string | null>(null);
   const [droppedRoute, setDroppedRoute] = useState<RoutePoint[] | null>(null);
-  const [zoom, setZoom] = useState(12);
-  const [sheetOpen, setSheetOpen] = useState(false);
   const [focus, setFocus] = useState<{ lng: number; lat: number; nonce: number } | null>(null);
   const [show3d, setShow3d] = useState(false);
-  const [mapError, setMapError] = useState<string | null>(null);
+  const [listOpen, setListOpen] = useState(false);
+  const [gpxOpen, setGpxOpen] = useState(false);
+  const [viewport, setViewport] = useState<
+    { west: number; south: number; east: number; north: number } | null
+  >(null);
 
   useEffect(() => {
     loadDataset()
       .then(setDataset)
       .catch((err: Error) => setLoadError(err.message));
 
-    // The terrain model is a few megabytes and only the GPX profile needs it,
-    // so the map stays fully usable while it loads — or if it never does.
+    // A few megabytes, and only the GPX profile needs it, so the map stays
+    // fully usable while it loads — or if it never does.
     ElevationModel.load()
       .then(setElevationModel)
       .catch((err: Error) => console.warn('Terrain model unavailable:', err.message));
@@ -67,38 +70,25 @@ function MapApp() {
     [dataset, selectedVenue],
   );
 
-  // A dropped GPX wins the map over a stored route — it is what the user just did.
+  // A dropped GPX wins the map over a stored route — it is what you just did.
   const activeRoutePoints: RoutePoint[] | null = useMemo(() => {
     if (droppedRoute) return droppedRoute;
     if (!activeRouteSlug || !dataset) return null;
     return dataset.routeBySlug.get(activeRouteSlug)?.coordinates ?? null;
   }, [droppedRoute, activeRouteSlug, dataset]);
 
-  const handleSelectVenue = useCallback((slug: string | null) => {
-    setSelectedSlug(slug);
-    setActiveRouteSlug(null);
-    // On a phone the panel is a bottom sheet; picking something should raise it.
-    if (slug) setSheetOpen(true);
-  }, []);
-
-  // Picking from search or "near me" both selects the venue and flies to it.
-  const handlePickFromSearch = useCallback(
-    (slug: string) => {
-      const venue = dataset?.bySlug.get(slug);
-      if (!venue) return;
+  const selectVenue = useCallback(
+    (slug: string | null, fly = false) => {
       setSelectedSlug(slug);
       setActiveRouteSlug(null);
-      setSheetOpen(true);
-      setFocus({ lng: venue.lng, lat: venue.lat, nonce: Date.now() });
+      if (fly && slug) {
+        const venue = dataset?.bySlug.get(slug);
+        if (venue) setFocus({ lng: venue.lng, lat: venue.lat, nonce: Date.now() });
+      }
+      if (slug) setListOpen(false);
     },
     [dataset],
   );
-
-  const closePanel = useCallback(() => {
-    setSelectedSlug(null);
-    setActiveRouteSlug(null);
-    setSheetOpen(false);
-  }, []);
 
   return (
     <div className="app">
@@ -106,102 +96,90 @@ function MapApp() {
         <a className="wordmark" href="#">
           hill<span className="dot">GPX</span>
         </a>
-        <button
-          className="sheet-toggle small"
-          onClick={() => setSheetOpen((v) => !v)}
-          aria-expanded={sheetOpen}
-        >
-          {sheetOpen ? 'Hide' : 'Details'}
+
+        <SearchBar venues={dataset?.venues ?? []} onPick={(slug) => selectVenue(slug, true)} />
+
+        <button className="ghost-btn" onClick={() => setGpxOpen((v) => !v)}>
+          Your GPX
         </button>
       </header>
 
-      <main className="layout">
-        <div className="map-wrap">
-          {loadError ? (
-            <div className="empty">
-              <h2>No data yet</h2>
-              <p className="small">{loadError}</p>
-              <pre>
-                <code>python scripts/build_data.py</code>
-              </pre>
-            </div>
-          ) : (
-            <Suspense fallback={<div className="empty small muted">Loading map…</div>}>
+      <main className="stage">
+        {loadError ? (
+          <div className="empty">
+            <h2>Nothing to show yet</h2>
+            <p className="small muted">{loadError}</p>
+            <pre>
+              <code>python scripts/build_data.py</code>
+            </pre>
+          </div>
+        ) : (
+          <div className="map-wrap">
+            <Suspense fallback={<div className="empty small muted">Loading the map…</div>}>
               <MapView
                 venues={dataset?.venues ?? []}
                 selectedSlug={selectedSlug}
                 activeRoute={activeRoutePoints}
-                onSelectVenue={handleSelectVenue}
-                onZoomChange={setZoom}
+                onSelectVenue={(slug) => selectVenue(slug)}
                 focus={focus}
                 show3d={show3d}
                 onMapError={setMapError}
+                onViewportChange={setViewport}
               />
             </Suspense>
-          )}
 
-          <SearchBar venues={dataset?.venues ?? []} onPick={handlePickFromSearch} />
+            <button
+              className={`map-toggle${show3d ? ' on' : ''}`}
+              onClick={() => setShow3d((v) => !v)}
+              aria-pressed={show3d}
+              title="Tilt the map and raise the buildings"
+            >
+              3D
+            </button>
 
-          <button
-            className={`map-toggle${show3d ? ' on' : ''}`}
-            onClick={() => setShow3d((v) => !v)}
-            aria-pressed={show3d}
-          >
-            3D
-          </button>
+            {mapError && <div className="map-error small">The map failed to load: {mapError}</div>}
+          </div>
+        )}
 
-          {mapError && (
-            <div className="map-error small">
-              The basemap failed to load: {mapError}
-            </div>
-          )}
-
-          {zoom < HDB_MIN_ZOOM && <div className="zoom-hint small">Zoom in for HDB blocks</div>}
-          <Legend />
-        </div>
-
-        <div className={`sidebar${sheetOpen ? ' open' : ''}`}>
-          <button
-            className="sheet-grip"
-            onClick={() => setSheetOpen((v) => !v)}
-            aria-label="Toggle details panel"
+        {/* Detail rides over the map as a card, so it never permanently eats the
+            space the map is supposed to fill. */}
+        {selectedVenue && (
+          <VenueCard
+            venue={selectedVenue}
+            routes={venueRoutes}
+            activeRouteSlug={activeRouteSlug}
+            onSelectRoute={setActiveRouteSlug}
+            onClose={() => selectVenue(null)}
           />
+        )}
 
-          {selectedVenue ? (
-            <VenuePanel
-              venue={selectedVenue}
-              routes={venueRoutes}
-              activeRouteSlug={activeRouteSlug}
-              onSelectRoute={setActiveRouteSlug}
-              onClose={closePanel}
-            />
-          ) : (
-            <section className="panel">
-              <h2>Find a climb</h2>
-              <p className="small">
-                Hills and staircases are marked at every zoom. Zoom in for individual HDB blocks,
-                coloured by how much climbing they offer. Tap anything to see its routes.
-              </p>
-            </section>
-          )}
+        {listOpen && dataset && (
+          <ResultsList
+            venues={dataset.venues}
+            bounds={viewport}
+            onPick={(slug) => selectVenue(slug, true)}
+            onClose={() => setListOpen(false)}
+          />
+        )}
 
-          <GpxDropzone elevationModel={elevationModel} onRouteLoaded={setDroppedRoute} />
-        </div>
+        {gpxOpen && (
+          <div className="sheet">
+            <div className="sheet-head">
+              <h2>Your GPX</h2>
+              <button className="icon-btn" onClick={() => setGpxOpen(false)} aria-label="Close">
+                ×
+              </button>
+            </div>
+            <GpxDropzone elevationModel={elevationModel} onRouteLoaded={setDroppedRoute} />
+          </div>
+        )}
+
+        {!listOpen && !selectedVenue && !gpxOpen && (
+          <button className="list-toggle" onClick={() => setListOpen(true)}>
+            Show list
+          </button>
+        )}
       </main>
-    </div>
-  );
-}
-
-function Legend() {
-  return (
-    <div className="legend">
-      <span className="small muted">Elevation gain</span>
-      {GAIN_TIERS.map((tier) => (
-        <span key={tier.min} className="legend-item small">
-          <i style={{ background: tier.color }} />
-          {tier.label}
-        </span>
-      ))}
     </div>
   );
 }

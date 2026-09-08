@@ -12,6 +12,7 @@ import {
 } from '../lib/venues';
 import { normaliseQuery } from '../lib/streetTerms';
 import { useUnits } from './UnitsContext';
+import { SearchIcon } from './icons';
 
 interface SearchBarProps {
   venues: Venue[];
@@ -136,6 +137,14 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
           if (e.key === 'Escape') setOpen(false);
         }}
       />
+      <button
+        type="button"
+        className="searchbar-submit"
+        aria-label="Search"
+        onClick={submit}
+      >
+        <SearchIcon size={18} />
+      </button>
 
       {open && (message !== null || areaHits.length > 0 || results.length > 0) && (
         <div className="searchbar-results">

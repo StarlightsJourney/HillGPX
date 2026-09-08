@@ -287,6 +287,27 @@ export function ChevronRightIcon({ size = 16 }: { size?: number }) {
 }
 
 /** A user profile icon. */
+/** A magnifying-glass search icon. */
+export function SearchIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="11" cy="11" r="8" />
+      <path d="M21 21l-4.3-4.3" />
+    </svg>
+  );
+}
+
 /** A folded-map icon for the "Show map" toggle. */
 export function MapIcon({ size = 18 }: { size?: number }) {
   return (

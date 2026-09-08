@@ -248,7 +248,7 @@ class ListToggleControl {
 
   onAdd(_map: MlMap): HTMLElement {
     const group = document.createElement('div');
-    group.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+    group.className = 'maplibregl-ctrl maplibregl-ctrl-group list-toggle-ctrl';
 
     this.button = document.createElement('button');
     this.button.type = 'button';
@@ -392,7 +392,7 @@ export function MapView({
     );
     map.addControl(listToggleControlRef.current, 'top-right');
 
-    map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
     const geolocate = new maplibregl.GeolocateControl({
       positionOptions: { enableHighAccuracy: true },

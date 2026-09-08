@@ -1181,13 +1181,31 @@ button {
   border: 1px solid var(--border);
   /* Airbnb's search is a pill; it reads as one control rather than a form. */
   border-radius: 999px;
-  padding: 10px 16px;
+  padding: 10px 48px 10px 16px;
   box-shadow: 0 1px 4px rgb(0 0 0 / 8%);
 }
 
 .searchbar input:focus {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
+}
+
+.searchbar-submit {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #ffffff;
+  cursor: pointer;
 }
 
 .searchbar-results {
@@ -1360,13 +1378,14 @@ button {
   flex: none;
   position: relative;
   z-index: 4;
-  background: var(--surface);
+  background: var(--bg-raised);
   border-bottom: 1px solid var(--border);
   padding: 8px var(--s2);
 }
 
 .filterbar-row {
   display: flex;
+  justify-content: center;
   align-items: center;
   gap: var(--s1);
 }
@@ -1585,6 +1604,10 @@ button {
   .filterbar {
     padding: var(--s1) var(--s2);
   }
+
+  .filterbar-row {
+    justify-content: flex-start;
+  }
 }
 
 
@@ -1668,6 +1691,19 @@ button {
 }
 .maplibregl-ctrl-group button:hover {
   background: var(--bg-raised) !important;
+}
+
+/* The list/map toggle is a single round button, not a group of stacked ones. */
+.maplibregl-ctrl-group.list-toggle-ctrl {
+  border-radius: 999px !important;
+  overflow: hidden;
+}
+
+.maplibregl-ctrl-group.list-toggle-ctrl button {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 999px !important;
 }
 
 /* Text for screen readers only. The capsule says "still working" visually with

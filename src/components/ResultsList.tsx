@@ -56,12 +56,7 @@ function ResultsListInner({
     <section className="results">
       <div className="results-handle" aria-hidden="true" />
       <header className="results-head">
-        <div>
-          <h2>{formatCount(total)} places</h2>
-          <p className="small muted">
-            {total === 0 ? 'Nothing mapped in this area yet' : 'Biggest climbs, photos first'}
-          </p>
-        </div>
+        <h2>{formatCount(total)} places</h2>
       </header>
 
       <ul className="results-grid">

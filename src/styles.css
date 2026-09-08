@@ -549,7 +549,6 @@ button {
     border-radius: 0;
     transform: none;
     transition: none;
-    border-right: 1px solid var(--border);
   }
   .stage.with-list .map-wrap {
     position: relative;
@@ -591,7 +590,6 @@ button {
     border-radius: 0;
     transform: none;
     transition: none;
-    border-right: 1px solid var(--border);
   }
   .stage.with-list .map-wrap {
     position: relative;
@@ -623,6 +621,12 @@ button {
 
    `.map-wrap > .map` outranks it, and the explicit 100% sizing means this holds
    even if the positioning is overridden again. */
+.map-wrap,
+.map-wrap > .map,
+.map-wrap .maplibregl-map {
+  border-radius: 0 !important;
+}
+
 .map-wrap > .map {
   position: absolute;
   inset: 0;

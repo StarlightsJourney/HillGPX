@@ -955,8 +955,8 @@ button {
 
 .map-toggle {
   position: absolute;
-  /* Below MapLibre's zoom and compass stack, which this used to sit on top of. */
-  top: 110px;
+  /* Placed low on the right to stay clear of MapLibre's zoom/compass stack. */
+  bottom: 90px;
   right: 10px;
   z-index: 2;
   width: 34px;
@@ -1132,15 +1132,15 @@ button {
   border-color: var(--ink);
   background: var(--bg-raised);
 }
-/* Filled, not tinted. A chip that only changes its border is easy to miss at a
-   glance, and the whole point of the row is knowing what is on. */
+/* Filled with the brand accent, not tinted. A chip that only changes its border
+   is easy to miss at a glance, and the whole point of the row is knowing what is on. */
 .chip.on {
-  background: var(--ink);
-  border-color: var(--ink);
+  background: var(--accent);
+  border-color: var(--accent);
   color: #ffffff;
 }
 .chip.on:hover {
-  background: #000000;
+  filter: brightness(0.95);
 }
 
 .filter-open {
@@ -1312,7 +1312,7 @@ button {
 }
 
 .filter-apply {
-  background: var(--ink);
+  background: var(--accent);
   color: #ffffff;
   border: none;
   border-radius: 999px;
@@ -1322,9 +1322,35 @@ button {
   cursor: pointer;
 }
 
+.filter-apply:hover {
+  filter: brightness(0.95);
+}
+
 .filter-apply:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.filter-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--t2);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.filter-location:hover {
+  background: var(--bg-raised);
+}
+
+.filter-location svg {
+  color: var(--accent);
 }
 
 @media (max-width: 720px) {
@@ -1556,10 +1582,13 @@ button {
 .seg-btn:hover {
   background: var(--bg-raised);
 }
-/* Airbnb-style selected segment: dark fill with white text. */
+/* Airbnb-style selected segment: brand fill with white text. */
 .seg-btn.on {
-  background: var(--ink);
+  background: var(--accent);
   color: #ffffff;
+}
+.seg-btn.on:hover {
+  filter: brightness(0.95);
 }
 
 /* ─── Height range ────────────────────────────────────────────────────── */

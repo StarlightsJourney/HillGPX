@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useUnits } from './UnitsContext';
+import { CloseIcon, LocationArrowIcon } from './icons';
 import type { Venue, VenueType } from '../types';
 import {
   NO_FILTERS,
@@ -23,17 +24,15 @@ interface FilterBarProps {
   /** The types present in the data, so no chip is offered that returns nothing. */
   types: VenueType[];
   /**
-   * Every venue, filters not applied. The height histogram is drawn from these
-   * rather than from the matches, because a chart that redraws itself under the
-   * handle you are dragging gives you nothing to aim at — the bars are the map
-   * of where the data is, and that does not change when you narrow the range.
+   * Venues inside the current map viewport. The height histogram and counts are
+   * drawn from these so the filters always describe the area on screen.
    */
-  allVenues: Venue[];
+  visibleVenues: Venue[];
   filters: VenueFilters;
   onChange: (filters: VenueFilters) => void;
-  /** How many venues survive the current filters, across the whole dataset. */
+  /** How many venues in the current viewport survive the current filters. */
   matchCount: number;
-  /** Trigger a "find climbs near me" search. Called from the Recommended tiles. */
+  /** Trigger a "find climbs near me" search. Called from the location button. */
   onLocate?: () => void;
 }
 
@@ -50,7 +49,7 @@ interface FilterBarProps {
  * room to be understood — the type choice, the height distribution — lives in
  * the dialog.
  */
-function FilterBarInner({ types, allVenues, filters, onChange, matchCount, onLocate }: FilterBarProps) {
+function FilterBarInner({ types, visibleVenues, filters, onChange, matchCount, onLocate }: FilterBarProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const openerRef = useRef<HTMLButtonElement>(null);
 
@@ -124,7 +123,7 @@ function FilterBarInner({ types, allVenues, filters, onChange, matchCount, onLoc
       {modalOpen && (
         <FilterModal
           types={types}
-          allVenues={allVenues}
+          visibleVenues={visibleVenues}
           filters={filters}
           onChange={onChange}
           matchCount={matchCount}
@@ -156,7 +155,7 @@ interface FilterModalProps extends FilterBarProps {
  */
 function FilterModal({
   types,
-  allVenues,
+  visibleVenues,
   filters,
   onChange,
   matchCount,
@@ -220,7 +219,10 @@ function FilterModal({
     };
   }, [returnFocusTo]);
 
-  const heights = useMemo(() => allVenues.map(rankingHeight).filter((h) => h > 0), [allVenues]);
+  const heights = useMemo(
+    () => visibleVenues.map(rankingHeight).filter((h) => h > 0),
+    [visibleVenues],
+  );
 
   const selectedType: VenueType | null = filters.types.length === 1 ? filters.types[0] : null;
 
@@ -265,43 +267,6 @@ function FilterModal({
     }
     return chips;
   }, [filters, units]);
-
-  const toggleType = (type: VenueType) =>
-    onChange({ ...filters, types: filters.types.includes(type) ? [] : [type] });
-
-  const recommendations = [
-    {
-      key: 'top',
-      icon: <LightningIcon size={28} />,
-      label: 'Top climbs',
-      active: filters.notableOnly,
-      onClick: () => onChange({ ...filters, notableOnly: !filters.notableOnly }),
-    },
-    {
-      key: 'photo',
-      icon: <CameraIcon size={28} />,
-      label: 'With photo',
-      active: filters.withPhoto,
-      onClick: () => onChange({ ...filters, withPhoto: !filters.withPhoto }),
-    },
-    {
-      key: 'hdb',
-      icon: <BuildingIcon size={28} />,
-      label: 'HDB blocks',
-      active: selectedType === 'hdb_block',
-      onClick: () => toggleType('hdb_block'),
-    },
-    {
-      key: 'near',
-      icon: <LocationIcon size={28} />,
-      label: 'Near me',
-      active: false,
-      onClick: () => {
-        onLocate?.();
-        onClose();
-      },
-    },
-  ];
 
   // Portalled to the body: .filterbar sits in a stacking context below the
   // topbar, so a scrim rendered in place would be painted under the search bar
@@ -349,21 +314,6 @@ function FilterModal({
           )}
 
           <section className="filter-group">
-            <h3>Recommended for you</h3>
-            <div className="rec-tiles">
-              {recommendations.map((rec) => (
-                <RecommendationTile
-                  key={rec.key}
-                  icon={rec.icon}
-                  label={rec.label}
-                  active={rec.active}
-                  onClick={rec.onClick}
-                />
-              ))}
-            </div>
-          </section>
-
-          <section className="filter-group">
             <h3 id="filter-type-label">Place type</h3>
             {/* One choice: Any, or one specific type. */}
             <div className="seg" role="radiogroup" aria-labelledby="filter-type-label">
@@ -386,6 +336,21 @@ function FilterModal({
           </section>
 
           <section className="filter-group">
+            <h3>Location</h3>
+            <button
+              type="button"
+              className="filter-location"
+              onClick={() => {
+                onLocate?.();
+                onClose();
+              }}
+            >
+              <LocationArrowIcon size={18} />
+              Find climbs near me
+            </button>
+          </section>
+
+          <section className="filter-group">
             <h3>Elevation range</h3>
             <HeightRange
               heights={heights}
@@ -393,9 +358,6 @@ function FilterModal({
               maxHeightM={filters.maxHeightM}
               onChange={(minHeightM, maxHeightM) => onChange({ ...filters, minHeightM, maxHeightM })}
             />
-            <p className="small muted filter-note">
-              HDB blocks are ranked by climb; hills are ranked by summit height.
-            </p>
           </section>
         </div>
 
@@ -426,65 +388,45 @@ const BUCKETS = 20;
 interface HeightScale {
   lo: number;
   hi: number;
+  /** Bucket width in metres. */
+  step: number;
   /** Every value a handle can stop on, ascending. */
   stops: number[];
   /** Venue counts per bucket, left to right. */
   counts: number[];
 }
 
-/**
- * The axis is logarithmic, and this is the whole design of the control.
- *
- * Heights run from 6 m to 2,187 m, but three quarters of the venues sit between
- * 25 m and 50 m — on a linear axis that is one black spike in the first bar and
- * nineteen empty ones after it, and a track where every HDB block in Singapore
- * is crammed into the leftmost two percent of the width. A log axis gives the
- * blocks most of the track and still leaves Bukit Timah somewhere you can aim
- * at. The cost is that the axis is not readable as distance — the ends are
- * labelled with their metre values for that reason, and the readouts below say
- * the number rather than making anyone infer it from the handle's position.
- */
+/** Linear height scale starting from 1 m so the histogram reads intuitively. */
 function buildScale(heights: number[]): HeightScale {
-  let lo = Infinity;
-  let hi = -Infinity;
+  let hi = 0;
   for (const h of heights) {
-    if (h < lo) lo = h;
     if (h > hi) hi = h;
   }
-  // An empty or single-valued dataset would make the log span zero and every
-  // position NaN, so fall back to a span that is merely useless, not broken.
-  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return { lo: 1, hi: 2, stops: [1, 2], counts: [] };
-  lo = Math.max(1, Math.floor(lo));
-  hi = Math.max(lo + 1, Math.ceil(hi));
+  if (hi <= 1) return { lo: 0, hi: 1, step: 1, stops: [0, 1], counts: [] };
+  hi = Math.ceil(hi);
+  const step = Math.max(1, Math.ceil(hi / BUCKETS));
 
-  const stops: number[] = [lo];
-  let v = lo;
-  while (v < hi) {
-    // Geometric to match the axis, but never less than a metre: six percent of
-    // 6 m is not a whole metre, and an arrow key that moves the handle without
-    // changing the number beside it reads as a control that does not work.
-    v = Math.min(hi, Math.max(Math.round(v * 1.06), v + 1));
-    stops.push(v);
-  }
+  const stops: number[] = [0];
+  for (let v = step; v <= hi; v += step) stops.push(v);
+  if (stops[stops.length - 1] < hi) stops.push(hi);
 
   const counts = new Array(BUCKETS).fill(0);
-  const span = Math.log(hi / lo);
   for (const h of heights) {
-    const i = Math.min(BUCKETS - 1, Math.max(0, Math.floor((BUCKETS * Math.log(h / lo)) / span)));
-    counts[i] += 1;
+    const bucket = Math.min(BUCKETS - 1, Math.floor(h / step));
+    counts[bucket] += 1;
   }
 
-  return { lo, hi, stops, counts };
+  return { lo: 0, hi, step, stops, counts };
 }
 
 /** Where a height sits along the track, 0 to 1. */
 function positionOf(value: number, scale: HeightScale): number {
-  return Math.log(value / scale.lo) / Math.log(scale.hi / scale.lo);
+  return clamp(value, 0, scale.hi) / scale.hi;
 }
 
 /** The stop nearest a point on the track. */
 function stopAt(ratio: number, scale: HeightScale): number {
-  const target = scale.lo * Math.pow(scale.hi / scale.lo, clamp(ratio, 0, 1));
+  const target = clamp(ratio, 0, 1) * scale.hi;
   let best = 0;
   let bestGap = Infinity;
   for (let i = 0; i < scale.stops.length; i += 1) {
@@ -499,7 +441,7 @@ function stopAt(ratio: number, scale: HeightScale): number {
 
 /** The stop index holding a value already in the filters. */
 function indexOfValue(value: number, scale: HeightScale): number {
-  return stopAt(positionOf(clamp(value, scale.lo, scale.hi), scale), scale);
+  return stopAt(positionOf(clamp(value, 0, scale.hi), scale), scale);
 }
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -597,15 +539,15 @@ function HeightRange({ heights, minHeightM, maxHeightM, onChange }: HeightRangeP
     <div className="range">
       <div className="range-hist" aria-hidden="true">
         {scale.counts.map((count, i) => {
-          const start = scale.lo * Math.pow(scale.hi / scale.lo, i / BUCKETS);
-          const end = scale.lo * Math.pow(scale.hi / scale.lo, (i + 1) / BUCKETS);
+          const start = i * scale.step;
+          const end = (i + 1) * scale.step;
           return (
             <div
               key={i}
               className={`range-bar${end >= minValue && start <= maxValue ? ' in' : ''}`}
-              // Square-rooted, not proportional. The busiest bucket holds 4,591
-              // venues and the quietest 29; drawn to scale the tail would be a
-              // one-pixel line, and the tail is the half of the range someone
+              // Square-rooted, not proportional. The busiest bucket holds thousands
+              // of venues and the quietest a handful; drawn to scale the tail would
+              // be a one-pixel line, and the tail is the half of the range someone
               // opening this control is trying to see into.
               style={{ height: `${Math.max(3, 100 * Math.sqrt(count / tallest))}%` }}
             />
@@ -655,7 +597,6 @@ function HeightRange({ heights, minHeightM, maxHeightM, onChange }: HeightRangeP
 
       <div className="range-scale small muted" aria-hidden="true">
         <span>{units.height(scale.lo)}</span>
-        <span>Log scale</span>
         <span>{units.height(scale.hi)}</span>
       </div>
 
@@ -743,32 +684,6 @@ function SelectedChip({ label, onRemove }: { label: string; onRemove: () => void
   );
 }
 
-function RecommendationTile({
-  icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={`rec-tile${active ? ' on' : ''}`}
-      aria-pressed={active}
-      onClick={onClick}
-    >
-      <span className="rec-tile-icon" aria-hidden="true">
-        {icon}
-      </span>
-      <span className="rec-tile-label">{label}</span>
-    </button>
-  );
-}
-
 /** Kept local rather than in icons.tsx: nothing else in the app uses it. */
 function SlidersIcon({ size = 14 }: { size?: number }) {
   return (
@@ -786,107 +701,6 @@ function SlidersIcon({ size = 14 }: { size?: number }) {
       <path d="M1 4h4M9 4h6M1 12h6M11 12h4" />
       <circle cx="7" cy="4" r="2" />
       <circle cx="9" cy="12" r="2" />
-    </svg>
-  );
-}
-
-function CloseIcon({ size = 14 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M3 3l10 10M13 3L3 13" />
-    </svg>
-  );
-}
-
-function LightningIcon({ size = 24 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-    </svg>
-  );
-}
-
-function CameraIcon({ size = 24 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-      <circle cx="12" cy="13" r="4" />
-    </svg>
-  );
-}
-
-function BuildingIcon({ size = 24 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
-      <path d="M9 22v-4h6v4" />
-      <line x1="9" y1="11" x2="9" y2="11.01" />
-      <line x1="15" y1="11" x2="15" y2="11.01" />
-      <line x1="9" y1="15" x2="9" y2="15.01" />
-      <line x1="15" y1="15" x2="15" y2="15.01" />
-    </svg>
-  );
-}
-
-function LocationIcon({ size = 24 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-      <circle cx="12" cy="10" r="3" />
     </svg>
   );
 }

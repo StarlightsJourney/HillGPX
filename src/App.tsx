@@ -14,6 +14,7 @@ import {
   presentVenueTypes,
   routesForVenue,
   tallestWithin,
+  venuesInBounds,
   type Bounds,
   type Dataset,
   type VenueFilters,
@@ -129,6 +130,11 @@ function MapApp() {
   // viewport change the filters do not care about would be pure waste.
   const venues = useMemo(() => filterVenues(allVenues, filters), [allVenues, filters]);
 
+  const visibleVenues = useMemo(
+    () => (viewport ? venuesInBounds(venues, viewport) : venues),
+    [venues, viewport],
+  );
+
   useEffect(() => {
     if (selectedSlug && !venues.some((venue) => venue.slug === selectedSlug)) {
       setSelectedSlug(null);
@@ -216,12 +222,12 @@ function MapApp() {
           hill<span className="dot">GPX</span>
         </a>
 
-        {/* Search runs over the filtered list too. Finding a hill you have
-            filtered out and flying to it would land you on a blank patch of
+        {/* Search runs over what is currently on screen. Finding a hill you have
+            filtered out or panned away from would land you on a blank patch of
             map with nothing to click, which reads as a broken map rather than
             as a chip you left on. */}
         <SearchBar
-          venues={venues}
+          venues={visibleVenues}
           onPick={(slug) => selectVenue(slug, true)}
           onFitBounds={showArea}
         />
@@ -242,10 +248,10 @@ function MapApp() {
 
       <FilterBar
         types={venueTypes}
-        allVenues={allVenues}
+        visibleVenues={visibleVenues}
         filters={filters}
         onChange={setFilters}
-        matchCount={venues.length}
+        matchCount={visibleVenues.length}
         onLocate={handleLocate}
       />
 

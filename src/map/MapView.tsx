@@ -364,7 +364,9 @@ export function MapView({
       style: STYLE_URL,
       center: SINGAPORE_CENTRE,
       zoom: 12,
-      minZoom: 2,
+      minZoom: 9,
+      renderWorldCopies: false,
+      maxBounds: [[95, -4], [115, 10]],
       attributionControl: { compact: true },
     });
     mapRef.current = map;

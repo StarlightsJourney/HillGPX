@@ -222,13 +222,14 @@ const PILL_LAYOUT: SymbolLayerSpecification['layout'] = {
   // icons keep drawing. Naming a fallback is not free insurance; it is the
   // failure. Check any new face against the glyphs endpoint before using it.
   'text-font': ['Noto Sans Bold'],
-  // Mini pills at low zoom, full size when close — they grow smoothly with zoom
-  // instead of appearing at one fixed size.
-  'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 16, 1.0],
-  'text-size': ['interpolate', ['linear'], ['zoom'], 10, 9, 16, 13],
-  'icon-allow-overlap': false,
-  'text-allow-overlap': false,
-  'icon-padding': 3,
+  // Airbnb-style pills: visible at every zoom, small when zoomed out and a bit
+  // larger up close. Overlap is allowed so a pan never leaves the shortlist
+  // blank — hovering still promotes a pill to the bigger "hover" size.
+  'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.78, 16, 1.08],
+  'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 16, 13.5],
+  'icon-allow-overlap': true,
+  'text-allow-overlap': true,
+  'icon-padding': 2,
   // Tallest venues win collisions, so a zoomed-out view still shows the biggest
   // climbs rather than a random sample.
   'symbol-sort-key': ['-', 0, ['get', 'heightM']],
@@ -290,8 +291,6 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     layout: {
       ...PILL_LAYOUT,
       'icon-image': 'pill-visited',
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 16, 1.0],
-      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 9, 16, 13],
       'icon-allow-overlap': true,
       'text-allow-overlap': true,
     },
@@ -300,8 +299,8 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     },
   });
 
-  // Hover: a slightly larger white pill. There is a small delay in JS before the
-  // filter is applied so the pill does not flicker as the cursor crosses the map.
+  // Hover: a larger white pill. At low zoom a mini pill grows to full size on
+  // hover; up close it pops a little above its neighbours.
   map.addLayer({
     id: 'venues-hover',
     type: 'symbol',
@@ -310,8 +309,8 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     layout: {
       ...PILL_LAYOUT,
       'icon-image': 'pill',
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.92, 16, 1.04],
-      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 11, 16, 13],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 1.0, 16, 1.16],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 12, 16, 14.5],
       'icon-allow-overlap': true,
       'text-allow-overlap': true,
     },
@@ -333,8 +332,8 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     layout: {
       ...PILL_LAYOUT,
       'icon-image': 'pill-active',
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 1.0, 16, 1.12],
-      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 13, 16, 14],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 1.0, 16, 1.18],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 13, 16, 14.5],
       'icon-allow-overlap': true,
       'text-allow-overlap': true,
     },

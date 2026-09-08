@@ -19,8 +19,9 @@ import { formatHeight, type Units } from '../lib/units';
  */
 
 const PILL_FILL = '#ffffff';
-const PILL_HOVER_FILL = '#1a1a1a';
-const PILL_ACTIVE_FILL = '#c1502e'; // hillGPX brand accent
+const PILL_VISITED_FILL = '#e5e5e5';
+const PILL_VISITED_STROKE = '#717171';
+const PILL_ACTIVE_FILL = '#1a1a1a';
 const TEXT_INK = '#222222';
 const TEXT_LIGHT = '#ffffff';
 
@@ -87,13 +88,13 @@ export function venuesToGeoJson(
  * than a mix of icons plus text labels.
  */
 export async function loadMarkerImages(map: MlMap): Promise<void> {
-  for (const [id, fill, shadow] of [
-    ['pill', PILL_FILL, 'rgba(0, 0, 0, 0.3)'],
-    ['pill-hover', PILL_HOVER_FILL, 'rgba(0, 0, 0, 0.45)'],
-    ['pill-active', PILL_ACTIVE_FILL, 'rgba(0, 0, 0, 0.38)'],
+  for (const [id, fill, shadow, stroke] of [
+    ['pill', PILL_FILL, 'rgba(0, 0, 0, 0.3)', undefined],
+    ['pill-visited', PILL_VISITED_FILL, 'rgba(0, 0, 0, 0.2)', PILL_VISITED_STROKE],
+    ['pill-active', PILL_ACTIVE_FILL, 'rgba(0, 0, 0, 0.38)', undefined],
   ] as const) {
     if (map.hasImage(id)) continue;
-    const pill = makePillImage(fill, shadow);
+    const pill = makePillImage(fill, shadow, stroke);
     if (pill) map.addImage(id, pill.data, pill.options);
   }
 }
@@ -142,7 +143,7 @@ export function set3dBuildings(map: MlMap, on: boolean): void {
  * may repeat, and `content` the box the label sits in, so one small bitmap
  * resizes cleanly to fit any label.
  */
-function makePillImage(fill: string, shadow: string): {
+function makePillImage(fill: string, shadow: string, stroke?: string): {
   data: ImageData;
   options: { pixelRatio: number; stretchX: [number, number][]; stretchY: [number, number][]; content: [number, number, number, number] };
 } | null {
@@ -181,6 +182,15 @@ function makePillImage(fill: string, shadow: string): {
   ctx.shadowOffsetY = 1 * scale;
   ctx.fillStyle = fill;
   ctx.fill();
+
+  if (stroke) {
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.lineWidth = 2 * scale;
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+  }
 
   return {
     data: ctx.getImageData(0, 0, w, h),
@@ -258,7 +268,7 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     },
   });
 
-  // Every venue — hill, stairs, HDB block — rendered as the same height pill.
+  // Every venue — hill, stairs, HDB block — rendered as the same white pill.
   // The filter starts empty and is filled by `setVisibleMarkers` once the
   // viewport settles, so the first frame is not a wall of numbers.
   map.addLayer({
@@ -270,10 +280,28 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     paint: PILL_PAINT,
   });
 
-  // A hover preview: a slightly larger white pill for the venue under the cursor.
-  // It sits between the normal pills and the selected pill so the selected state
-  // still wins when both apply. Low-zoom mini pills grow to the "at rest" full
-  // size on hover; full-size pills only nudge larger, so the change feels smooth.
+  // Venues that have been clicked before. They keep a grey pill with a clear
+  // outline so you can see which ones you have already explored.
+  map.addLayer({
+    id: 'venues-visited',
+    type: 'symbol',
+    source: 'venues',
+    filter: ['==', ['get', 'slug'], '__none__'],
+    layout: {
+      ...PILL_LAYOUT,
+      'icon-image': 'pill-visited',
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 16, 1.0],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 9, 16, 13],
+      'icon-allow-overlap': true,
+      'text-allow-overlap': true,
+    },
+    paint: {
+      'text-color': TEXT_INK,
+    },
+  });
+
+  // Hover: a slightly larger white pill. There is a small delay in JS before the
+  // filter is applied so the pill does not flicker as the cursor crosses the map.
   map.addLayer({
     id: 'venues-hover',
     type: 'symbol',
@@ -281,18 +309,19 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     filter: ['==', ['get', 'slug'], '__none__'],
     layout: {
       ...PILL_LAYOUT,
-      'icon-image': 'pill-hover',
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 1.0, 16, 1.08],
-      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 13, 16, 14],
+      'icon-image': 'pill',
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.92, 16, 1.04],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 11, 16, 13],
       'icon-allow-overlap': true,
       'text-allow-overlap': true,
     },
     paint: {
-      'text-color': TEXT_LIGHT,
+      'text-color': TEXT_INK,
     },
   });
 
-  // The selected venue, as a brand-coloured pill on top of everything else.
+  // The selected venue: a black pill on top of everything else. Airbnb shows the
+  // picked listing this way, and it gives a clear "I am open" signal.
   //
   // Overlap is forced here on purpose: this is the one symbol that must never
   // lose a collision test, because the card describing it is open on screen.
@@ -341,6 +370,14 @@ export function setSelectedVenue(map: MlMap, slug: string | null): void {
 export function setHoveredVenue(map: MlMap, slug: string | null): void {
   if (!map.getLayer('venues-hover')) return;
   map.setFilter('venues-hover', ['==', ['get', 'slug'], slug ?? '__none__']);
+}
+
+export function setVisitedVenues(map: MlMap, slugs: string[]): void {
+  if (!map.getLayer('venues-visited')) return;
+  map.setFilter(
+    'venues-visited',
+    slugs.length === 0 ? ['==', ['get', 'slug'], '__none__'] : ['in', ['get', 'slug'], ['literal', slugs]],
+  );
 }
 
 export function addRouteLayers(map: MlMap): void {

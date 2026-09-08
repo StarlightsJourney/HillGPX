@@ -14,6 +14,7 @@ import {
   setActiveRoute,
   setHoveredVenue,
   setSelectedVenue,
+  setVisitedVenues,
   setVisibleMarkers,
   venuesToGeoJson,
   loadMarkerImages,
@@ -35,7 +36,7 @@ const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
  * makes `queryRenderedFeatures` throw, so this is kept in one place rather
  * than repeated at each call site.
  */
-const INTERACTIVE_LAYERS = ['venues-pill', 'venues-hover', 'venues-selected'];
+const INTERACTIVE_LAYERS = ['venues-pill', 'venues-visited', 'venues-selected'];
 
 /** Where the data currently is — the opening view, not a fence. */
 const SINGAPORE_CENTRE: [number, number] = [103.8198, 1.3521];
@@ -267,6 +268,10 @@ export function MapView({
   onHoverRef.current = onHover;
   const lastHoverSentRef = useRef(hoveredSlug ?? null);
   lastHoverSentRef.current = hoveredSlug ?? null;
+  const pendingTargetRef = useRef(hoveredSlug ?? null);
+  pendingTargetRef.current = hoveredSlug ?? null;
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const visitedRef = useRef(new Set<string>());
   const onToggle3dRef = useRef(onToggle3d);
   onToggle3dRef.current = onToggle3d;
   const threeDControlRef = useRef<ThreeDControl | null>(null);
@@ -345,6 +350,15 @@ export function MapView({
       refreshMarkersRef.current();
       setReady(true);
 
+      const scheduleHover = (next: string | null) => {
+        if (next === lastHoverSentRef.current) return;
+        clearTimeout(hoverTimeoutRef.current ?? undefined);
+        hoverTimeoutRef.current = setTimeout(() => {
+          lastHoverSentRef.current = next;
+          onHoverRef.current?.(next);
+        }, 120);
+      };
+
       map.on('mousemove', (e) => {
         const [feature] = map.queryRenderedFeatures(e.point, { layers: INTERACTIVE_LAYERS });
         const slug = feature?.properties?.slug ?? null;
@@ -352,17 +366,13 @@ export function MapView({
         // Don't draw a hover pill on top of the already-selected one.
         const target = nextSlug === selectedRef.current ? null : nextSlug;
         map.getCanvas().style.cursor = target ? 'pointer' : '';
-        if (target !== lastHoverSentRef.current) {
-          lastHoverSentRef.current = target;
-          onHoverRef.current?.(target);
-        }
+        pendingTargetRef.current = target;
+        scheduleHover(target);
       });
       map.on('mouseleave', () => {
         map.getCanvas().style.cursor = '';
-        if (lastHoverSentRef.current !== null) {
-          lastHoverSentRef.current = null;
-          onHoverRef.current?.(null);
-        }
+        pendingTargetRef.current = null;
+        scheduleHover(null);
       });
 
       map.on('click', (e) => {
@@ -477,12 +487,19 @@ export function MapView({
     const map = mapRef.current;
     if (!map || !ready) return;
     setSelectedVenue(map, selectedSlug);
+    if (selectedSlug && !visitedRef.current.has(selectedSlug)) {
+      visitedRef.current.add(selectedSlug);
+      setVisitedVenues(map, [...visitedRef.current]);
+    }
   }, [selectedSlug, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
     setHoveredVenue(map, hoveredSlug ?? null);
+    clearTimeout(hoverTimeoutRef.current ?? undefined);
+    lastHoverSentRef.current = hoveredSlug ?? null;
+    pendingTargetRef.current = hoveredSlug ?? null;
   }, [hoveredSlug, ready]);
 
   useEffect(() => {

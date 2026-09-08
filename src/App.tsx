@@ -320,6 +320,7 @@ function MapApp() {
                 focus={focus}
                 focusBounds={focusBounds}
                 show3d={show3d}
+                onToggle3d={() => setShow3d((v) => !v)}
                 userLocation={userLocation}
                 onMapError={setMapError}
                 onViewportChange={(b, userInitiated) => {
@@ -335,15 +336,6 @@ function MapApp() {
                 }}
               />
             </Suspense>
-
-            <button
-              className={`map-toggle${show3d ? ' on' : ''}`}
-              onClick={() => setShow3d((v) => !v)}
-              aria-pressed={show3d}
-              title="Tilt the map and raise the buildings"
-            >
-              3D
-            </button>
 
             {mapError && <div className="map-error small">The map failed to load: {mapError}</div>}
 

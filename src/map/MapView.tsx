@@ -98,6 +98,7 @@ interface MapViewProps {
   focusBounds?: { bounds: Bounds; nonce: number } | null;
   /** Extruded buildings on/off. Also pitches the camera, since flat 3D is pointless. */
   show3d?: boolean;
+  onToggle3d?: () => void;
   /** Raised when the basemap itself fails, so the failure is never silent. */
   onMapError?: (message: string) => void;
   /** The area currently on screen, so the list can show what is actually in view. */
@@ -175,6 +176,50 @@ function flyToVenue(map: MlMap, center: maplibregl.LngLatLike) {
   map.once('moveend', () => panToShowCard(map));
 }
 
+class ThreeDControl {
+  private button: HTMLButtonElement | null = null;
+  private active: boolean;
+  private onClick: () => void;
+
+  constructor(active: boolean, onClick: () => void) {
+    this.active = active;
+    this.onClick = onClick;
+  }
+
+  onAdd(_map: MlMap): HTMLElement {
+    const group = document.createElement('div');
+    group.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+
+    this.button = document.createElement('button');
+    this.button.type = 'button';
+    this.button.className = 'maplibregl-ctrl-icon';
+    this.button.title = 'Tilt the map and raise the buildings';
+    this.button.setAttribute('aria-pressed', String(this.active));
+    this.button.textContent = '3D';
+    this.button.style.fontSize = '10px';
+    this.button.style.fontWeight = '700';
+    this.button.style.letterSpacing = '-0.02em';
+    this.button.addEventListener('click', () => this.onClick());
+
+    this.update(this.active);
+    group.appendChild(this.button);
+    return group;
+  }
+
+  onRemove(): void {
+    this.button?.parentElement?.remove();
+    this.button = null;
+  }
+
+  update(active: boolean): void {
+    this.active = active;
+    if (!this.button) return;
+    this.button.setAttribute('aria-pressed', String(active));
+    this.button.style.background = active ? '#222222' : 'transparent';
+    this.button.style.color = active ? '#ffffff' : 'inherit';
+  }
+}
+
 export function MapView({
   venues,
   selectedSlug,
@@ -190,6 +235,7 @@ export function MapView({
   focus,
   focusBounds,
   show3d = false,
+  onToggle3d,
   onMapError,
   onViewportChange,
   userLocation,
@@ -221,6 +267,9 @@ export function MapView({
   onHoverRef.current = onHover;
   const lastHoverSentRef = useRef(hoveredSlug ?? null);
   lastHoverSentRef.current = hoveredSlug ?? null;
+  const onToggle3dRef = useRef(onToggle3d);
+  onToggle3dRef.current = onToggle3d;
+  const threeDControlRef = useRef<ThreeDControl | null>(null);
 
   // Stabilise the visible marker set: only re-filter when the viewport has
   // moved enough to change the shortlist. Constant `setFilter` calls while a
@@ -268,6 +317,9 @@ export function MapView({
       }),
       'top-right',
     );
+
+    threeDControlRef.current = new ThreeDControl(show3dRef.current, () => onToggle3dRef.current?.());
+    map.addControl(threeDControlRef.current, 'top-right');
 
     map.on('load', async () => {
       try {
@@ -437,6 +489,7 @@ export function MapView({
     const map = mapRef.current;
     if (!map || !ready) return;
     set3dBuildings(map, show3d);
+    threeDControlRef.current?.update(show3d);
   }, [show3d, ready]);
 
   useEffect(() => {

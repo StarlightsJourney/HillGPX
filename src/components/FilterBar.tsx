@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useUnits } from './UnitsContext';
-import { CloseIcon, LocationArrowIcon } from './icons';
+import { CloseIcon } from './icons';
 import type { Venue, VenueType } from '../types';
 import {
   NO_FILTERS,
@@ -32,8 +32,6 @@ interface FilterBarProps {
   onChange: (filters: VenueFilters) => void;
   /** How many venues in the current viewport survive the current filters. */
   matchCount: number;
-  /** Trigger a "find climbs near me" search. Called from the location button. */
-  onLocate?: () => void;
 }
 
 /**
@@ -49,7 +47,7 @@ interface FilterBarProps {
  * room to be understood — the type choice, the height distribution — lives in
  * the dialog.
  */
-function FilterBarInner({ types, visibleVenues, filters, onChange, matchCount, onLocate }: FilterBarProps) {
+function FilterBarInner({ types, visibleVenues, filters, onChange, matchCount }: FilterBarProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const openerRef = useRef<HTMLButtonElement>(null);
 
@@ -127,7 +125,6 @@ function FilterBarInner({ types, visibleVenues, filters, onChange, matchCount, o
           filters={filters}
           onChange={onChange}
           matchCount={matchCount}
-          onLocate={onLocate}
           onClose={() => setModalOpen(false)}
           returnFocusTo={openerRef}
         />
@@ -141,7 +138,6 @@ function FilterBarInner({ types, visibleVenues, filters, onChange, matchCount, o
 interface FilterModalProps extends FilterBarProps {
   onClose: () => void;
   returnFocusTo: React.RefObject<HTMLElement>;
-  onLocate?: () => void;
 }
 
 /**
@@ -159,13 +155,11 @@ function FilterModal({
   filters,
   onChange,
   matchCount,
-  onLocate,
   onClose,
   returnFocusTo,
 }: FilterModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const units = useUnits();
 
   // Escape and the focus trap are on the document rather than the dialog so
   // they still fire while a handle inside is being dragged with the pointer
@@ -226,48 +220,6 @@ function FilterModal({
 
   const selectedType: VenueType | null = filters.types.length === 1 ? filters.types[0] : null;
 
-  const removeType = (type: VenueType) =>
-    onChange({ ...filters, types: filters.types.filter((t) => t !== type) });
-
-  const selectedChips = useMemo(() => {
-    const chips: { key: string; label: string; onRemove: () => void }[] = [];
-    filters.types.forEach((type) =>
-      chips.push({
-        key: `type-${type}`,
-        label: VENUE_TYPE_LABEL[type],
-        onRemove: () => removeType(type),
-      }),
-    );
-    if (filters.notableOnly) {
-      chips.push({
-        key: 'notable',
-        label: 'Top climbs',
-        onRemove: () => onChange({ ...filters, notableOnly: false }),
-      });
-    }
-    if (filters.withPhoto) {
-      chips.push({
-        key: 'photo',
-        label: 'With photo',
-        onRemove: () => onChange({ ...filters, withPhoto: false }),
-      });
-    }
-    if (filters.minHeightM != null || filters.maxHeightM != null) {
-      const min = filters.minHeightM ?? null;
-      const max = filters.maxHeightM ?? null;
-      let label = 'Elevation';
-      if (min != null && max != null) label = `${units.height(min)} – ${units.height(max)}`;
-      else if (min != null) label = `${units.height(min)}+`;
-      else if (max != null) label = `Up to ${units.height(max)}`;
-      chips.push({
-        key: 'height',
-        label,
-        onRemove: () => onChange({ ...filters, minHeightM: null, maxHeightM: null }),
-      });
-    }
-    return chips;
-  }, [filters, units]);
-
   // Portalled to the body: .filterbar sits in a stacking context below the
   // topbar, so a scrim rendered in place would be painted under the search bar
   // it is supposed to cover.
@@ -302,17 +254,6 @@ function FilterModal({
         </header>
 
         <div className="filter-modal-body">
-          {selectedChips.length > 0 && (
-            <section className="filter-group">
-              <h3>Selected</h3>
-              <div className="selected-chips">
-                {selectedChips.map((chip) => (
-                  <SelectedChip key={chip.key} label={chip.label} onRemove={chip.onRemove} />
-                ))}
-              </div>
-            </section>
-          )}
-
           <section className="filter-group">
             <h3 id="filter-type-label">Place type</h3>
             {/* One choice: Any, or one specific type. */}
@@ -333,21 +274,6 @@ function FilterModal({
                 </Segment>
               ))}
             </div>
-          </section>
-
-          <section className="filter-group">
-            <h3>Location</h3>
-            <button
-              type="button"
-              className="filter-location"
-              onClick={() => {
-                onLocate?.();
-                onClose();
-              }}
-            >
-              <LocationArrowIcon size={18} />
-              Find climbs near me
-            </button>
           </section>
 
           <section className="filter-group">
@@ -665,22 +591,6 @@ function Chip({
     <button type="button" className={`chip${active ? ' on' : ''}`} aria-pressed={active} onClick={onClick}>
       {children}
     </button>
-  );
-}
-
-function SelectedChip({ label, onRemove }: { label: string; onRemove: () => void }) {
-  return (
-    <span className="selected-chip">
-      <span className="selected-chip-label">{label}</span>
-      <button
-        type="button"
-        className="selected-chip-remove"
-        aria-label={`Remove ${label}`}
-        onClick={onRemove}
-      >
-        <CloseIcon size={10} />
-      </button>
-    </span>
   );
 }
 

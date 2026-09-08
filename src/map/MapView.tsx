@@ -106,6 +106,7 @@ interface MapViewProps {
   onRate: (slug: string, rating: number) => void;
   views: Record<string, number>;
   onView: (slug: string) => void;
+  onLocateHint?: (message: string | null) => void;
   /** Raised when the basemap itself fails, so the failure is never silent. */
   onMapError?: (message: string) => void;
   /** The area currently on screen, so the list can show what is actually in view. */
@@ -249,6 +250,7 @@ export function MapView({
   onRate,
   views,
   onView,
+  onLocateHint,
   onMapError,
   onViewportChange,
   userLocation,
@@ -284,6 +286,8 @@ export function MapView({
   pendingTargetRef.current = hoveredSlug ?? null;
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const visitedRef = useRef(new Set<string>());
+  const onLocateHintRef = useRef(onLocateHint);
+  onLocateHintRef.current = onLocateHint;
   const onToggle3dRef = useRef(onToggle3d);
   onToggle3dRef.current = onToggle3d;
   const threeDControlRef = useRef<ThreeDControl | null>(null);
@@ -327,13 +331,24 @@ export function MapView({
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
-    map.addControl(
-      new maplibregl.GeolocateControl({
-        positionOptions: { enableHighAccuracy: true },
-        trackUserLocation: true,
-      }),
-      'top-right',
-    );
+
+    const geolocate = new maplibregl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true },
+      trackUserLocation: true,
+    });
+    geolocate.on('geolocate', () => onLocateHintRef.current?.(null));
+    geolocate.on('error', (e) => {
+      const err = (e as unknown as { error?: GeolocationPositionError }).error;
+      const code = err?.code;
+      onLocateHintRef.current?.(
+        code === 1
+          ? 'To improve accuracy, enable location sharing in your browser settings.'
+          : code === 3
+            ? 'Timed out waiting for your location.'
+            : 'Could not get your location.',
+      );
+    });
+    map.addControl(geolocate, 'top-right');
 
     threeDControlRef.current = new ThreeDControl(show3dRef.current, () => onToggle3dRef.current?.());
     map.addControl(threeDControlRef.current, 'top-right');

@@ -8,19 +8,15 @@ import { VenueDetail } from './components/VenueDetail';
 import { ElevationModel } from './lib/elevation';
 import {
   NO_FILTERS,
-  boundsOf,
   filterVenues,
   loadDataset,
-  nearest,
   presentVenueTypes,
   routesForVenue,
-  tallestWithin,
   venuesInBounds,
   type Bounds,
   type Dataset,
   type VenueFilters,
 } from './lib/venues';
-import { haversineM } from './lib/elevation';
 import type { RoutePoint, Venue } from './types';
 import { CloseIcon, ListIcon, LocationArrowIcon } from './components/icons';
 import { HeaderControls } from './components/HeaderControls';
@@ -222,41 +218,6 @@ function MapApp() {
     setFocusBounds({ bounds, nonce: Date.now() });
   }, []);
 
-  const handleLocate = useCallback(() => {
-    if (!navigator.geolocation || allVenues.length === 0) {
-      setLocateHint('This browser does not support location sharing.');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        const [closest] = nearest(allVenues, longitude, latitude, 1);
-        const gapM = closest ? haversineM(longitude, latitude, closest.lng, closest.lat) : Infinity;
-        if (gapM > 100_000) {
-          setMapError(`You are about ${Math.round(gapM / 1000)} km from the nearest mapped climb. hillGPX only covers Singapore and Peninsular Malaysia.`);
-          return;
-        }
-        const nearby = tallestWithin(allVenues, longitude, latitude, 2_000, 8);
-        setSelectedSlug(null);
-        setActiveRouteSlug(null);
-        setLocateHint(null);
-        setUserLocation({ lng: longitude, lat: latitude });
-        const bounds = boundsOf([{ lng: longitude, lat: latitude }, ...nearby.map((n) => n.venue)]);
-        if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
-      },
-      (err) => {
-        setLocateHint(
-          err.code === err.PERMISSION_DENIED
-            ? 'To improve accuracy, enable location sharing in your browser settings.'
-            : err.code === err.TIMEOUT
-              ? 'Timed out waiting for your location.'
-              : 'Could not get your location.',
-        );
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
-    );
-  }, [allVenues]);
-
   return (
     <div className="app">
       <header className="topbar">
@@ -294,7 +255,6 @@ function MapApp() {
         filters={filters}
         onChange={setFilters}
         matchCount={visibleVenues.length}
-        onLocate={handleLocate}
       />
 
       <main className={`stage${listOpen ? ' with-list' : ''}`}>
@@ -349,6 +309,7 @@ function MapApp() {
                 onRate={rateVenue}
                 views={views}
                 onView={viewVenue}
+                onLocateHint={setLocateHint}
                 userLocation={userLocation}
                 onMapError={setMapError}
                 onViewportChange={(b, userInitiated) => {

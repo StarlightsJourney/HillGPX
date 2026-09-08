@@ -147,7 +147,7 @@ export function LocationArrowIcon({ size = 18 }: { size?: number }) {
       aria-hidden="true"
       focusable="false"
     >
-      <path d="M12 2L4.5 20.3 6.7 14 12 12l6.3 2.7L12 2z" />
+      <path d="M12 2c-4.4 0-8 3.6-8 8 0 5.3 7 13 7 13s7-7.7 7-13c0-4.4-3.6-8-8-8zm0 11c-1.7 0-3-1.3-3-3s1.3-3 3-3 3 1.3 3 3-1.3 3-3 3z" />
     </svg>
   );
 }

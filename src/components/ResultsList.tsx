@@ -15,7 +15,78 @@ interface ResultsListProps {
   onToggleFavorite: (slug: string) => void;
 }
 
-const PAGE = 40;
+const PAGE_SIZE = 24;
+
+type PageItem = number | 'ellipsis';
+
+function pageRange(total: number, current: number): PageItem[] {
+  const pages: PageItem[] = [];
+  if (total <= 7) {
+    for (let i = 1; i <= total; i++) pages.push(i);
+    return pages;
+  }
+  if (current <= 4) {
+    pages.push(1, 2, 3, 4, 'ellipsis', total);
+  } else if (current >= total - 3) {
+    pages.push(1, 'ellipsis', total - 3, total - 2, total - 1, total);
+  } else {
+    pages.push(1, 'ellipsis', current - 1, current, current + 1, 'ellipsis', total);
+  }
+  return pages;
+}
+
+function Pagination({
+  current,
+  total,
+  onPage,
+}: {
+  current: number;
+  total: number;
+  onPage: (n: number) => void;
+}) {
+  if (total <= 1) return null;
+  const items = pageRange(total, current);
+  return (
+    <nav className="pagination" aria-label="Result pages">
+      <button
+        type="button"
+        className="page-btn"
+        onClick={() => onPage(current - 1)}
+        disabled={current === 1}
+        aria-label="Previous page"
+      >
+        {'‹'}
+      </button>
+      {items.map((item, i) =>
+        item === 'ellipsis' ? (
+          <span key={`ellipsis-${i}`} className="page-ellipsis" aria-hidden="true">
+            …
+          </span>
+        ) : (
+          <button
+            key={item}
+            type="button"
+            className={`page-btn${item === current ? ' active' : ''}`}
+            onClick={() => onPage(item)}
+            aria-label={`Page ${item}`}
+            aria-current={item === current ? 'page' : undefined}
+          >
+            {item}
+          </button>
+        )
+      )}
+      <button
+        type="button"
+        className="page-btn"
+        onClick={() => onPage(current + 1)}
+        disabled={current === total}
+        aria-label="Next page"
+      >
+        {'›'}
+      </button>
+    </nav>
+  );
+}
 
 /**
  * The biggest climbs in whatever the map is currently showing.
@@ -37,7 +108,7 @@ function ResultsListInner({
   onToggleFavorite,
 }: ResultsListProps) {
   const units = useUnits();
-  const [limit, setLimit] = useState(PAGE);
+  const [page, setPage] = useState(0);
 
   const inView = useMemo(() => {
     const list = bounds ? venuesInBounds(venues, bounds) : venues;
@@ -48,9 +119,10 @@ function ResultsListInner({
     });
   }, [venues, bounds]);
 
-  const rows = inView.slice(0, limit);
   const total = inView.length;
-  const hasMore = total > limit;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const currentPage = Math.max(0, Math.min(page, totalPages - 1));
+  const rows = inView.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
   return (
     <section className="results">
@@ -116,13 +188,7 @@ function ResultsListInner({
         })}
       </ul>
 
-      {hasMore && (
-        <div className="results-more">
-          <button type="button" className="filter-apply" onClick={() => setLimit((l) => l + PAGE)}>
-            Show more
-          </button>
-        </div>
-      )}
+      <Pagination current={currentPage + 1} total={totalPages} onPage={(n) => setPage(n - 1)} />
 
       <button type="button" className="show-map-btn" onClick={onClose}>
         <MapIcon size={16} />
@@ -133,7 +199,7 @@ function ResultsListInner({
 }
 
 /**
- * Memoised: this renders forty cards with images, and the map above it changes
+ * Memoised: this renders a page of cards with images, and the map above it changes
  * state far more often than the list's own inputs do.
  */
 export const ResultsList = memo(ResultsListInner);

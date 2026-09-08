@@ -16,6 +16,7 @@ import {
   NO_FILTERS,
   VENUE_TYPE_LABEL,
   activeFilterCount,
+  formatCount,
   rankingHeight,
   type VenueFilters,
 } from '../lib/venues';
@@ -296,7 +297,7 @@ function FilterModal({
           <button type="button" className="filter-apply" onClick={onClose}>
             {matchCount === 0
               ? 'No matches'
-              : `Show ${matchCount.toLocaleString()} venue${matchCount === 1 ? '' : 's'}`}
+              : `Show ${formatCount(matchCount)} venue${matchCount === 1 ? '' : 's'}`}
           </button>
         </footer>
       </div>

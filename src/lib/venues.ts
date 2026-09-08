@@ -2,6 +2,14 @@ import type { Route, RouteDataset, Venue, VenueDataset, VenueType } from '../typ
 import { haversineM } from './elevation';
 import { formatDistanceIn, type Units } from './units';
 
+/** Friendly rounded count: big thresholds instead of exact numbers. */
+export function formatCount(n: number): string {
+  if (n >= 10_000) return '10,000+';
+  if (n >= 5_000) return '5,000+';
+  if (n >= 1_000) return '1,000+';
+  return n.toLocaleString();
+}
+
 /**
  * Venue and route loading, plus the spatial queries the map needs.
  *

@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from 'react';
 import type { Venue } from '../types';
-import { VENUE_TYPE_LABEL, rankingHeight, venueHeight, venuesInBounds } from '../lib/venues';
+import { VENUE_TYPE_LABEL, formatCount, rankingHeight, venueHeight, venuesInBounds } from '../lib/venues';
 import { VenueThumb } from './VenueThumb';
 import { HeartIcon, MapIcon } from './icons';
 import { useUnits } from './UnitsContext';
@@ -16,13 +16,6 @@ interface ResultsListProps {
 }
 
 const PAGE = 40;
-
-function formatCount(n: number): string {
-  if (n >= 10_000) return '10,000+';
-  if (n >= 5_000) return '5,000+';
-  if (n >= 1_000) return '1,000+';
-  return n.toLocaleString();
-}
 
 /**
  * The biggest climbs in whatever the map is currently showing.

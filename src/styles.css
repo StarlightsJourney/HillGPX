@@ -593,6 +593,13 @@ button {
   }
 }
 
+/* Small laptops: keep two cards per row in the split list. */
+@media (min-width: 900px) and (max-width: 1023px) {
+  .results-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 /* Desktop: split view, two-column cards, generous padding. */
 @media (min-width: 1024px) {
   .stage.with-list {

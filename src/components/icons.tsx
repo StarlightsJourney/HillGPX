@@ -163,3 +163,25 @@ export function ListIcon({ size = 15 }: { size?: number }) {
     </svg>
   );
 }
+
+/** A download arrow, used for GPX route exports. */
+export function DownloadIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M3 12.5h10" />
+      <path d="M8 2.5v8" />
+      <path d="M4.5 8.5L8 12l3.5-3.5" />
+    </svg>
+  );
+}

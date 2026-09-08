@@ -3,8 +3,31 @@ import { VENUE_TYPE_LABEL, townName, venueHeight } from '../lib/venues';
 import { ElevationProfile } from './ElevationProfile';
 import { PhotoCredit, VenueThumb } from './VenueThumb';
 import { useUnits } from './UnitsContext';
+import { DownloadIcon } from './icons';
 
 const REPO_URL = 'https://github.com/StarlightsJourney/HillGPX';
+
+function downloadRoute(route: Route) {
+  const points = route.coordinates
+    .map(([lng, lat, ele]) => `        <trkpt lat="${lat}" lon="${lng}"><ele>${ele}</ele></trkpt>`)
+    .join('\n');
+  const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="hillGPX">
+  <trk>
+    <name>${route.name}</name>
+    <trkseg>
+${points}
+    </trkseg>
+  </trk>
+</gpx>`;
+  const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${route.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.gpx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 interface VenueCardProps {
   venue: Venue;
@@ -86,26 +109,18 @@ export function VenueCard({
 
         <hr className="card-rule" />
 
-        {routes.length === 0 ? (
-          <p className="card-note">
-            No routes yet.{' '}
-            <a href={REPO_URL} target="_blank" rel="noreferrer">
-              Add a GPX track
-            </a>{' '}
-            to share a climb.
-          </p>
-        ) : (
+        {routes.length > 0 && (
           <>
             <h3>
-              {routes.length} climb route{routes.length > 1 ? 's' : ''}
+              {routes.length} route{routes.length > 1 ? 's' : ''}
             </h3>
             <ul className="route-list">
               {routes.map((route) => {
                 const isActive = route.slug === activeRouteSlug;
                 return (
-                  <li key={route.slug}>
+                  <li key={route.slug} className="route-row">
                     <button
-                      className={`route-row${isActive ? ' active' : ''}`}
+                      className={`route-info${isActive ? ' active' : ''}`}
                       onClick={() => onSelectRoute(isActive ? null : route.slug)}
                     >
                       <span className="route-name">{route.name}</span>
@@ -113,6 +128,18 @@ export function VenueCard({
                         {units.distance(route.distanceM)} · {units.height(route.gainM)} gain
                         {route.loop ? ' · loop' : ''}
                       </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="route-download"
+                      aria-label={`Download GPX for ${route.name}`}
+                      title="Download GPX"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        downloadRoute(route);
+                      }}
+                    >
+                      <DownloadIcon size={16} />
                     </button>
                   </li>
                 );

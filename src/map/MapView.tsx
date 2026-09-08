@@ -163,9 +163,10 @@ export function panToShowCard(map: MlMap) {
 function flyToVenue(map: MlMap, center: maplibregl.LngLatLike) {
   map.flyTo({
     center,
-    zoom: Math.max(map.getZoom(), 16),
     duration: 900,
     essential: true,
+    // Keep the current zoom and just pad the camera so the popup has room to
+    // open above the marker rather than forcing the user into street level.
     padding: { top: 220, bottom: 64, left: 64, right: 64 },
   });
   map.once('moveend', () => panToShowCard(map));

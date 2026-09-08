@@ -42,23 +42,23 @@ export function VenueThumb({ venue, rounded = true }: { venue: Venue; rounded?: 
       {/* The centring lives on this inner box rather than on .card-thumb, which
           the list and the card hero each restyle for their own layout. */}
       <span className="placeholder-inner">
-      <svg
-        className="placeholder-icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <rect x="3" y="5" width="14.5" height="14" rx="2.5" />
-        <circle cx="8" cy="9.8" r="1.3" />
-        <path d="M3.6 16.4 L8.4 11.9 L11.6 14.6" />
-        {/* A plus, not a slash. The old crossed-out frame said "this is
-            broken"; the point is that someone can fix it. */}
-        <path d="M19.4 13.6 V20.4 M16 17 H22.8" />
-      </svg>
+        <svg
+          className="placeholder-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="3" y="5" width="14" height="14" rx="2" />
+          <circle cx="8" cy="10" r="1.5" />
+          <path d="M4 17 L9.5 11 L15 17" />
+          <path d="M10.5 17 L15 13 L18.5 17" />
+          <circle cx="18" cy="7" r="4" />
+          <path d="M18 4.5 V9.5 M15.5 7 H20.5" />
+        </svg>
         <span className="placeholder-label">Add photo</span>
       </span>
     </span>

@@ -603,7 +603,7 @@ button {
 }
 
 .card-body {
-  padding: 14px var(--s2) var(--s2);
+  padding: 12px var(--s2) var(--s2);
 }
 
 .card-kind {
@@ -622,7 +622,7 @@ button {
 
 .card-note,
 .card-detail {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   font-size: var(--t2);
   color: var(--muted);
   line-height: 1.45;
@@ -637,7 +637,7 @@ button {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   color: var(--ink);
 }
 .card-height strong {
@@ -682,22 +682,55 @@ button {
 }
 
 .route-row {
-  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2px 2px 2px 12px;
+  background: none;
+}
+
+.route-info {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding: 8px 0;
   text-align: left;
   background: none;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px 12px;
+  border: none;
   cursor: pointer;
 }
 
-.route-row:hover,
-.route-row.active {
+.route-info:hover,
+.route-info.active {
+  color: inherit;
+}
+
+.route-info:hover ~ .route-download,
+.route-row:hover .route-download {
+  color: var(--ink);
+}
+
+.route-download {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.route-download:hover {
   background: var(--bg-raised);
-  border-color: var(--ink);
+  color: var(--accent);
 }
 
 .route-name {

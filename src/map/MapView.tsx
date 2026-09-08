@@ -107,8 +107,6 @@ interface MapViewProps {
   views: Record<string, number>;
   onView: (slug: string) => void;
   onLocateHint?: (message: string | null) => void;
-  listOpen: boolean;
-  onToggleList: () => void;
   /** Raised when the basemap itself fails, so the failure is never silent. */
   onMapError?: (message: string) => void;
   /** The area currently on screen, so the list can show what is actually in view. */
@@ -230,51 +228,6 @@ class ThreeDControl {
   }
 }
 
-const EXPAND_SVG =
-  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
-const CLOSE_SVG =
-  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M3 3l10 10M13 3L3 13"/></svg>';
-
-/** Toggle between the split view with the results list and a full-width map. */
-class ListToggleControl {
-  private button: HTMLButtonElement | null = null;
-  private listOpen: boolean;
-  private onClick: () => void;
-
-  constructor(listOpen: boolean, onClick: () => void) {
-    this.listOpen = listOpen;
-    this.onClick = onClick;
-  }
-
-  onAdd(_map: MlMap): HTMLElement {
-    const group = document.createElement('div');
-    group.className = 'maplibregl-ctrl maplibregl-ctrl-group list-toggle-ctrl';
-
-    this.button = document.createElement('button');
-    this.button.type = 'button';
-    this.button.className = 'maplibregl-ctrl-icon';
-    this.button.addEventListener('click', () => this.onClick());
-
-    this.update(this.listOpen);
-    group.appendChild(this.button);
-    return group;
-  }
-
-  onRemove(): void {
-    this.button?.parentElement?.remove();
-    this.button = null;
-  }
-
-  update(listOpen: boolean): void {
-    this.listOpen = listOpen;
-    if (!this.button) return;
-    this.button.title = listOpen ? 'Expand map' : 'Show list';
-    this.button.setAttribute('aria-label', listOpen ? 'Expand map' : 'Show list');
-    this.button.innerHTML = listOpen ? EXPAND_SVG : CLOSE_SVG;
-    this.button.style.color = listOpen ? 'inherit' : '#ffffff';
-    this.button.style.background = listOpen ? 'transparent' : '#222222';
-  }
-}
 
 export function MapView({
   venues,
@@ -299,8 +252,6 @@ export function MapView({
   views,
   onView,
   onLocateHint,
-  listOpen,
-  onToggleList,
   onMapError,
   onViewportChange,
   userLocation,
@@ -340,12 +291,7 @@ export function MapView({
   onLocateHintRef.current = onLocateHint;
   const onToggle3dRef = useRef(onToggle3d);
   onToggle3dRef.current = onToggle3d;
-  const onToggleListRef = useRef(onToggleList);
-  onToggleListRef.current = onToggleList;
-  const listOpenRef = useRef(listOpen);
-  listOpenRef.current = listOpen;
   const threeDControlRef = useRef<ThreeDControl | null>(null);
-  const listToggleControlRef = useRef<ListToggleControl | null>(null);
 
   // Stabilise the visible marker set: only re-filter when the viewport has
   // moved enough to change the shortlist. Constant `setFilter` calls while a
@@ -386,11 +332,6 @@ export function MapView({
       console.error('[map]', message);
       onMapErrorRef.current?.(message);
     });
-
-    listToggleControlRef.current = new ListToggleControl(listOpenRef.current, () =>
-      onToggleListRef.current?.(),
-    );
-    map.addControl(listToggleControlRef.current, 'top-right');
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
@@ -596,8 +537,7 @@ export function MapView({
     if (!map || !ready) return;
     set3dBuildings(map, show3d);
     threeDControlRef.current?.update(show3d);
-    listToggleControlRef.current?.update(listOpen);
-  }, [show3d, listOpen, ready]);
+  }, [show3d, ready]);
 
   useEffect(() => {
     const map = mapRef.current;

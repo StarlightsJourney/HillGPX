@@ -2,11 +2,12 @@ import type { Route, RouteDataset, Venue, VenueDataset, VenueType } from '../typ
 import { haversineM } from './elevation';
 import { formatDistanceIn, type Units } from './units';
 
-/** Friendly rounded count: big thresholds instead of exact numbers. */
+/** Friendly rounded count: exact under 100, rounded to the hundred above that. */
 export function formatCount(n: number): string {
   if (n >= 10_000) return '10,000+';
   if (n >= 5_000) return '5,000+';
   if (n >= 1_000) return '1,000+';
+  if (n >= 100) return `${Math.floor(n / 100) * 100}+`;
   return n.toLocaleString();
 }
 

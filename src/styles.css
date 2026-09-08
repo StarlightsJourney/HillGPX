@@ -420,7 +420,7 @@ button {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 55%;
+  height: 45%;
   z-index: 3;
   background: var(--surface);
   overflow-y: auto;
@@ -447,53 +447,15 @@ button {
   }
 }
 
-.bottom-nav {
-  display: none;
-}
-
 .show-map-btn {
   display: none;
 }
 
-/* Phone: bottom sheet + bottom nav. */
+/* Phone: bottom sheet. */
 @media (max-width: 480px) {
   .list-pane {
-    bottom: 56px;
-    box-shadow: 0 -4px 24px rgb(0 0 0 / 16%);
-  }
-
-  .bottom-nav {
-    position: fixed;
-    left: 0;
-    right: 0;
     bottom: 0;
-    z-index: 2;
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    height: 56px;
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-  }
-
-  .bottom-nav-item {
-    flex: 1 1 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    height: 100%;
-    padding: 0;
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-size: 11px;
-    cursor: pointer;
-  }
-
-  .bottom-nav-item.active {
-    color: var(--accent);
+    box-shadow: 0 -4px 24px rgb(0 0 0 / 16%);
   }
 
   .results {
@@ -1764,19 +1726,6 @@ button {
 }
 .maplibregl-ctrl-group button:hover {
   background: var(--bg-raised) !important;
-}
-
-/* The list/map toggle is a single round button, not a group of stacked ones. */
-.maplibregl-ctrl-group.list-toggle-ctrl {
-  border-radius: 999px !important;
-  overflow: hidden;
-}
-
-.maplibregl-ctrl-group.list-toggle-ctrl button {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  border-radius: 999px !important;
 }
 
 /* Text for screen readers only. The capsule says "still working" visually with

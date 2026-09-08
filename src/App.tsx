@@ -22,7 +22,7 @@ import {
 } from './lib/venues';
 import { haversineM } from './lib/elevation';
 import type { RoutePoint, Venue } from './types';
-import { CloseIcon, HeartIcon, LocationArrowIcon, UserIcon } from './components/icons';
+import { CloseIcon, LocationArrowIcon } from './components/icons';
 import { HeaderControls } from './components/HeaderControls';
 import { UnitsProvider } from './components/UnitsContext';
 
@@ -347,8 +347,6 @@ function MapApp() {
                 onView={viewVenue}
                 onLocateHint={setLocateHint}
                 userLocation={userLocation}
-                listOpen={listOpen}
-                onToggleList={() => setListOpen((v) => !v)}
                 onMapError={setMapError}
                 onViewportChange={(b, userInitiated) => {
                   // Every zoom or pan ends here, and a new bounds object
@@ -413,49 +411,6 @@ function MapApp() {
 
       </main>
 
-      <MobileNav
-        active="explore"
-        onExplore={() => setListOpen(true)}
-        onSaved={() => setListOpen(true)}
-        onLogin={() => {
-          // Login is not implemented yet; the entry point is reserved.
-          alert('Login is coming soon.');
-        }}
-      />
     </div>
-  );
-}
-
-interface MobileNavProps {
-  active: 'explore' | 'saved';
-  onExplore: () => void;
-  onSaved: () => void;
-  onLogin: () => void;
-}
-
-function MobileNav({ active, onExplore, onSaved, onLogin }: MobileNavProps) {
-  return (
-    <nav className="bottom-nav" aria-label="Mobile navigation">
-      <button
-        type="button"
-        className={`bottom-nav-item${active === 'explore' ? ' active' : ''}`}
-        onClick={onExplore}
-      >
-        <LocationArrowIcon size={20} />
-        <span>Explore</span>
-      </button>
-      <button
-        type="button"
-        className={`bottom-nav-item${active === 'saved' ? ' active' : ''}`}
-        onClick={onSaved}
-      >
-        <HeartIcon size={20} />
-        <span>Saved</span>
-      </button>
-      <button type="button" className="bottom-nav-item" onClick={onLogin}>
-        <UserIcon size={20} />
-        <span>Log in</span>
-      </button>
-    </nav>
   );
 }

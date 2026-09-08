@@ -10,13 +10,19 @@ interface ResultsListProps {
   bounds: { west: number; south: number; east: number; north: number } | null;
   onPick: (slug: string) => void;
   onClose: () => void;
-  hoveredSlug?: string | null;
   onHover?: (slug: string | null) => void;
   favorites: Set<string>;
   onToggleFavorite: (slug: string) => void;
 }
 
 const PAGE = 40;
+
+function formatCount(n: number): string {
+  if (n >= 10_000) return '10,000+';
+  if (n >= 5_000) return '5,000+';
+  if (n >= 1_000) return '1,000+';
+  return n.toLocaleString();
+}
 
 /**
  * The biggest climbs in whatever the map is currently showing.
@@ -25,14 +31,14 @@ const PAGE = 40;
  * pan somewhere and it answers "what is worth climbing *here*". That is also the
  * honest version of a recommendations feature — nobody has liked or saved
  * anything yet, so ranking by the one fact we actually measured beats inventing
- * popularity.
+ * popularity. Venues that have a photo are surfaced first, because a missing
+ * photo is the easiest clue that an entry still needs attention.
  */
 function ResultsListInner({
   venues,
   bounds,
   onPick,
   onClose,
-  hoveredSlug,
   onHover,
   favorites,
   onToggleFavorite,
@@ -40,24 +46,26 @@ function ResultsListInner({
   const units = useUnits();
   const [limit, setLimit] = useState(PAGE);
 
-  const rows = useMemo(() => {
-    const inView = bounds ? venuesInBounds(venues, bounds) : venues;
-    return [...inView]
-      .sort((a, b) => rankingHeight(b) - rankingHeight(a))
-      .slice(0, limit);
-  }, [venues, bounds, limit]);
+  const inView = useMemo(() => {
+    const list = bounds ? venuesInBounds(venues, bounds) : venues;
+    return [...list].sort((a, b) => {
+      const aScore = rankingHeight(a) + (a.photo?.file ? 10_000 : 0);
+      const bScore = rankingHeight(b) + (b.photo?.file ? 10_000 : 0);
+      return bScore - aScore;
+    });
+  }, [venues, bounds]);
 
-  const hasMore = (bounds ? venuesInBounds(venues, bounds) : venues).length > limit;
+  const rows = inView.slice(0, limit);
+  const total = inView.length;
+  const hasMore = total > limit;
 
   return (
     <section className="results">
       <header className="results-head">
         <div>
-          <h2>Biggest climbs here</h2>
+          <h2>{formatCount(total)} places</h2>
           <p className="small muted">
-            {rows.length === 0
-              ? 'Nothing mapped in this area yet'
-              : `Top ${rows.length} in view, tallest first`}
+            {total === 0 ? 'Nothing mapped in this area yet' : 'Biggest climbs, photos first'}
           </p>
         </div>
         <button type="button" className="icon-btn results-close" onClick={onClose} aria-label="Close list">
@@ -69,7 +77,6 @@ function ResultsListInner({
         {rows.map((venue) => {
           const height = venueHeight(venue);
           const isFavorite = favorites.has(venue.slug);
-          const isHovered = hoveredSlug === venue.slug;
           const badge = venue.notable
             ? { label: 'Tall', type: 'tall' as const }
             : venue.photo?.file
@@ -84,7 +91,7 @@ function ResultsListInner({
             >
               <button
                 type="button"
-                className={`result-card${isHovered ? ' hovered' : ''}`}
+                className="result-card"
                 onClick={() => onPick(venue.slug)}
               >
                 {badge && <span className={`result-badge ${badge.type}`}>{badge.label}</span>}

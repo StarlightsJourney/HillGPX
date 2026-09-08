@@ -22,7 +22,7 @@ import {
 } from './lib/venues';
 import { haversineM } from './lib/elevation';
 import type { RoutePoint, Venue } from './types';
-import { CloseIcon, ListIcon, LocationArrowIcon } from './components/icons';
+import { CloseIcon, LocationArrowIcon } from './components/icons';
 import { HeaderControls } from './components/HeaderControls';
 import { UnitsProvider } from './components/UnitsContext';
 
@@ -307,7 +307,6 @@ function MapApp() {
               bounds={viewport}
               onPick={(slug) => selectVenue(slug, true)}
               onClose={() => setListOpen(false)}
-              hoveredSlug={hoveredSlug}
               onHover={setHoveredSlug}
               favorites={favorites}
               onToggleFavorite={toggleFavorite}
@@ -350,6 +349,8 @@ function MapApp() {
                 onView={viewVenue}
                 onLocateHint={setLocateHint}
                 userLocation={userLocation}
+                listOpen={listOpen}
+                onToggleList={() => setListOpen((v) => !v)}
                 onMapError={setMapError}
                 onViewportChange={(b, userInitiated) => {
                   // Every zoom or pan ends here, and a new bounds object
@@ -412,11 +413,6 @@ function MapApp() {
           <GpxDropzone elevationModel={elevationModel} onRouteLoaded={setDroppedRoute} />
         </div>
 
-        {!listOpen && !gpxOpen && (
-          <button className="list-toggle" onClick={() => setListOpen(true)}>
-            <ListIcon /> Show list
-          </button>
-        )}
       </main>
     </div>
   );

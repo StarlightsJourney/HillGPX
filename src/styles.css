@@ -628,6 +628,12 @@ button {
   inset: 0;
   width: 100%;
   height: 100%;
+  transition:
+    top 0.25s ease,
+    right 0.25s ease,
+    bottom 0.25s ease,
+    left 0.25s ease,
+    border-radius 0.25s ease;
 }
 
 /* ─── Venue card ──────────────────────────────────────────────────────── */
@@ -1654,7 +1660,7 @@ button {
 .map-busy {
   position: absolute;
   z-index: 5;
-  top: var(--s2);
+  top: 48px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;

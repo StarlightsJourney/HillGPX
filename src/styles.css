@@ -416,6 +416,12 @@ button {
   transform: translateY(100%);
   transition: transform 0.24s ease;
   will-change: transform;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.list-pane::-webkit-scrollbar {
+  display: none;
 }
 
 .list-pane.open {
@@ -554,9 +560,10 @@ button {
   .stage.with-list .map-wrap {
     position: relative;
     inset: auto;
-    padding: 16px;
   }
   .stage.with-list .map-wrap > .map {
+    position: absolute;
+    inset: 18px;
     border-radius: 12px !important;
     overflow: hidden;
   }
@@ -601,9 +608,10 @@ button {
   .stage.with-list .map-wrap {
     position: relative;
     inset: auto;
-    padding: 20px;
   }
   .stage.with-list .map-wrap > .map {
+    position: absolute;
+    inset: 24px;
     border-radius: 16px !important;
     overflow: hidden;
   }

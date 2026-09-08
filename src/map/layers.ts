@@ -210,9 +210,10 @@ const PILL_LAYOUT: SymbolLayerSpecification['layout'] = {
   // icons keep drawing. Naming a fallback is not free insurance; it is the
   // failure. Check any new face against the glyphs endpoint before using it.
   'text-font': ['Noto Sans Bold'],
-  // Smaller at low zoom, full size when close — the pills grow as you zoom in
+  // Mini pills at low zoom, full size when close — they grow smoothly with zoom
   // instead of appearing at one fixed size.
-  'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 16, 13],
+  'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 16, 1.0],
+  'text-size': ['interpolate', ['linear'], ['zoom'], 10, 9, 16, 13],
   'icon-allow-overlap': false,
   'text-allow-overlap': false,
   'icon-padding': 3,
@@ -269,7 +270,8 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
 
   // A hover preview: a slightly larger white pill for the venue under the cursor.
   // It sits between the normal pills and the selected pill so the selected state
-  // still wins when both apply.
+  // still wins when both apply. Low-zoom mini pills grow to the "at rest" full
+  // size on hover; full-size pills only nudge larger, so the change feels smooth.
   map.addLayer({
     id: 'venues-hover',
     type: 'symbol',
@@ -277,8 +279,8 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     filter: ['==', ['get', 'slug'], '__none__'],
     layout: {
       ...PILL_LAYOUT,
-      'icon-size': 1.06,
-      'text-size': 14,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 1.0, 16, 1.08],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 13, 16, 14],
       'icon-allow-overlap': true,
       'text-allow-overlap': true,
     },
@@ -297,8 +299,8 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     layout: {
       ...PILL_LAYOUT,
       'icon-image': 'pill-active',
-      'icon-size': 1.12,
-      'text-size': 14,
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 1.0, 16, 1.12],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 13, 16, 14],
       'icon-allow-overlap': true,
       'text-allow-overlap': true,
     },

@@ -35,7 +35,7 @@ const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
  * makes `queryRenderedFeatures` throw, so this is kept in one place rather
  * than repeated at each call site.
  */
-const INTERACTIVE_LAYERS = ['venues-pill', 'venues-selected'];
+const INTERACTIVE_LAYERS = ['venues-pill', 'venues-hover', 'venues-selected'];
 
 /** Where the data currently is — the opening view, not a fence. */
 const SINGAPORE_CENTRE: [number, number] = [103.8198, 1.3521];
@@ -283,25 +283,18 @@ export function MapView({
       refreshMarkersRef.current();
       setReady(true);
 
-      for (const layer of INTERACTIVE_LAYERS) {
-        map.on('click', layer, (e) => {
-          const slug = e.features?.[0]?.properties?.slug;
-          if (typeof slug !== 'string') return;
-          onSelectRef.current(slug);
-          flyToVenue(map, e.lngLat);
-        });
-      }
-
       let hoveredSlug: string | null = null;
       map.on('mousemove', (e) => {
         const [feature] = map.queryRenderedFeatures(e.point, { layers: INTERACTIVE_LAYERS });
         const slug = feature?.properties?.slug ?? null;
         const nextSlug = typeof slug === 'string' ? slug : null;
-        if (nextSlug !== hoveredSlug) {
-          hoveredSlug = nextSlug;
+        // Don't draw a hover pill on top of the already-selected one.
+        const target = nextSlug === selectedRef.current ? null : nextSlug;
+        if (target !== hoveredSlug) {
+          hoveredSlug = target;
           setHoveredVenue(map, hoveredSlug);
         }
-        map.getCanvas().style.cursor = hoveredSlug ? 'pointer' : '';
+        map.getCanvas().style.cursor = target ? 'pointer' : '';
       });
       map.on('mouseleave', () => {
         hoveredSlug = null;
@@ -310,8 +303,14 @@ export function MapView({
       });
 
       map.on('click', (e) => {
-        const hits = map.queryRenderedFeatures(e.point, { layers: INTERACTIVE_LAYERS });
-        if (hits.length === 0) onSelectRef.current(null);
+        const [feature] = map.queryRenderedFeatures(e.point, { layers: INTERACTIVE_LAYERS });
+        const slug = feature?.properties?.slug ?? null;
+        if (typeof slug !== 'string') {
+          onSelectRef.current(null);
+          return;
+        }
+        onSelectRef.current(slug);
+        flyToVenue(map, e.lngLat);
       });
     });
 

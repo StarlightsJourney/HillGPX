@@ -96,6 +96,12 @@ function MapApp() {
   const [favorites, setFavorites] = useState<Set<string>>(
     () => new Set(JSON.parse(localStorage.getItem('hillgpx:favorites') || '[]') as string[]),
   );
+  const [ratings, setRatings] = useState<Record<string, number>>(() =>
+    JSON.parse(localStorage.getItem('hillgpx:ratings') || '{}'),
+  );
+  const [views, setViews] = useState<Record<string, number>>(() =>
+    JSON.parse(localStorage.getItem('hillgpx:views') || '{}'),
+  );
   const [droppedRoute, setDroppedRoute] = useState<RoutePoint[] | null>(null);
   const [focus, setFocus] = useState<{ lng: number; lat: number; nonce: number } | null>(null);
   const [focusBounds, setFocusBounds] = useState<{ bounds: Bounds; nonce: number } | null>(null);
@@ -129,6 +135,14 @@ function MapApp() {
   useEffect(() => {
     localStorage.setItem('hillgpx:favorites', JSON.stringify([...favorites]));
   }, [favorites]);
+
+  useEffect(() => {
+    localStorage.setItem('hillgpx:ratings', JSON.stringify(ratings));
+  }, [ratings]);
+
+  useEffect(() => {
+    localStorage.setItem('hillgpx:views', JSON.stringify(views));
+  }, [views]);
 
   const allVenues = dataset?.venues ?? NO_VENUES;
 
@@ -188,6 +202,14 @@ function MapApp() {
       else next.add(slug);
       return next;
     });
+  }, []);
+
+  const rateVenue = useCallback((slug: string, rating: number) => {
+    setRatings((prev) => ({ ...prev, [slug]: rating }));
+  }, []);
+
+  const viewVenue = useCallback((slug: string) => {
+    setViews((prev) => ({ ...prev, [slug]: (prev[slug] || 0) + 1 }));
   }, []);
 
   // Framing an area is a change of place, so any card still open is describing
@@ -321,6 +343,12 @@ function MapApp() {
                 focusBounds={focusBounds}
                 show3d={show3d}
                 onToggle3d={() => setShow3d((v) => !v)}
+                favorites={favorites}
+                onToggleFavorite={toggleFavorite}
+                ratings={ratings}
+                onRate={rateVenue}
+                views={views}
+                onView={viewVenue}
                 userLocation={userLocation}
                 onMapError={setMapError}
                 onViewportChange={(b, userInitiated) => {

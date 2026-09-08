@@ -100,6 +100,12 @@ interface MapViewProps {
   /** Extruded buildings on/off. Also pitches the camera, since flat 3D is pointless. */
   show3d?: boolean;
   onToggle3d?: () => void;
+  favorites: Set<string>;
+  onToggleFavorite: (slug: string) => void;
+  ratings: Record<string, number>;
+  onRate: (slug: string, rating: number) => void;
+  views: Record<string, number>;
+  onView: (slug: string) => void;
   /** Raised when the basemap itself fails, so the failure is never silent. */
   onMapError?: (message: string) => void;
   /** The area currently on screen, so the list can show what is actually in view. */
@@ -237,6 +243,12 @@ export function MapView({
   focusBounds,
   show3d = false,
   onToggle3d,
+  favorites,
+  onToggleFavorite,
+  ratings,
+  onRate,
+  views,
+  onView,
   onMapError,
   onViewportChange,
   userLocation,
@@ -581,6 +593,12 @@ export function MapView({
           onSelectRoute={onSelectRoute}
           onClose={closeCard}
           onOpenDetail={onOpenDetail}
+          favorites={favorites}
+          onToggleFavorite={onToggleFavorite}
+          ratings={ratings}
+          onRate={onRate}
+          views={views}
+          onView={onView}
         />
       )}
     </>
@@ -596,6 +614,12 @@ function VenuePopup({
   onSelectRoute,
   onClose,
   onOpenDetail,
+  favorites,
+  onToggleFavorite,
+  ratings,
+  onRate,
+  views,
+  onView,
 }: {
   map: MlMap;
   venue: Venue;
@@ -604,6 +628,12 @@ function VenuePopup({
   onSelectRoute: (slug: string | null) => void;
   onClose: () => void;
   onOpenDetail?: () => void;
+  favorites: Set<string>;
+  onToggleFavorite: (slug: string) => void;
+  ratings: Record<string, number>;
+  onRate: (slug: string, rating: number) => void;
+  views: Record<string, number>;
+  onView: (slug: string) => void;
 }) {
   const [content] = useState(() => document.createElement('div'));
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -644,6 +674,12 @@ function VenuePopup({
         onSelectRoute={onSelectRoute}
         onClose={onClose}
         onOpenDetail={onOpenDetail}
+        isFavorite={favorites.has(venue.slug)}
+        onToggleFavorite={() => onToggleFavorite(venue.slug)}
+        rating={ratings[venue.slug] ?? 0}
+        onRate={(rating) => onRate(venue.slug, rating)}
+        views={views[venue.slug] ?? 0}
+        onView={() => onView(venue.slug)}
       />
     </div>,
     content,

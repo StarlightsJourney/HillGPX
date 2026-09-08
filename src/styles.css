@@ -519,18 +519,34 @@ button {
   display: none;
 }
 
-.card-close {
+.card-close,
+.card-favorite {
   position: absolute;
   top: 12px;
-  right: 12px;
   z-index: 1;
-  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
   border-radius: 50%;
-  min-width: 34px;
-  min-height: 34px;
-  font-size: 19px;
-  line-height: 1;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 26%);
+  background: rgb(255 255 255 / 90%);
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
+}
+
+.card-close {
+  right: 12px;
+}
+
+.card-favorite {
+  left: 12px;
+}
+
+.card-favorite.on {
+  color: var(--accent);
 }
 
 .card-photo {
@@ -625,8 +641,54 @@ button {
   font-size: 11px;
 }
 
-.card-body {
+.card-summary {
   padding: 12px var(--s2) var(--s2);
+}
+
+.card-summary.clickable {
+  cursor: pointer;
+}
+
+.card-summary.clickable:hover {
+  background: var(--bg-raised);
+}
+
+.card-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.card-title-row h2 {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.card-rating {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--ink);
+  font-size: var(--t1);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.card-rating:hover {
+  background: var(--border);
+}
+
+.card-views {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 8px;
 }
 
 .card-kind {
@@ -636,23 +698,14 @@ button {
   line-height: 1.4;
 }
 
-.card-name {
-  margin: 0 0 12px;
-  font-size: var(--t2);
-  color: var(--ink);
-  line-height: 1.35;
-}
-
-.card-note,
-.card-detail {
+.card-note {
   margin: 0 0 6px;
   font-size: var(--t2);
   color: var(--muted);
   line-height: 1.45;
 }
 
-.card-note:last-child,
-.card-detail:last-child {
+.card-note:last-child {
   margin-bottom: 0;
 }
 
@@ -672,12 +725,6 @@ button {
 .card-height span {
   font-size: var(--t1);
   color: var(--muted);
-}
-
-.card-rule {
-  border: none;
-  border-top: 1px solid var(--border);
-  margin: var(--s2) 0;
 }
 
 .venue-card h2 {
@@ -2202,16 +2249,3 @@ button {
   color: var(--accent);
 }
 
-/* "Show full details" link inside the popup card. */
-.card-detail-link {
-  padding: 0;
-  margin: 0 0 10px;
-  background: none;
-  border: none;
-  color: var(--accent);
-  font-size: var(--t2);
-  font-weight: 500;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}

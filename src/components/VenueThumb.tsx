@@ -45,19 +45,19 @@ export function VenueThumb({ venue, rounded = true }: { venue: Venue; rounded?: 
         <svg
           className="placeholder-icon"
           viewBox="0 0 24 24"
-          fill="none"
+          fill="currentColor"
           stroke="currentColor"
           strokeWidth="1.5"
           strokeLinecap="round"
           strokeLinejoin="round"
           aria-hidden="true"
         >
-          <rect x="3" y="5" width="14" height="14" rx="2" />
-          <circle cx="8" cy="10" r="1.5" />
-          <path d="M4 17 L9.5 11 L15 17" />
-          <path d="M10.5 17 L15 13 L18.5 17" />
-          <circle cx="18" cy="7" r="4" />
-          <path d="M18 4.5 V9.5 M15.5 7 H20.5" />
+          <rect x="2" y="5" width="20" height="15" rx="2" fill="none" />
+          <circle cx="7" cy="10.5" r="1.5" fill="currentColor" stroke="none" />
+          <path d="M3.5 19 L9 13 L14.5 19" fill="none" />
+          <path d="M10 19 L15 14 L19.5 19" fill="none" />
+          <circle cx="20" cy="19" r="4" stroke="none" />
+          <path d="M20 16.5 V21.5 M17.5 19 H22.5" stroke="#ffffff" strokeWidth="1.5" />
         </svg>
         <span className="placeholder-label">Add photo</span>
       </span>

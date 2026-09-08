@@ -338,7 +338,7 @@ button {
   align-items: center;
   gap: 12px;
   padding: 0 var(--s2);
-  background: var(--surface);
+  background: var(--bg-raised);
   border-bottom: 1px solid var(--border);
   /* Above the filter bar below it, which is opaque and would otherwise paint
      over the first rows of the search dropdown — tying at 4 let source order
@@ -1196,6 +1196,13 @@ button {
   display: flex;
   align-items: center;
   gap: var(--s1);
+}
+
+.filterbar-divider {
+  flex: none;
+  width: 1px;
+  height: 24px;
+  background: var(--border);
 }
 
 /* The chips scroll sideways instead of wrapping. On a phone this row is five

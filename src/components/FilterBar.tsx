@@ -79,6 +79,8 @@ function FilterBarInner({ types, visibleVenues, filters, onChange, matchCount }:
           {count > 0 && <span className="filter-badge">{count}</span>}
         </button>
 
+        <span className="filterbar-divider" aria-hidden="true" />
+
         {/* The height chips that used to sit here are gone: height is a range
             now, and a "30 m+" pill beside a slider that says 30–2187 is the same
             fact stated twice, in a place where the two could visibly disagree. */}

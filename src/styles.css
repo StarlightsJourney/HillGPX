@@ -539,6 +539,7 @@ button {
   .stage.with-list {
     display: grid;
     grid-template-columns: minmax(340px, 0.45fr) minmax(0, 0.55fr);
+    grid-template-rows: 1fr;
   }
   .stage.with-list .list-pane {
     position: relative;
@@ -553,6 +554,11 @@ button {
   .stage.with-list .map-wrap {
     position: relative;
     inset: auto;
+    padding: 16px;
+  }
+  .stage.with-list .map-wrap > .map {
+    border-radius: 12px !important;
+    overflow: hidden;
   }
   .stage:not(.with-list) .list-pane {
     display: none;
@@ -563,7 +569,7 @@ button {
   }
 
   .results {
-    padding: 20px;
+    padding: 24px;
   }
 
   .results-grid {
@@ -580,6 +586,7 @@ button {
   .stage.with-list {
     display: grid;
     grid-template-columns: minmax(420px, 0.5fr) minmax(0, 0.5fr);
+    grid-template-rows: 1fr;
   }
   .stage.with-list .list-pane {
     position: relative;
@@ -594,6 +601,11 @@ button {
   .stage.with-list .map-wrap {
     position: relative;
     inset: auto;
+    padding: 20px;
+  }
+  .stage.with-list .map-wrap > .map {
+    border-radius: 16px !important;
+    overflow: hidden;
   }
   .stage:not(.with-list) .list-pane {
     display: none;
@@ -604,7 +616,7 @@ button {
   }
 
   .results {
-    padding: 24px;
+    padding: 32px;
   }
 
   .results-grid {
@@ -1022,8 +1034,8 @@ button {
 
 .result-card .card-thumb {
   width: 100%;
-  aspect-ratio: 20 / 19;
-  border-radius: 12px;
+  aspect-ratio: 20 / 15;
+  border-radius: 16px;
   overflow: hidden;
   background: var(--bg-raised);
   margin-bottom: 6px;
@@ -1037,7 +1049,7 @@ button {
   display: block;
   /* Reserve the box before the file arrives so a scrolling list does not
      reflow as each image lands. */
-  aspect-ratio: 20 / 19;
+  aspect-ratio: 20 / 15;
 }
 
 .result-badge {

@@ -1,13 +1,31 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { Landing } from './components/Landing';
-import { VenueCard } from './components/VenueCard';
 import { ResultsList } from './components/ResultsList';
 import { GpxDropzone } from './components/GpxDropzone';
 import { SearchBar } from './components/SearchBar';
+import { FilterBar } from './components/FilterBar';
 import { ElevationModel } from './lib/elevation';
-import { loadDataset, routesForVenue, type Dataset } from './lib/venues';
-import type { RoutePoint } from './types';
-import { ListIcon } from './components/icons';
+import {
+  NO_FILTERS,
+  boundsOf,
+  filterVenues,
+  loadDataset,
+  nearest,
+  presentVenueTypes,
+  routesForVenue,
+  tallestWithin,
+  type Bounds,
+  type Dataset,
+  type VenueFilters,
+} from './lib/venues';
+import { haversineM } from './lib/elevation';
+import type { RoutePoint, Venue } from './types';
+import { CloseIcon, ListIcon, LocationArrowIcon } from './components/icons';
+import { HeaderControls } from './components/HeaderControls';
+import { UnitsProvider } from './components/UnitsContext';
+
+/** One shared empty list, so "no dataset yet" is a stable reference to memo on. */
+const NO_VENUES: Venue[] = [];
 
 // MapLibre is by far the largest dependency here. Code-splitting it keeps the
 // landing page down to a small bundle that paints immediately; the map is only
@@ -29,10 +47,18 @@ export default function App() {
     return () => window.removeEventListener('hashchange', sync);
   }, []);
 
-  if (view === 'landing') {
-    return <Landing onOpen={() => (window.location.hash = '#map')} />;
-  }
-  return <MapApp />;
+  // The provider wraps both views, not just the map: the landing page prints a
+  // height too, and someone who has chosen feet should not be shown metres on
+  // the way back in.
+  return (
+    <UnitsProvider>
+      {view === 'landing' ? (
+        <Landing onOpen={() => (window.location.hash = '#map')} />
+      ) : (
+        <MapApp />
+      )}
+    </UnitsProvider>
+  );
 }
 
 /**
@@ -65,6 +91,9 @@ function MapApp() {
   const [activeRouteSlug, setActiveRouteSlug] = useState<string | null>(null);
   const [droppedRoute, setDroppedRoute] = useState<RoutePoint[] | null>(null);
   const [focus, setFocus] = useState<{ lng: number; lat: number; nonce: number } | null>(null);
+  const [focusBounds, setFocusBounds] = useState<{ bounds: Bounds; nonce: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null);
+  const [locateHint, setLocateHint] = useState<string | null>(null);
   const [show3d, setShow3d] = useState(false);
   // Open beside the map on a wide screen, closed over it on a phone. Either
   // way it can be dismissed — previously the desktop pane ignored this entirely,
@@ -73,6 +102,7 @@ function MapApp() {
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 900px)').matches,
   );
   const [gpxOpen, setGpxOpen] = useState(false);
+  const [filters, setFilters] = useState<VenueFilters>(NO_FILTERS);
   const [viewport, setViewport] = useState<
     { west: number; south: number; east: number; north: number } | null
   >(null);
@@ -88,6 +118,23 @@ function MapApp() {
       .then(setElevationModel)
       .catch((err: Error) => console.warn('Terrain model unavailable:', err.message));
   }, []);
+
+  const allVenues = dataset?.venues ?? NO_VENUES;
+
+  const venueTypes = useMemo(() => presentVenueTypes(allVenues), [allVenues]);
+
+  // One filtered list feeds the map, the list and the search box, so the chips
+  // mean the same thing everywhere. Memoised on the filters object alone: this
+  // component re-renders on every pan, and re-scanning ~12k venues for a
+  // viewport change the filters do not care about would be pure waste.
+  const venues = useMemo(() => filterVenues(allVenues, filters), [allVenues, filters]);
+
+  useEffect(() => {
+    if (selectedSlug && !venues.some((venue) => venue.slug === selectedSlug)) {
+      setSelectedSlug(null);
+      setActiveRouteSlug(null);
+    }
+  }, [venues, selectedSlug]);
 
   const selectedVenue = selectedSlug ? dataset?.bySlug.get(selectedSlug) ?? null : null;
 
@@ -107,6 +154,7 @@ function MapApp() {
     (slug: string | null, fly = false) => {
       setSelectedSlug(slug);
       setActiveRouteSlug(null);
+      setUserLocation(null);
       if (fly && slug) {
         const venue = dataset?.bySlug.get(slug);
         if (venue) setFocus({ lng: venue.lng, lat: venue.lat, nonce: Date.now() });
@@ -116,6 +164,51 @@ function MapApp() {
     [dataset],
   );
 
+  // Framing an area is a change of place, so any card still open is describing
+  // somewhere you have just left. A pan already clears it; this is the same rule
+  // for a move the person asked for by name.
+  const showArea = useCallback((bounds: Bounds) => {
+    setSelectedSlug(null);
+    setActiveRouteSlug(null);
+    setUserLocation(null);
+    setFocusBounds({ bounds, nonce: Date.now() });
+  }, []);
+
+  const handleLocate = useCallback(() => {
+    if (!navigator.geolocation || allVenues.length === 0) {
+      setLocateHint('This browser does not support location sharing.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const [closest] = nearest(allVenues, longitude, latitude, 1);
+        const gapM = closest ? haversineM(longitude, latitude, closest.lng, closest.lat) : Infinity;
+        if (gapM > 100_000) {
+          setMapError(`You are about ${Math.round(gapM / 1000)} km from the nearest mapped climb. hillGPX only covers Singapore and Peninsular Malaysia.`);
+          return;
+        }
+        const nearby = tallestWithin(allVenues, longitude, latitude, 2_000, 8);
+        setSelectedSlug(null);
+        setActiveRouteSlug(null);
+        setLocateHint(null);
+        setUserLocation({ lng: longitude, lat: latitude });
+        const bounds = boundsOf([{ lng: longitude, lat: latitude }, ...nearby.map((n) => n.venue)]);
+        if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
+      },
+      (err) => {
+        setLocateHint(
+          err.code === err.PERMISSION_DENIED
+            ? 'To improve accuracy, enable location sharing in your browser settings.'
+            : err.code === err.TIMEOUT
+              ? 'Timed out waiting for your location.'
+              : 'Could not get your location.',
+        );
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+  }, [allVenues]);
+
   return (
     <div className="app">
       <header className="topbar">
@@ -123,12 +216,38 @@ function MapApp() {
           hill<span className="dot">GPX</span>
         </a>
 
-        <SearchBar venues={dataset?.venues ?? []} onPick={(slug) => selectVenue(slug, true)} />
+        {/* Search runs over the filtered list too. Finding a hill you have
+            filtered out and flying to it would land you on a blank patch of
+            map with nothing to click, which reads as a broken map rather than
+            as a chip you left on. */}
+        <SearchBar
+          venues={venues}
+          onPick={(slug) => selectVenue(slug, true)}
+          onFitBounds={showArea}
+        />
 
-        <button className="ghost-btn" onClick={() => setGpxOpen((v) => !v)}>
-          Your GPX
-        </button>
+        <div className="topbar-actions">
+          <button
+            className="ghost-btn"
+            onClick={() => setGpxOpen((v) => !v)}
+            aria-expanded={gpxOpen}
+            aria-controls="gpx-panel"
+          >
+            Import GPX
+          </button>
+
+          <HeaderControls />
+        </div>
       </header>
+
+      <FilterBar
+        types={venueTypes}
+        allVenues={allVenues}
+        filters={filters}
+        onChange={setFilters}
+        matchCount={venues.length}
+        onLocate={handleLocate}
+      />
 
       <main className={`stage${listOpen ? ' with-list' : ''}`}>
         {/* List beside the map at desktop widths, a sheet over it on a phone —
@@ -137,7 +256,7 @@ function MapApp() {
         <div className={`list-pane${listOpen ? ' open' : ''}`}>
           {dataset && (
             <ResultsList
-              venues={dataset.venues}
+              venues={venues}
               bounds={viewport}
               onPick={(slug) => selectVenue(slug, true)}
               onClose={() => setListOpen(false)}
@@ -157,12 +276,18 @@ function MapApp() {
           <div className="map-wrap">
             <Suspense fallback={<div className="empty small muted">Loading the map…</div>}>
               <MapView
-                venues={dataset?.venues ?? []}
+                venues={venues}
                 selectedSlug={selectedSlug}
+                selectedVenue={selectedVenue}
+                routes={venueRoutes}
+                activeRouteSlug={activeRouteSlug}
+                onSelectRoute={setActiveRouteSlug}
                 activeRoute={activeRoutePoints}
                 onSelectVenue={(slug) => selectVenue(slug)}
                 focus={focus}
+                focusBounds={focusBounds}
                 show3d={show3d}
+                userLocation={userLocation}
                 onMapError={setMapError}
                 onViewportChange={(b, userInitiated) => {
                   // Every zoom or pan ends here, and a new bounds object
@@ -173,7 +298,7 @@ function MapApp() {
                   // A card left pinned over a map you have panned away from is
                   // describing somewhere no longer on screen. Only a real pan
                   // counts — a flyTo from search must not undo its own pick.
-                  if (userInitiated) setSelectedSlug(null);
+                  if (userInitiated) selectVenue(null);
                 }}
               />
             </Suspense>
@@ -188,32 +313,38 @@ function MapApp() {
             </button>
 
             {mapError && <div className="map-error small">The map failed to load: {mapError}</div>}
+
+            {locateHint && (
+              <div className="locate-hint">
+                <span className="locate-hint-icon" aria-hidden="true">
+                  <LocationArrowIcon size={22} />
+                </span>
+                <div className="locate-hint-body">
+                  <p className="locate-hint-title">Share your location</p>
+                  <p className="locate-hint-text">{locateHint}</p>
+                </div>
+                <button
+                  type="button"
+                  className="locate-hint-close"
+                  aria-label="Dismiss location hint"
+                  onClick={() => setLocateHint(null)}
+                >
+                  <CloseIcon size={12} />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Detail rides over the map as a card, so it never permanently eats the
-            space the map is supposed to fill. */}
-        {selectedVenue && (
-          <VenueCard
-            venue={selectedVenue}
-            routes={venueRoutes}
-            activeRouteSlug={activeRouteSlug}
-            onSelectRoute={setActiveRouteSlug}
-            onClose={() => selectVenue(null)}
-          />
-        )}
-
-        {gpxOpen && (
-          <div className="sheet">
-            <div className="sheet-head">
-              <h2>Your GPX</h2>
-              <button className="icon-btn" onClick={() => setGpxOpen(false)} aria-label="Close">
-                ×
-              </button>
-            </div>
-            <GpxDropzone elevationModel={elevationModel} onRouteLoaded={setDroppedRoute} />
+        <div className="sheet" id="gpx-panel" hidden={!gpxOpen}>
+          <div className="sheet-head">
+            <h2>Your GPX</h2>
+            <button className="icon-btn" onClick={() => setGpxOpen(false)} aria-label="Close GPX">
+              ×
+            </button>
           </div>
-        )}
+          <GpxDropzone elevationModel={elevationModel} onRouteLoaded={setDroppedRoute} />
+        </div>
 
         {!listOpen && !gpxOpen && (
           <button className="list-toggle" onClick={() => setListOpen(true)}>

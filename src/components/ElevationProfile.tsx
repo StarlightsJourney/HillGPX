@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import type { RoutePoint } from '../types';
 import { haversineM } from '../lib/elevation';
+import { useUnits } from './UnitsContext';
 
 interface ElevationProfileProps {
   points: RoutePoint[];
@@ -17,6 +18,11 @@ interface ElevationProfileProps {
  * compresses the fast ones, which makes gradients look wrong.
  */
 export function ElevationProfile({ points, height = 120, onHoverIndex }: ElevationProfileProps) {
+  // Only the three axis labels change with units. The path itself is drawn in a
+  // unitless 1000×100 box, so nothing about the geometry has to be recomputed.
+  const units = useUnits();
+  const gradientId = useId();
+
   const geometry = useMemo(() => {
     if (points.length < 2) return null;
 
@@ -77,15 +83,15 @@ export function ElevationProfile({ points, height = 120, onHoverIndex }: Elevati
         onMouseMove={handleMove}
         onMouseLeave={() => onHoverIndex?.(null)}
         role="img"
-        aria-label={`Elevation profile, ${Math.round(minEle)} to ${Math.round(maxEle)} metres`}
+        aria-label={`Elevation profile, ${units.height(minEle)} to ${units.height(maxEle)}`}
       >
         <defs>
-          <linearGradient id="profileFill" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.35" />
             <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.02" />
           </linearGradient>
         </defs>
-        <path d={area} fill="url(#profileFill)" />
+        <path d={area} fill={`url(#${gradientId})`} />
         <path
           d={line}
           fill="none"
@@ -95,11 +101,9 @@ export function ElevationProfile({ points, height = 120, onHoverIndex }: Elevati
         />
       </svg>
       <div className="profile-axis small muted">
-        <span>{Math.round(minEle)} m</span>
-        <span>
-          {total < 1000 ? `${Math.round(total)} m` : `${(total / 1000).toFixed(2)} km`}
-        </span>
-        <span>{Math.round(maxEle)} m</span>
+        <span>{units.height(minEle)}</span>
+        <span>{units.distance(total)}</span>
+        <span>{units.height(maxEle)}</span>
       </div>
     </div>
   );

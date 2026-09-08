@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react';
 import type { Venue } from '../types';
 import { VENUE_TYPE_LABEL, rankingHeight, venueHeight, venuesInBounds } from '../lib/venues';
 import { VenueThumb } from './VenueThumb';
+import { useUnits } from './UnitsContext';
 
 interface ResultsListProps {
   venues: Venue[];
@@ -22,6 +23,11 @@ const MAX_ROWS = 40;
  * popularity.
  */
 function ResultsListInner({ venues, bounds, onPick, onClose }: ResultsListProps) {
+  // Read through context rather than taken as a prop, which is what lets the
+  // memo below stay: a units change re-renders this even though its props are
+  // unchanged, and nothing else has to know the list prints heights.
+  const units = useUnits();
+
   const rows = useMemo(() => {
     const inView = bounds ? venuesInBounds(venues, bounds) : venues;
     return [...inView]
@@ -60,7 +66,7 @@ function ResultsListInner({ venues, bounds, onPick, onClose }: ResultsListProps)
                 <span className="result-card-gain">
                   {height ? (
                     <>
-                      <strong>{Math.round(height.value)} m</strong>{' '}
+                      <strong>{units.height(height.value)}</strong>{' '}
                       {height.kind === 'gain' ? 'to climb' : 'above sea level'}
                     </>
                   ) : (

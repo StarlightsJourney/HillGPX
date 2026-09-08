@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { GitHubIcon, Mark } from './icons';
+import { useUnits } from './UnitsContext';
 
 const REPO_URL = 'https://github.com/StarlightsJourney/HillGPX';
 
@@ -67,17 +68,16 @@ export function Landing({ onOpen }: LandingProps) {
       <main>
         <div className="shell">
           <section className="lp-hero">
-            <h1>Every hill and tall block, mapped by height</h1>
+            <h1>Find your next climb</h1>
             <p className="lp-lede">
-              Find a climb near you — hills, staircases and the tallest HDB blocks, with the
-              elevation each one actually gives you.
+              Hills, stairs and HDB blocks in Singapore, ranked by elevation.
             </p>
             <div className="lp-actions">
               <button className="cta" onClick={onOpen}>
-                Open the map
+                Explore map
               </button>
               <a className="cta-secondary" href={REPO_URL} target="_blank" rel="noreferrer">
-                Contribute
+                Contribute on GitHub
               </a>
             </div>
           </section>
@@ -93,17 +93,13 @@ export function Landing({ onOpen }: LandingProps) {
           </section>
 
           <section className="lp-note">
-            <h2>Why</h2>
             <p>
-              I wanted a tall HDB block near me to train stairs on, and there was no way to look one
-              up. So I mapped every block in Singapore by height, then added the hills.
-            </p>
-            <p>
-              It is free and community-run. Every hill, block and route is a file in a public
-              repository, so a wrong height is a one-line fix and adding a route is one GPX.{' '}
+              Built for training elevation in a city with no mountains. Open data — fix a height or
+              add a route on{' '}
               <a href={REPO_URL} target="_blank" rel="noreferrer">
-                Contribute on GitHub
+                GitHub
               </a>
+              .
             </p>
           </section>
         </div>
@@ -149,6 +145,7 @@ function formatCount(n: number): string {
  * only reason it earns the space.
  */
 function Transect({ stats }: { stats: Stats | null }) {
+  const units = useUnits();
   const points = stats?.transect ?? [];
   // Reserve the space up front so the page does not jump when stats arrive.
   if (points.length < 2) return <div className="lp-transect" aria-hidden="true" />;
@@ -179,7 +176,12 @@ function Transect({ stats }: { stats: Stats | null }) {
         <path d={line} className="transect-line" vectorEffect="non-scaling-stroke" />
       </svg>
       <figcaption className="small muted">
-        Singapore&rsquo;s terrain, west to east. Highest ground {peak}&nbsp;m.
+        {/* The figure and its unit are wrapped rather than joined with a
+            non-breaking space, because the string now comes back formatted and
+            patching a character into it would be the caller second-guessing the
+            formatter. */}
+        Singapore&rsquo;s terrain, west to east. Highest ground{' '}
+        <span className="nowrap">{units.height(peak)}</span>.
       </figcaption>
     </figure>
   );

@@ -1,5 +1,4 @@
 import type { Venue } from '../types';
-import { rankingHeight } from '../lib/venues';
 
 /**
  * A venue's image.
@@ -7,8 +6,18 @@ import { rankingHeight } from '../lib/venues';
  * Real street-level photography from Mapillary where it exists — attached at
  * build time by scripts/fetch_photos.py, CC-BY-SA, credited below the image.
  * Mapillary's coverage depends on someone having walked or driven the street
- * with a camera, so plenty of blocks have none; those fall back to a silhouette
- * scaled to the climb, which at least carries the fact the card is about.
+ * with a camera, so plenty of venues have none.
+ *
+ * Those get an invitation rather than an apology. "No photo yet" was accurate
+ * but inert — it told you about a gap and gave you nowhere to go with that.
+ * "Add photo" points at the thing a reader can actually do, and on the
+ * venue card it is a link to the repo, so the distance between noticing a
+ * missing photo and sending one is a single click.
+ *
+ * The silhouette that used to stand here scaled a triangle to the climb, but
+ * the card prints that same height in metres two lines below, so the drawing
+ * added nothing the text did not already say — and a decorative shape sitting
+ * in a photo slot reads as a photo until you look twice.
  */
 export function VenueThumb({ venue, rounded = true }: { venue: Venue; rounded?: boolean }) {
   if (venue.photo?.file) {
@@ -24,22 +33,34 @@ export function VenueThumb({ venue, rounded = true }: { venue: Venue; rounded?: 
     );
   }
 
-  const gain = rankingHeight(venue);
-  // 163 m is Singapore's highest ground, so the silhouette reads as a fraction
-  // of the tallest thing you could climb here.
-  const fill = Math.max(0.1, Math.min(1, gain / 163));
-  const isBlock = venue.type === 'hdb_block' || venue.type === 'carpark';
-
   return (
-    <span className={`card-thumb placeholder${rounded ? '' : ' square'}`} aria-hidden="true">
-      <svg viewBox="0 0 100 76" preserveAspectRatio="xMidYMax meet">
-        {isBlock ? (
-          <rect x="36" y={72 - fill * 60} width="28" height={fill * 60} rx="1.5" />
-        ) : (
-          <path d={`M14 72 L50 ${72 - fill * 60} L86 72 Z`} />
-        )}
-        <line x1="0" y1="72" x2="100" y2="72" />
+    <span
+      className={`card-thumb placeholder${rounded ? '' : ' square'}`}
+      role="img"
+      aria-label={`No photo of ${venue.name} yet — add one`}
+    >
+      {/* The centring lives on this inner box rather than on .card-thumb, which
+          the list and the card hero each restyle for their own layout. */}
+      <span className="placeholder-inner">
+      <svg
+        className="placeholder-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <rect x="3" y="5" width="14.5" height="14" rx="2.5" />
+        <circle cx="8" cy="9.8" r="1.3" />
+        <path d="M3.6 16.4 L8.4 11.9 L11.6 14.6" />
+        {/* A plus, not a slash. The old crossed-out frame said "this is
+            broken"; the point is that someone can fix it. */}
+        <path d="M19.4 13.6 V20.4 M16 17 H22.8" />
       </svg>
+        <span className="placeholder-label">Add photo</span>
+      </span>
     </span>
   );
 }

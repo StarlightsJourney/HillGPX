@@ -1,5 +1,6 @@
+<!-- Keep in sync with the Mark component in src/components/icons.tsx. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#1a2420"/>
-  <path d="M4 25 L12 10 L17 19 L21 12 L28 25 Z" fill="#6cc39a"/>
-  <path d="M9.6 15 L12 10 L14.4 15 L12.4 14.2 L11 15.4 Z" fill="#1a2420" opacity="0.55"/>
+  <rect width="32" height="32" rx="7" fill="#c1502e"/>
+  <path d="M5 26 V18 C8 22 13 18 16 14 C19 10 24 10 27 8 V26 Z" fill="#ffffff" opacity="0.25"/>
+  <path d="M5 18 C8 22 13 18 16 14 C19 10 24 10 27 8" fill="none" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

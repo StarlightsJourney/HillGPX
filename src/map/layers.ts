@@ -1,43 +1,57 @@
-import type { Map as MlMap, GeoJSONSource, SymbolLayerSpecification } from 'maplibre-gl';
-import type { Venue, VenueType } from '../types';
+import type {
+  Map as MlMap,
+  GeoJSONSource,
+  SymbolLayerSpecification,
+  ExpressionSpecification,
+} from 'maplibre-gl';
+import type { Venue } from '../types';
 import { venueHeight } from '../lib/venues';
+import { formatHeight, type Units } from '../lib/units';
 
 /**
  * Map layer construction.
  *
  * The central problem this file solves: there are ~10,800 HDB blocks and about a
- * dozen hills, and the hills must not drown. So the two are drawn as separate
- * layers with different rules — landmarks (hills, stairs, parks) carry an icon
- * and are visible at every zoom because they are the things people navigate by,
- * while HDB blocks are plain dots that only appear once you have zoomed into a
- * neighbourhood.
+ * dozen hills, and the hills must not drown. The reference for the marker style
+ * is Airbnb's price pills — one repeated shape, the height as the label, and a
+ * single selected state. Drawing hills and blocks through the same layer means the
+ * map sorts both by height and collision handles spacing the same way everywhere.
  */
 
-// Low enough that blocks are already on screen at the app's default zoom. The
-// first thing someone sees must include HDB blocks — an empty-looking map reads
-// as broken. A circle layer handles the few thousand visible here comfortably.
-export const HDB_MIN_ZOOM = 12;
+const PILL_FILL = '#ffffff';
+const PILL_ACTIVE_FILL = '#c1502e'; // hillGPX brand accent
+const TEXT_INK = '#222222';
+const TEXT_LIGHT = '#ffffff';
 
-/** Below this only the tallest blocks are pill candidates; above it, all of them. */
-export const PILL_ALL_ZOOM = 14;
+/** Dots show the density of HDB blocks once you are zoomed in close enough. */
+const HDB_DOT_MIN_ZOOM = 11;
 
 /**
- * One accent, used only to mark the biggest climbs. The pill already prints the
- * number, so a five-colour ramp was a second encoding of the same fact — it
- * asked you to decode a legend to learn something the label already said, and
- * turned the map into confetti.
+ * The grid the map picks its labelled markers from: the tallest venue in each
+ * cell, and nothing else.
+ *
+ * A fixed budget rather than "as many as fit". Collision detection answers the
+ * question "does this label overlap another?", which is not the question a
+ * reader is asking — they want the few things here worth walking to. Left to
+ * fill the screen it produced a wall of numbers that was technically
+ * non-overlapping and practically unreadable.
+ *
+ * A grid rather than a plain top-24, because tall blocks come in estates: rank
+ * the whole viewport by height and the winners are two dozen neighbours on the
+ * same three streets, all fighting for the same patch of screen while the rest
+ * of the city goes unlabelled. One winner per cell spends the budget across the
+ * view, which is what makes the reference's map look considered.
  */
-export function gainColor(notable: boolean): string {
-  return notable ? '#222222' : '#ffffff';
-}
+export const MARKER_COLS = 6;
+export const MARKER_ROWS = 4;
 
-const LANDMARK_TYPES: VenueType[] = ['hill', 'stairs', 'park'];
+/** The single pill layer is filtered to this shortlist. */
+const PILL_BASE_FILTER: ExpressionSpecification = ['has', 'slug'];
 
-export function isLandmark(venue: Venue): boolean {
-  return LANDMARK_TYPES.includes(venue.type);
-}
-
-export function venuesToGeoJson(venues: Venue[]): GeoJSON.FeatureCollection {
+export function venuesToGeoJson(
+  venues: Venue[],
+  units: Units = 'metric',
+): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: venues.map((v) => {
@@ -53,10 +67,9 @@ export function venuesToGeoJson(venues: Venue[]): GeoJSON.FeatureCollection {
           name: v.name,
           venueType: v.type,
           heightM: height?.value ?? -1,
+          heightLabel: height ? formatHeight(height.value, units) : v.name,
           heightKind: height?.kind ?? 'none',
           notable: Boolean(v.notable),
-          color: gainColor(Boolean(v.notable)),
-          icon: `venue-${v.type}`,
           storeys: v.storeys ?? -1,
           hasRoutes: v.routeSlugs.length > 0,
         },
@@ -66,82 +79,19 @@ export function venuesToGeoJson(venues: Venue[]): GeoJSON.FeatureCollection {
 }
 
 /**
- * Icons are drawn in code rather than shipped as a sprite sheet, so a
- * contributor can restyle them without opening a graphics editor and without
- * a build step to regenerate the sprite.
+ * Load the two stretchable pill images used for every marker.
+ *
+ * Venue icons are no longer used: a single repeated pill (white for normal,
+ * brand-coloured for selected) is closer to the Airbnb reference and less busy
+ * than a mix of icons plus text labels.
  */
-const ICON_SVG: Record<VenueType, string> = {
-  // Two peaks with a snow cap and a shadowed face — reads as a mountain at
-  // 16px, which a single flat triangle does not.
-  hill: `<path d="M2 25 L11.5 8.5 L17 18 L20.5 13 L30 25 Z" fill="currentColor"/>
-         <path d="M11.5 8.5 L17 18 L14.6 16.8 L12.6 18.4 L10.4 16.6 L8 18 Z" fill="#fff" opacity="0.92"/>
-         <path d="M11.5 8.5 L17 18 L11.5 25 Z" fill="#000" opacity="0.13"/>`,
-  // A flight of steps with a handrail, read left to right and rising.
-  stairs: `<path d="M4 26 h6 v-5 h6 v-5 h6 v-5 h6" fill="none" stroke="currentColor"
-             stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
-           <path d="M4 26 h6 v-5 h6 v-5 h6 v-5 h6 v9 H4 z" fill="currentColor" opacity="0.22"/>`,
-  // A broadleaf canopy on a trunk, distinct from the mountain's silhouette.
-  park: `<path d="M16 25 v-5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
-         <circle cx="16" cy="13" r="7.5" fill="currentColor"/>
-         <circle cx="10" cy="16.5" r="4.6" fill="currentColor"/>
-         <circle cx="22" cy="16.5" r="4.6" fill="currentColor"/>`,
-  // A slab block with a lit stairwell core — what you actually climb.
-  hdb_block: `<rect x="9" y="6" width="14" height="21" rx="1.5" fill="currentColor"/>
-              <rect x="14.4" y="9" width="3.2" height="18" fill="#fff" opacity="0.5"/>
-              <g fill="#fff" opacity="0.85">
-                <rect x="11" y="9" width="2.4" height="2.4"/><rect x="18.6" y="9" width="2.4" height="2.4"/>
-                <rect x="11" y="13.4" width="2.4" height="2.4"/><rect x="18.6" y="13.4" width="2.4" height="2.4"/>
-                <rect x="11" y="17.8" width="2.4" height="2.4"/><rect x="18.6" y="17.8" width="2.4" height="2.4"/>
-              </g>`,
-  carpark: `<rect x="6" y="6" width="20" height="20" rx="4" fill="currentColor"/>
-            <path d="M13 22 V11 h4.2 a3.4 3.4 0 0 1 0 6.8 H13" fill="none" stroke="#fff"
-              stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`,
-  bridge: `<path d="M3 19 q13 -11 26 0" stroke="currentColor" stroke-width="2.6" fill="none"
-             stroke-linecap="round"/>
-           <path d="M3 19 v7 M29 19 v7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
-           <path d="M10 15.2 v10.8 M16 13.6 v12.4 M22 15.2 v10.8" stroke="currentColor"
-             stroke-width="1.7" opacity="0.75"/>`,
-};
-
-function iconSvg(type: VenueType, color: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-    <circle cx="16" cy="16" r="15" fill="#ffffff" stroke="${color}" stroke-width="2"/>
-    <g color="${color}">${ICON_SVG[type]}</g>
-  </svg>`;
-}
-
-/** Register one icon image per venue type. Must complete before layers are added. */
-export async function loadVenueIcons(map: MlMap): Promise<void> {
-  const types = Object.keys(ICON_SVG) as VenueType[];
-
-  await Promise.all(
-    types.map(async (type) => {
-      const id = `venue-${type}`;
-      if (map.hasImage(id)) return;
-
-      // Landmarks get the accent colour of their tier at render time; the icon
-      // itself is drawn once in a neutral ink so it stays legible on any basemap.
-      const svg = iconSvg(type, type === 'hdb_block' ? '#4a90d9' : '#2f6f4f');
-      const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-
-      const image = new Image(64, 64);
-      image.decoding = 'sync';
-      await new Promise<void>((resolve, reject) => {
-        image.onload = () => resolve();
-        image.onerror = () => reject(new Error(`Failed to rasterise icon ${id}`));
-        image.src = url;
-      });
-
-      if (!map.hasImage(id)) map.addImage(id, image, { pixelRatio: 2 });
-    }),
-  );
-
-  for (const [id, fill, stroke] of [
-    ['pill', '#ffffff', '#d8d6d0'],
-    ['pill-active', '#1a2420', '#1a2420'],
+export async function loadMarkerImages(map: MlMap): Promise<void> {
+  for (const [id, fill, shadow] of [
+    ['pill', PILL_FILL, 'rgba(0, 0, 0, 0.3)'],
+    ['pill-active', PILL_ACTIVE_FILL, 'rgba(0, 0, 0, 0.38)'],
   ] as const) {
     if (map.hasImage(id)) continue;
-    const pill = makePillImage(fill, stroke);
+    const pill = makePillImage(fill, shadow);
     if (pill) map.addImage(id, pill.data, pill.options);
   }
 }
@@ -190,14 +140,20 @@ export function set3dBuildings(map: MlMap, on: boolean): void {
  * may repeat, and `content` the box the label sits in, so one small bitmap
  * resizes cleanly to fit any label.
  */
-function makePillImage(fill: string, stroke: string): {
+function makePillImage(fill: string, shadow: string): {
   data: ImageData;
   options: { pixelRatio: number; stretchX: [number, number][]; stretchY: [number, number][]; content: [number, number, number, number] };
 } | null {
   const scale = 2;
-  const w = 40 * scale;
-  const h = 26 * scale;
-  const r = 11 * scale;
+  // Padding the canvas so the drop shadow has somewhere to fall. It is not part
+  // of the pill: the stretch and content boxes below are all inset past it, so
+  // MapLibre never stretches the blur or lets the label wander into it.
+  const pad = 5 * scale;
+  const pw = 40 * scale;
+  const ph = 24 * scale;
+  const w = pw + pad * 2;
+  const h = ph + pad * 2;
+  const r = ph / 2;
 
   const canvas = document.createElement('canvas');
   canvas.width = w;
@@ -206,45 +162,67 @@ function makePillImage(fill: string, stroke: string): {
   if (!ctx) return null;
 
   ctx.beginPath();
-  ctx.moveTo(r, 1);
-  ctx.arcTo(w - 1, 1, w - 1, h - 1, r);
-  ctx.arcTo(w - 1, h - 1, 1, h - 1, r);
-  ctx.arcTo(1, h - 1, 1, 1, r);
-  ctx.arcTo(1, 1, w - 1, 1, r);
+  ctx.moveTo(pad + r, pad);
+  ctx.arcTo(pad + pw, pad, pad + pw, pad + ph, r);
+  ctx.arcTo(pad + pw, pad + ph, pad, pad + ph, r);
+  ctx.arcTo(pad, pad + ph, pad, pad, r);
+  ctx.arcTo(pad, pad, pad + pw, pad, r);
   ctx.closePath();
 
+  // Shadow instead of the hairline stroke this used to carry. A 1px grey
+  // outline is what separates a pill from a light basemap, but it also flattens
+  // it into the map; the reference lifts its pills off the map with a soft
+  // shadow and no border at all, which is what makes them read as objects
+  // sitting above the terrain rather than shapes drawn onto it.
+  ctx.shadowColor = shadow;
+  ctx.shadowBlur = 4 * scale;
+  ctx.shadowOffsetY = 1 * scale;
   ctx.fillStyle = fill;
   ctx.fill();
-  ctx.lineWidth = 1 * scale;
-  ctx.strokeStyle = stroke;
-  ctx.stroke();
 
   return {
     data: ctx.getImageData(0, 0, w, h),
     options: {
       pixelRatio: scale,
-      // Only the flat middle may stretch; the rounded caps must not distort.
-      stretchX: [[r, w - r]],
-      stretchY: [[r, h - r]],
-      content: [r * 0.6, 3 * scale, w - r * 0.6, h - 3 * scale],
+      // Only the flat middle may stretch; the rounded caps must not distort,
+      // and neither may the shadow padding outside them.
+      stretchX: [[pad + r, pad + pw - r]],
+      // A thin band at the vertical centre, NOT [pad + r, pad + ph - r]. This
+      // is a capsule — the radius is half the height — so that expression
+      // collapses to a zero-height region, and a zero-height stretch band makes
+      // `icon-text-fit` give up and draw no icon at all: the labels still
+      // render, floating with no pill behind them, and nothing is logged. One
+      // row either side of the middle is all a capsule needs.
+      stretchY: [[pad + ph / 2 - 1, pad + ph / 2 + 1]],
+      content: [pad + r * 0.55, pad + 4 * scale, pad + pw - r * 0.55, pad + ph - 4 * scale],
     },
   };
 }
 
 const PILL_LAYOUT: SymbolLayerSpecification['layout'] = {
-  'icon-image': ['case', ['get', 'notable'], 'pill-active', 'pill'],
+  'icon-image': 'pill',
   'icon-text-fit': 'both',
-  'text-field': ['concat', ['to-string', ['round', ['get', 'heightM']]], ' m'],
-  'text-font': ['Noto Sans Regular'],
-  'text-size': 11.5,
+  'text-field': ['get', 'heightLabel'],
+  // Exactly one font, no fallback. MapLibre requests a stack as a single
+  // comma-joined path segment, and OpenFreeMap only serves single-font stacks:
+  // 'Noto Sans Bold' returns 200, 'Noto Sans Bold,Noto Sans Regular' returns
+  // 404 — and a 404 here silently drops every label on the layer while the
+  // icons keep drawing. Naming a fallback is not free insurance; it is the
+  // failure. Check any new face against the glyphs endpoint before using it.
+  'text-font': ['Noto Sans Bold'],
+  // Smaller at low zoom, full size when close — the pills grow as you zoom in
+  // instead of appearing at one fixed size.
+  'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 16, 13],
   'icon-allow-overlap': false,
   'text-allow-overlap': false,
   'icon-padding': 3,
-  'symbol-sort-key': ['-', 0, ['get', 'heightM']], // tallest wins a collision
+  // Tallest venues win collisions, so a zoomed-out view still shows the biggest
+  // climbs rather than a random sample.
+  'symbol-sort-key': ['-', 0, ['get', 'heightM']],
 };
 
 const PILL_PAINT: SymbolLayerSpecification['paint'] = {
-  'text-color': ['case', ['get', 'notable'], '#ffffff', '#222222'],
+  'text-color': TEXT_INK,
 };
 
 export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): void {
@@ -258,125 +236,104 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     buffer: 16,
   });
 
-  // A faint dot for every block, under the pills.
-  //
-  // Collision thinning keeps the pills readable, but it also means a zoomed-out
-  // view shows a scattering of labels and nothing else — so an area full of
-  // climbable blocks looks empty. These dots restore that sense of density
-  // without competing for attention: small, soft, and uniform, they read as
-  // texture rather than as markers you are meant to aim at.
+  // A faint dot for every block, under the pills, only once you are zoomed in.
+  // Drawing all 10,800 dots at world zoom is wasted work and makes the first
+  // pan feel heavy.
   map.addLayer({
     id: 'venues-hdb-dot',
     type: 'circle',
     source: 'venues',
     filter: ['==', ['get', 'venueType'], 'hdb_block'],
+    minzoom: HDB_DOT_MIN_ZOOM,
     // Above this the pills carry the information and every dot is overdraw.
     maxzoom: 15,
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.1, 13, 2, 15, 2.6],
-      'circle-color': '#8a8178',
+      'circle-color': '#a0a0a0',
       // Fades out as the pills take over, so the two never fight.
       'circle-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 13.5, 0.45, 15, 0],
     },
   });
 
-  // Blocks are labelled pills at every zoom they appear at. Letting MapLibre's
-  // collision detection thin them — rather than drawing all 10,796 as dots — is
-  // what keeps the map from reading as confetti: at city zoom only the handful
-  // that fit are drawn, and `symbol-sort-key` guarantees those are the biggest
-  // climbs. Zooming in reveals the rest. It is the behaviour Airbnb's price
-  // pins have, and it needs no density heuristic of our own.
-  // Two pill layers, split by zoom, rather than one covering the whole range.
-  //
-  // Symbol placement is the expensive part of rendering this map: MapLibre sorts
-  // every candidate and tests it against a collision grid on each placement
-  // pass. Handing it all 10,796 blocks at city zoom meant paying for thousands
-  // of symbols that lose their collision test and are never drawn. Below zoom 14
-  // only the tallest few hundred are candidates — which are the ones that would
-  // have won anyway — so the same picture costs a fraction of the work.
+  // Every venue — hill, stairs, HDB block — rendered as the same height pill.
+  // The filter starts empty and is filled by `setVisibleMarkers` once the
+  // viewport settles, so the first frame is not a wall of numbers.
   map.addLayer({
-    id: 'venues-hdb-pill-top',
+    id: 'venues-pill',
     type: 'symbol',
     source: 'venues',
-    filter: ['all', ['==', ['get', 'venueType'], 'hdb_block'], ['get', 'notable']],
-    minzoom: HDB_MIN_ZOOM,
-    maxzoom: PILL_ALL_ZOOM,
+    filter: ['==', ['get', 'slug'], '__none__'],
     layout: PILL_LAYOUT,
     paint: PILL_PAINT,
   });
 
+  // A hover preview: a slightly larger white pill for the venue under the cursor.
+  // It sits between the normal pills and the selected pill so the selected state
+  // still wins when both apply.
   map.addLayer({
-    id: 'venues-hdb-pill',
+    id: 'venues-hover',
     type: 'symbol',
-    source: 'venues',
-    filter: ['==', ['get', 'venueType'], 'hdb_block'],
-    minzoom: PILL_ALL_ZOOM,
-    layout: {
-      'icon-image': ['case', ['get', 'notable'], 'pill-active', 'pill'],
-      'icon-text-fit': 'both',
-      'text-field': ['concat', ['to-string', ['round', ['get', 'heightM']]], ' m'],
-      'text-font': ['Noto Sans Regular'],
-      'text-size': 11.5,
-      'icon-allow-overlap': false,
-      'text-allow-overlap': false,
-      'icon-padding': 3,
-      'symbol-sort-key': ['-', 0, ['get', 'heightM']], // tallest wins a collision
-    },
-    paint: {
-      'text-color': ['case', ['get', 'notable'], '#ffffff', '#222222'],
-    },
-  });
-
-  // Landmarks: always visible, always iconed.
-  map.addLayer({
-    id: 'venues-landmark',
-    type: 'symbol',
-    source: 'venues',
-    filter: ['!=', ['get', 'venueType'], 'hdb_block'],
-    layout: {
-      'icon-image': ['get', 'icon'],
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 0.75, 17, 1],
-      'icon-allow-overlap': true,
-      'text-field': [
-        'case',
-        ['>', ['get', 'heightM'], 0],
-        ['concat', ['get', 'name'], '  ', ['to-string', ['round', ['get', 'heightM']]], ' m'],
-        ['get', 'name'],
-      ],
-      'text-font': ['Noto Sans Regular'],
-      'text-size': 12,
-      'text-offset': [0, 1.4],
-      'text-anchor': 'top',
-      'text-optional': true,
-      // Names only once there is room for them.
-      'text-max-width': 9,
-    },
-    paint: {
-      'text-color': '#1c2b23',
-      'text-halo-color': '#ffffff',
-      'text-halo-width': 1.6,
-    },
-    minzoom: 0,
-  });
-
-  // Selection ring, driven by a filter rather than a second source.
-  map.addLayer({
-    id: 'venues-selected',
-    type: 'circle',
     source: 'venues',
     filter: ['==', ['get', 'slug'], '__none__'],
+    layout: {
+      ...PILL_LAYOUT,
+      'icon-size': 1.06,
+      'text-size': 14,
+      'icon-allow-overlap': true,
+      'text-allow-overlap': true,
+    },
+    paint: PILL_PAINT,
+  });
+
+  // The selected venue, as a brand-coloured pill on top of everything else.
+  //
+  // Overlap is forced here on purpose: this is the one symbol that must never
+  // lose a collision test, because the card describing it is open on screen.
+  map.addLayer({
+    id: 'venues-selected',
+    type: 'symbol',
+    source: 'venues',
+    filter: ['==', ['get', 'slug'], '__none__'],
+    layout: {
+      ...PILL_LAYOUT,
+      'icon-image': 'pill-active',
+      'icon-size': 1.12,
+      'text-size': 14,
+      'icon-allow-overlap': true,
+      'text-allow-overlap': true,
+    },
     paint: {
-      'circle-radius': 22,
-      'circle-color': '#222222',
-      'circle-opacity': 0.1,
-      'circle-blur': 0.5,
+      'text-color': TEXT_LIGHT,
     },
   });
+}
+
+/**
+ * Narrow the labelled markers to a chosen shortlist of slugs.
+ *
+ * Passing `null` lifts the restriction, which is what happens before the first
+ * camera settle — otherwise the map would paint nothing at all on load while it
+ * waited for a `moveend` that has not happened yet.
+ */
+export function setVisibleMarkers(map: MlMap, slugs: string[] | null): void {
+  const next: ExpressionSpecification =
+    slugs == null
+      ? PILL_BASE_FILTER
+      : ['all', PILL_BASE_FILTER, ['in', ['get', 'slug'], ['literal', slugs]]];
+
+  if (map.getLayer('venues-pill')) {
+    map.setFilter('venues-pill', next);
+  }
 }
 
 export function setSelectedVenue(map: MlMap, slug: string | null): void {
   if (!map.getLayer('venues-selected')) return;
   map.setFilter('venues-selected', ['==', ['get', 'slug'], slug ?? '__none__']);
+}
+
+export function setHoveredVenue(map: MlMap, slug: string | null): void {
+  if (!map.getLayer('venues-hover')) return;
+  map.setFilter('venues-hover', ['==', ['get', 'slug'], slug ?? '__none__']);
 }
 
 export function addRouteLayers(map: MlMap): void {
@@ -398,11 +355,14 @@ export function addRouteLayers(map: MlMap): void {
     type: 'line',
     source: 'active-route',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#d9534f', 'line-width': 3.5 },
+    paint: { 'line-color': '#c1502e', 'line-width': 3.5 },
   });
 }
 
-export function setActiveRoute(map: MlMap, coordinates: [number, number, number][] | null): void {
+export function setActiveRoute(
+  map: MlMap,
+  coordinates: [number, number, number][] | null,
+): void {
   const source = map.getSource('active-route') as GeoJSONSource | undefined;
   if (!source) return;
 

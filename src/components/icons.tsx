@@ -4,7 +4,16 @@
  * themes without extra CSS.
  */
 
-/** The product mark: a peak, matching public/favicon.svg. */
+/**
+ * The product mark: a smooth elevation profile climbing left to right. Matches
+ * public/favicon.svg — change the two together.
+ *
+ * Deliberately not an alpine peak with a snow cap. Singapore's highest ground
+ * is 163 m and tropical; a capped summit is the one thing the place
+ * demonstrably is not, which is what made the old mark read as stock clip art.
+ * A profile trace is what this app actually draws — on the landing page, and
+ * under every route — so the mark is the product's own output at 22px.
+ */
 export function Mark({ size = 22 }: { size?: number }) {
   return (
     <svg
@@ -16,8 +25,19 @@ export function Mark({ size = 22 }: { size?: number }) {
       focusable="false"
     >
       <rect width="32" height="32" rx="7" className="mark-bg" />
-      <path d="M4 25 L12 10 L17 19 L21 12 L28 25 Z" className="mark-peak" />
-      <path d="M9.6 15 L12 10 L14.4 15 L12.4 14.2 L11 15.4 Z" className="mark-snow" />
+      {/* A single clean curve: small rise, short dip, then the climb. */}
+      <path
+        className="mark-fill"
+        d="M5 26 V18 C8 22 13 18 16 14 C19 10 24 10 27 8 V26 Z"
+      />
+      <path
+        className="mark-trace"
+        d="M5 18 C8 22 13 18 16 14 C19 10 24 10 27 8"
+        fill="none"
+        strokeWidth="2.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -34,6 +54,100 @@ export function GitHubIcon({ size = 18 }: { size?: number }) {
       focusable="false"
     >
       <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+    </svg>
+  );
+}
+
+/**
+ * The globe on the units button. Stroked rather than filled, because the
+ * meridian and the parallels are the whole reading of the mark and a solid
+ * silhouette loses them at 16px.
+ */
+export function GlobeIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.25"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="8" cy="8" r="6.4" />
+      <ellipse cx="8" cy="8" rx="2.9" ry="6.4" />
+      <path d="M1.9 5.7h12.2M1.9 10.3h12.2" />
+    </svg>
+  );
+}
+
+/** The hamburger on the menu button. */
+export function MenuIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <rect x="1" y="3" width="14" height="1.6" rx="0.8" />
+      <rect x="1" y="7.2" width="14" height="1.6" rx="0.8" />
+      <rect x="1" y="11.4" width="14" height="1.6" rx="0.8" />
+    </svg>
+  );
+}
+
+/** The tick beside the chosen unit. */
+export function CheckIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M2.5 8.6 6.2 12.3 13.5 4" />
+    </svg>
+  );
+}
+
+/** A simple × close glyph. */
+export function CloseIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M3 3l10 10M13 3L3 13" />
+    </svg>
+  );
+}
+
+/** A location/navigation arrow, used for the "enable location" hint. */
+export function LocationArrowIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 2L4.5 20.3 6.7 14 12 12l6.3 2.7L12 2z" />
     </svg>
   );
 }

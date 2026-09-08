@@ -3,7 +3,7 @@ import type { RoutePoint } from '../types';
 import { GpxParseError, parseGpx, simplify } from '../lib/gpx';
 import { ElevationModel, computeGain, totalDistanceM } from '../lib/elevation';
 import { ElevationProfile } from './ElevationProfile';
-import { formatDistance } from '../lib/venues';
+import { useUnits } from './UnitsContext';
 
 interface GpxDropzoneProps {
   elevationModel: ElevationModel | null;
@@ -32,6 +32,7 @@ export function GpxDropzone({ elevationModel, onRouteLoaded }: GpxDropzoneProps)
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const units = useUnits();
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -91,15 +92,15 @@ export function GpxDropzone({ elevationModel, onRouteLoaded }: GpxDropzoneProps)
         </header>
         <div className="stats">
           <div className="stat">
-            <span className="stat-value">{Math.round(loaded.gainM)} m</span>
+            <span className="stat-value">{units.height(loaded.gainM)}</span>
             <span className="stat-label small muted">Gain</span>
           </div>
           <div className="stat">
-            <span className="stat-value">{formatDistance(loaded.distanceM)}</span>
+            <span className="stat-value">{units.distance(loaded.distanceM)}</span>
             <span className="stat-label small muted">Distance</span>
           </div>
           <div className="stat">
-            <span className="stat-value">{Math.round(loaded.lossM)} m</span>
+            <span className="stat-value">{units.height(loaded.lossM)}</span>
             <span className="stat-label small muted">Descent</span>
           </div>
         </div>

@@ -1144,9 +1144,14 @@ button {
   padding: 14px 16px;
   background: var(--surface);
   border-radius: 16px;
+  cursor: pointer;
   box-shadow:
     0 8px 30px rgb(0 0 0 / 22%),
     0 0 0 1px rgb(0 0 0 / 5%);
+}
+
+.locate-hint:hover {
+  background: var(--bg-raised);
 }
 
 .locate-hint-icon {

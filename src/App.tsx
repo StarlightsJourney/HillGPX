@@ -92,6 +92,10 @@ function MapApp() {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [activeRouteSlug, setActiveRouteSlug] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [hoveredSlug, setHoveredSlug] = useState<string | null>(null);
+  const [favorites, setFavorites] = useState<Set<string>>(
+    () => new Set(JSON.parse(localStorage.getItem('hillgpx:favorites') || '[]') as string[]),
+  );
   const [droppedRoute, setDroppedRoute] = useState<RoutePoint[] | null>(null);
   const [focus, setFocus] = useState<{ lng: number; lat: number; nonce: number } | null>(null);
   const [focusBounds, setFocusBounds] = useState<{ bounds: Bounds; nonce: number } | null>(null);
@@ -121,6 +125,10 @@ function MapApp() {
       .then(setElevationModel)
       .catch((err: Error) => console.warn('Terrain model unavailable:', err.message));
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('hillgpx:favorites', JSON.stringify([...favorites]));
+  }, [favorites]);
 
   const allVenues = dataset?.venues ?? NO_VENUES;
 
@@ -172,6 +180,15 @@ function MapApp() {
     },
     [dataset],
   );
+
+  const toggleFavorite = useCallback((slug: string) => {
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
+  }, []);
 
   // Framing an area is a change of place, so any card still open is describing
   // somewhere you have just left. A pan already clears it; this is the same rule
@@ -269,6 +286,10 @@ function MapApp() {
               bounds={viewport}
               onPick={(slug) => selectVenue(slug, true)}
               onClose={() => setListOpen(false)}
+              hoveredSlug={hoveredSlug}
+              onHover={setHoveredSlug}
+              favorites={favorites}
+              onToggleFavorite={toggleFavorite}
             />
           )}
         </div>
@@ -294,6 +315,8 @@ function MapApp() {
                 activeRoute={activeRoutePoints}
                 onSelectVenue={(slug) => selectVenue(slug)}
                 onOpenDetail={() => setDetailOpen(true)}
+                hoveredSlug={hoveredSlug}
+                onHover={setHoveredSlug}
                 focus={focus}
                 focusBounds={focusBounds}
                 show3d={show3d}
@@ -369,15 +392,6 @@ function MapApp() {
         {!listOpen && !gpxOpen && (
           <button className="list-toggle" onClick={() => setListOpen(true)}>
             <ListIcon /> Show list
-          </button>
-        )}
-
-        {listOpen && (
-          <button
-            className="list-toggle list-toggle-hide"
-            onClick={() => setListOpen(false)}
-          >
-            Show map
           </button>
         )}
       </main>

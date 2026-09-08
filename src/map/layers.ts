@@ -19,6 +19,7 @@ import { formatHeight, type Units } from '../lib/units';
  */
 
 const PILL_FILL = '#ffffff';
+const PILL_HOVER_FILL = '#1a1a1a';
 const PILL_ACTIVE_FILL = '#c1502e'; // hillGPX brand accent
 const TEXT_INK = '#222222';
 const TEXT_LIGHT = '#ffffff';
@@ -88,6 +89,7 @@ export function venuesToGeoJson(
 export async function loadMarkerImages(map: MlMap): Promise<void> {
   for (const [id, fill, shadow] of [
     ['pill', PILL_FILL, 'rgba(0, 0, 0, 0.3)'],
+    ['pill-hover', PILL_HOVER_FILL, 'rgba(0, 0, 0, 0.45)'],
     ['pill-active', PILL_ACTIVE_FILL, 'rgba(0, 0, 0, 0.38)'],
   ] as const) {
     if (map.hasImage(id)) continue;
@@ -279,12 +281,15 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
     filter: ['==', ['get', 'slug'], '__none__'],
     layout: {
       ...PILL_LAYOUT,
+      'icon-image': 'pill-hover',
       'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 1.0, 16, 1.08],
       'text-size': ['interpolate', ['linear'], ['zoom'], 10, 13, 16, 14],
       'icon-allow-overlap': true,
       'text-allow-overlap': true,
     },
-    paint: PILL_PAINT,
+    paint: {
+      'text-color': TEXT_LIGHT,
+    },
   });
 
   // The selected venue, as a brand-coloured pill on top of everything else.

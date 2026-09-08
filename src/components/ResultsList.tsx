@@ -1,7 +1,8 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import type { Venue } from '../types';
 import { VENUE_TYPE_LABEL, rankingHeight, venueHeight, venuesInBounds } from '../lib/venues';
 import { VenueThumb } from './VenueThumb';
+import { CloseIcon, HeartIcon } from './icons';
 import { useUnits } from './UnitsContext';
 
 interface ResultsListProps {
@@ -9,9 +10,13 @@ interface ResultsListProps {
   bounds: { west: number; south: number; east: number; north: number } | null;
   onPick: (slug: string) => void;
   onClose: () => void;
+  hoveredSlug?: string | null;
+  onHover?: (slug: string | null) => void;
+  favorites: Set<string>;
+  onToggleFavorite: (slug: string) => void;
 }
 
-const MAX_ROWS = 40;
+const PAGE = 40;
 
 /**
  * The biggest climbs in whatever the map is currently showing.
@@ -22,18 +27,27 @@ const MAX_ROWS = 40;
  * anything yet, so ranking by the one fact we actually measured beats inventing
  * popularity.
  */
-function ResultsListInner({ venues, bounds, onPick, onClose }: ResultsListProps) {
-  // Read through context rather than taken as a prop, which is what lets the
-  // memo below stay: a units change re-renders this even though its props are
-  // unchanged, and nothing else has to know the list prints heights.
+function ResultsListInner({
+  venues,
+  bounds,
+  onPick,
+  onClose,
+  hoveredSlug,
+  onHover,
+  favorites,
+  onToggleFavorite,
+}: ResultsListProps) {
   const units = useUnits();
+  const [limit, setLimit] = useState(PAGE);
 
   const rows = useMemo(() => {
     const inView = bounds ? venuesInBounds(venues, bounds) : venues;
     return [...inView]
       .sort((a, b) => rankingHeight(b) - rankingHeight(a))
-      .slice(0, MAX_ROWS);
-  }, [venues, bounds]);
+      .slice(0, limit);
+  }, [venues, bounds, limit]);
+
+  const hasMore = (bounds ? venuesInBounds(venues, bounds) : venues).length > limit;
 
   return (
     <section className="results">
@@ -46,17 +60,45 @@ function ResultsListInner({ venues, bounds, onPick, onClose }: ResultsListProps)
               : `Top ${rows.length} in view, tallest first`}
           </p>
         </div>
-        <button className="icon-btn" onClick={onClose} aria-label="Close list">
-          ×
+        <button type="button" className="icon-btn results-close" onClick={onClose} aria-label="Close list">
+          <CloseIcon size={14} />
         </button>
       </header>
 
       <ul className="results-grid">
         {rows.map((venue) => {
           const height = venueHeight(venue);
+          const isFavorite = favorites.has(venue.slug);
+          const isHovered = hoveredSlug === venue.slug;
+          const badge = venue.notable
+            ? { label: 'Tall', type: 'tall' as const }
+            : venue.photo?.file
+              ? { label: 'New', type: 'new' as const }
+              : null;
+
           return (
-            <li key={venue.slug}>
-              <button className="result-card" onClick={() => onPick(venue.slug)}>
+            <li
+              key={venue.slug}
+              onMouseEnter={() => onHover?.(venue.slug)}
+              onMouseLeave={() => onHover?.(null)}
+            >
+              <button
+                type="button"
+                className={`result-card${isHovered ? ' hovered' : ''}`}
+                onClick={() => onPick(venue.slug)}
+              >
+                {badge && <span className={`result-badge ${badge.type}`}>{badge.label}</span>}
+                <button
+                  type="button"
+                  className={`result-favorite${isFavorite ? ' on' : ''}`}
+                  aria-label={isFavorite ? 'Remove favourite' : 'Add to favourites'}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleFavorite(venue.slug);
+                  }}
+                >
+                  <HeartIcon size={18} filled={isFavorite} />
+                </button>
                 <VenueThumb venue={venue} />
                 <span className="result-card-name">{venue.name}</span>
                 <span className="result-card-meta">
@@ -80,6 +122,14 @@ function ResultsListInner({ venues, bounds, onPick, onClose }: ResultsListProps)
           );
         })}
       </ul>
+
+      {hasMore && (
+        <div className="results-more">
+          <button type="button" className="filter-apply" onClick={() => setLimit((l) => l + PAGE)}>
+            Show more
+          </button>
+        </div>
+      )}
     </section>
   );
 }

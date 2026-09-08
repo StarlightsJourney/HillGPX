@@ -81,6 +81,8 @@ interface MapViewProps {
   activeRoute: RoutePoint[] | null;
   onSelectVenue: (slug: string | null) => void;
   onOpenDetail?: () => void;
+  hoveredSlug?: string | null;
+  onHover?: (slug: string | null) => void;
   /**
    * Where to fly the camera. Carries a nonce so that picking the same venue
    * twice still re-centres the map rather than being skipped as unchanged.
@@ -183,6 +185,8 @@ export function MapView({
   activeRoute,
   onSelectVenue,
   onOpenDetail,
+  hoveredSlug,
+  onHover,
   focus,
   focusBounds,
   show3d = false,
@@ -213,6 +217,10 @@ export function MapView({
   show3dRef.current = show3d;
   const onViewportRef = useRef(onViewportChange);
   onViewportRef.current = onViewportChange;
+  const onHoverRef = useRef(onHover);
+  onHoverRef.current = onHover;
+  const lastHoverSentRef = useRef(hoveredSlug ?? null);
+  lastHoverSentRef.current = hoveredSlug ?? null;
 
   // Stabilise the visible marker set: only re-filter when the viewport has
   // moved enough to change the shortlist. Constant `setFilter` calls while a
@@ -285,23 +293,24 @@ export function MapView({
       refreshMarkersRef.current();
       setReady(true);
 
-      let hoveredSlug: string | null = null;
       map.on('mousemove', (e) => {
         const [feature] = map.queryRenderedFeatures(e.point, { layers: INTERACTIVE_LAYERS });
         const slug = feature?.properties?.slug ?? null;
         const nextSlug = typeof slug === 'string' ? slug : null;
         // Don't draw a hover pill on top of the already-selected one.
         const target = nextSlug === selectedRef.current ? null : nextSlug;
-        if (target !== hoveredSlug) {
-          hoveredSlug = target;
-          setHoveredVenue(map, hoveredSlug);
-        }
         map.getCanvas().style.cursor = target ? 'pointer' : '';
+        if (target !== lastHoverSentRef.current) {
+          lastHoverSentRef.current = target;
+          onHoverRef.current?.(target);
+        }
       });
       map.on('mouseleave', () => {
-        hoveredSlug = null;
-        setHoveredVenue(map, null);
         map.getCanvas().style.cursor = '';
+        if (lastHoverSentRef.current !== null) {
+          lastHoverSentRef.current = null;
+          onHoverRef.current?.(null);
+        }
       });
 
       map.on('click', (e) => {
@@ -417,6 +426,12 @@ export function MapView({
     if (!map || !ready) return;
     setSelectedVenue(map, selectedSlug);
   }, [selectedSlug, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    setHoveredVenue(map, hoveredSlug ?? null);
+  }, [hoveredSlug, ready]);
 
   useEffect(() => {
     const map = mapRef.current;

@@ -274,7 +274,7 @@ function MapApp() {
 
         <div className="topbar-actions">
           <button
-            className="ghost-btn"
+            className="gpx-link"
             onClick={() => setGpxOpen((v) => !v)}
             aria-expanded={gpxOpen}
             aria-controls="gpx-panel"

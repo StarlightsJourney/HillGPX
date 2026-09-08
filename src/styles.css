@@ -466,6 +466,69 @@ button {
   height: 100%;
 }
 
+.bottom-nav {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  /* The list is a partial bottom sheet so the map stays visible behind it. */
+  .list-pane {
+    bottom: 56px;
+    height: 55%;
+    box-shadow: 0 -4px 24px rgb(0 0 0 / 16%);
+  }
+
+  .results {
+    padding-top: 12px;
+  }
+
+  .results-handle {
+    display: block;
+  }
+
+  .results-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .results-head h2 {
+    font-size: 18px;
+  }
+
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    height: 56px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+
+  .bottom-nav-item {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    height: 100%;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  .bottom-nav-item.active {
+    color: var(--accent);
+  }
+}
+
 /* ─── Venue card ──────────────────────────────────────────────────────── */
 
 .venue-card {
@@ -796,6 +859,15 @@ button {
 
 .results {
   padding: var(--s2);
+}
+
+.results-handle {
+  display: none;
+  width: 40px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 0 auto 12px;
 }
 
 .results-head {

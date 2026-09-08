@@ -22,7 +22,7 @@ import {
 } from './lib/venues';
 import { haversineM } from './lib/elevation';
 import type { RoutePoint, Venue } from './types';
-import { CloseIcon, LocationArrowIcon } from './components/icons';
+import { CloseIcon, HeartIcon, LocationArrowIcon, UserIcon } from './components/icons';
 import { HeaderControls } from './components/HeaderControls';
 import { UnitsProvider } from './components/UnitsContext';
 
@@ -108,12 +108,10 @@ function MapApp() {
   const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null);
   const [locateHint, setLocateHint] = useState<string | null>(null);
   const [show3d, setShow3d] = useState(false);
-  // Open beside the map on a wide screen, closed over it on a phone. Either
-  // way it can be dismissed — previously the desktop pane ignored this entirely,
-  // so its close button did nothing and the list could not be got rid of.
-  const [listOpen, setListOpen] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 900px)').matches,
-  );
+  // Open beside the map on a wide screen, and as a partial bottom sheet on a
+  // phone. The sheet is visible by default so a phone user sees both the map
+  // and the first result cards, matching the mobile reference.
+  const [listOpen, setListOpen] = useState(true);
   const [gpxOpen, setGpxOpen] = useState(false);
   const [filters, setFilters] = useState<VenueFilters>(NO_FILTERS);
   const [viewport, setViewport] = useState<
@@ -414,6 +412,50 @@ function MapApp() {
         </div>
 
       </main>
+
+      <MobileNav
+        active="explore"
+        onExplore={() => setListOpen(true)}
+        onSaved={() => setListOpen(true)}
+        onLogin={() => {
+          // Login is not implemented yet; the entry point is reserved.
+          alert('Login is coming soon.');
+        }}
+      />
     </div>
+  );
+}
+
+interface MobileNavProps {
+  active: 'explore' | 'saved';
+  onExplore: () => void;
+  onSaved: () => void;
+  onLogin: () => void;
+}
+
+function MobileNav({ active, onExplore, onSaved, onLogin }: MobileNavProps) {
+  return (
+    <nav className="bottom-nav" aria-label="Mobile navigation">
+      <button
+        type="button"
+        className={`bottom-nav-item${active === 'explore' ? ' active' : ''}`}
+        onClick={onExplore}
+      >
+        <LocationArrowIcon size={20} />
+        <span>Explore</span>
+      </button>
+      <button
+        type="button"
+        className={`bottom-nav-item${active === 'saved' ? ' active' : ''}`}
+        onClick={onSaved}
+      >
+        <HeartIcon size={20} />
+        <span>Saved</span>
+      </button>
+      <button type="button" className="bottom-nav-item" onClick={onLogin}>
+        <UserIcon size={20} />
+        <span>Log in</span>
+      </button>
+    </nav>
   );
 }

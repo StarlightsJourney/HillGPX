@@ -61,6 +61,7 @@ function ResultsListInner({
 
   return (
     <section className="results">
+      <div className="results-handle" aria-hidden="true" />
       <header className="results-head">
         <div>
           <h2>{formatCount(total)} places</h2>

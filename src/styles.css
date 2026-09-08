@@ -510,8 +510,9 @@ button {
   }
 
   .list-pane {
+    top: 48px;
     bottom: 0;
-    height: 100%;
+    height: auto;
     border-radius: 0;
     box-shadow: none;
   }

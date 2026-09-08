@@ -558,6 +558,8 @@ button {
   .stage.with-list .map-wrap > .map {
     position: absolute;
     inset: 18px;
+    width: auto;
+    height: auto;
     border-radius: 12px !important;
     overflow: hidden;
   }
@@ -602,6 +604,8 @@ button {
   .stage.with-list .map-wrap > .map {
     position: absolute;
     inset: 24px;
+    width: auto;
+    height: auto;
     border-radius: 16px !important;
     overflow: hidden;
   }

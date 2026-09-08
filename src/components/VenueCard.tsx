@@ -7,7 +7,7 @@ import { DownloadIcon } from './icons';
 
 const REPO_URL = 'https://github.com/StarlightsJourney/HillGPX';
 
-function downloadRoute(route: Route) {
+export function downloadRoute(route: Route) {
   const points = route.coordinates
     .map(([lng, lat, ele]) => `        <trkpt lat="${lat}" lon="${lng}"><ele>${ele}</ele></trkpt>`)
     .join('\n');
@@ -35,6 +35,7 @@ interface VenueCardProps {
   activeRouteSlug: string | null;
   onSelectRoute: (slug: string | null) => void;
   onClose: () => void;
+  onOpenDetail?: () => void;
   className?: string;
 }
 
@@ -52,6 +53,7 @@ export function VenueCard({
   activeRouteSlug,
   onSelectRoute,
   onClose,
+  onOpenDetail,
   className,
 }: VenueCardProps) {
   const height = venueHeight(venue);
@@ -83,6 +85,11 @@ export function VenueCard({
       <div className="card-body">
         <h2>{venue.name}</h2>
         <p className="card-kind">{detail}</p>
+        {onOpenDetail && (
+          <button type="button" className="card-detail-link" onClick={onOpenDetail}>
+            Show full details
+          </button>
+        )}
 
         {height ? (
           <p className="card-height">

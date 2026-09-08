@@ -1954,3 +1954,202 @@ button {
     height: 44px;
   }
 }
+
+/* ─── Venue detail sheet ──────────────────────────────────────────────── */
+
+.venue-detail {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.venue-detail-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 35%);
+}
+
+.venue-detail-sheet {
+  position: relative;
+  width: 460px;
+  max-width: 100%;
+  height: 100%;
+  background: var(--surface);
+  box-shadow: -6px 0 24px rgb(0 0 0 / 12%);
+  overflow-y: auto;
+}
+
+.venue-detail-close {
+  position: absolute;
+  top: var(--s2);
+  left: var(--s2);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 90%);
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
+}
+
+.venue-detail-hero {
+  width: 100%;
+  height: 240px;
+  background: var(--bg-raised);
+}
+
+.venue-detail-hero .card-thumb,
+.venue-detail-hero img {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+.venue-detail-hero .placeholder-icon {
+  width: 48px;
+  height: 48px;
+}
+
+.venue-detail-body {
+  padding: var(--s3);
+}
+
+.venue-detail-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+  line-height: 1.25;
+}
+
+.venue-detail-subtitle {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: var(--t2);
+}
+
+.venue-detail-height {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0 0 var(--s2);
+  color: var(--ink);
+}
+
+.venue-detail-height strong {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.venue-detail-section {
+  padding: var(--s2) 0;
+  border-top: 1px solid var(--border);
+}
+
+.venue-detail-section h2 {
+  font-size: var(--t3);
+  font-weight: 600;
+  margin: 0 0 var(--s1);
+}
+
+.venue-detail-section p {
+  margin: 0 0 8px;
+  color: var(--ink);
+  line-height: 1.55;
+}
+
+.venue-detail-section p:last-child {
+  margin-bottom: 0;
+}
+
+.venue-detail-features {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.venue-detail-features li {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: var(--t2);
+  background: var(--bg-raised);
+}
+
+.venue-detail-routes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.venue-detail-route {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 3px 3px 3px 14px;
+}
+
+.venue-detail-route-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 0;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+.venue-detail-route-btn.active .route-name {
+  color: var(--accent);
+}
+
+.venue-detail-download {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.venue-detail-download:hover {
+  background: var(--bg-raised);
+  color: var(--accent);
+}
+
+/* "Show full details" link inside the popup card. */
+.card-detail-link {
+  padding: 0;
+  margin: 0 0 10px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: var(--t2);
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

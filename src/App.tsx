@@ -4,6 +4,7 @@ import { ResultsList } from './components/ResultsList';
 import { GpxDropzone } from './components/GpxDropzone';
 import { SearchBar } from './components/SearchBar';
 import { FilterBar } from './components/FilterBar';
+import { VenueDetail } from './components/VenueDetail';
 import { ElevationModel } from './lib/elevation';
 import {
   NO_FILTERS,
@@ -90,6 +91,7 @@ function MapApp() {
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [activeRouteSlug, setActiveRouteSlug] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [droppedRoute, setDroppedRoute] = useState<RoutePoint[] | null>(null);
   const [focus, setFocus] = useState<{ lng: number; lat: number; nonce: number } | null>(null);
   const [focusBounds, setFocusBounds] = useState<{ bounds: Bounds; nonce: number } | null>(null);
@@ -161,6 +163,7 @@ function MapApp() {
       setSelectedSlug(slug);
       setActiveRouteSlug(null);
       setUserLocation(null);
+      if (!slug) setDetailOpen(false);
       if (fly && slug) {
         const venue = dataset?.bySlug.get(slug);
         if (venue) setFocus({ lng: venue.lng, lat: venue.lat, nonce: Date.now() });
@@ -290,6 +293,7 @@ function MapApp() {
                 onSelectRoute={setActiveRouteSlug}
                 activeRoute={activeRoutePoints}
                 onSelectVenue={(slug) => selectVenue(slug)}
+                onOpenDetail={() => setDetailOpen(true)}
                 focus={focus}
                 focusBounds={focusBounds}
                 show3d={show3d}
@@ -340,6 +344,16 @@ function MapApp() {
               </div>
             )}
           </div>
+        )}
+
+        {selectedVenue && detailOpen && (
+          <VenueDetail
+            venue={selectedVenue}
+            routes={venueRoutes}
+            activeRouteSlug={activeRouteSlug}
+            onSelectRoute={setActiveRouteSlug}
+            onClose={() => setDetailOpen(false)}
+          />
         )}
 
         <div className="sheet" id="gpx-panel" hidden={!gpxOpen}>

@@ -80,6 +80,7 @@ interface MapViewProps {
   onSelectRoute: (slug: string | null) => void;
   activeRoute: RoutePoint[] | null;
   onSelectVenue: (slug: string | null) => void;
+  onOpenDetail?: () => void;
   /**
    * Where to fly the camera. Carries a nonce so that picking the same venue
    * twice still re-centres the map rather than being skipped as unchanged.
@@ -181,6 +182,7 @@ export function MapView({
   onSelectRoute,
   activeRoute,
   onSelectVenue,
+  onOpenDetail,
   focus,
   focusBounds,
   show3d = false,
@@ -493,6 +495,7 @@ export function MapView({
           activeRouteSlug={activeRouteSlug}
           onSelectRoute={onSelectRoute}
           onClose={closeCard}
+          onOpenDetail={onOpenDetail}
         />
       )}
     </>
@@ -507,6 +510,7 @@ function VenuePopup({
   activeRouteSlug,
   onSelectRoute,
   onClose,
+  onOpenDetail,
 }: {
   map: MlMap;
   venue: Venue;
@@ -514,6 +518,7 @@ function VenuePopup({
   activeRouteSlug: string | null;
   onSelectRoute: (slug: string | null) => void;
   onClose: () => void;
+  onOpenDetail?: () => void;
 }) {
   const [content] = useState(() => document.createElement('div'));
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -553,6 +558,7 @@ function VenuePopup({
         activeRouteSlug={activeRouteSlug}
         onSelectRoute={onSelectRoute}
         onClose={onClose}
+        onOpenDetail={onOpenDetail}
       />
     </div>,
     content,

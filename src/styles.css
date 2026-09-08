@@ -444,9 +444,6 @@ button {
 
 /* Phone: bottom sheet + bottom nav. */
 @media (max-width: 480px) {
-  .results-close {
-    display: none;
-  }
   .list-pane {
     bottom: 56px;
     box-shadow: 0 -4px 24px rgb(0 0 0 / 16%);
@@ -505,10 +502,6 @@ button {
 
 /* Narrow: full-page listings with a Show map pill. */
 @media (min-width: 481px) and (max-width: 767px) {
-  .results-close {
-    display: none;
-  }
-
   .list-pane {
     top: 48px;
     bottom: 0;
@@ -582,10 +575,6 @@ button {
 
   .results-grid {
     grid-template-columns: 1fr;
-  }
-
-  .results-close {
-    display: none;
   }
 }
 
@@ -1012,10 +1001,6 @@ button {
 }
 .results-head p {
   margin: 2px 0 0;
-}
-
-.results-close {
-  flex: none;
 }
 
 .results-grid {

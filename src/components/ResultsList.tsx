@@ -2,7 +2,7 @@ import { memo, useMemo, useState } from 'react';
 import type { Venue } from '../types';
 import { VENUE_TYPE_LABEL, rankingHeight, venueHeight, venuesInBounds } from '../lib/venues';
 import { VenueThumb } from './VenueThumb';
-import { CloseIcon, HeartIcon, MapIcon } from './icons';
+import { HeartIcon, MapIcon } from './icons';
 import { useUnits } from './UnitsContext';
 
 interface ResultsListProps {
@@ -69,9 +69,6 @@ function ResultsListInner({
             {total === 0 ? 'Nothing mapped in this area yet' : 'Biggest climbs, photos first'}
           </p>
         </div>
-        <button type="button" className="icon-btn results-close" onClick={onClose} aria-label="Close list">
-          <CloseIcon size={14} />
-        </button>
       </header>
 
       <ul className="results-grid">

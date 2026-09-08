@@ -2,7 +2,7 @@ import { memo, useMemo, useState } from 'react';
 import type { Venue } from '../types';
 import { VENUE_TYPE_LABEL, rankingHeight, venueHeight, venuesInBounds } from '../lib/venues';
 import { VenueThumb } from './VenueThumb';
-import { CloseIcon, HeartIcon } from './icons';
+import { CloseIcon, HeartIcon, MapIcon } from './icons';
 import { useUnits } from './UnitsContext';
 
 interface ResultsListProps {
@@ -138,6 +138,11 @@ function ResultsListInner({
           </button>
         </div>
       )}
+
+      <button type="button" className="show-map-btn" onClick={onClose}>
+        <MapIcon size={16} />
+        Show map
+      </button>
     </section>
   );
 }

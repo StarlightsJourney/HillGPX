@@ -287,6 +287,28 @@ export function ChevronRightIcon({ size = 16 }: { size?: number }) {
 }
 
 /** A user profile icon. */
+/** A folded-map icon for the "Show map" toggle. */
+export function MapIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M9 3L3 6v15l6-3 6 3 6-3V3l-6 3-6-3z" />
+      <path d="M9 3v15" />
+      <path d="M15 6v15" />
+    </svg>
+  );
+}
+
 export function UserIcon({ size = 18 }: { size?: number }) {
   return (
     <svg

@@ -396,17 +396,18 @@ button {
   isolation: isolate;
 }
 
-/* ── Split view ──
-   Desktop: the list takes the larger share and the map sits beside it, as in
-   the reference. Below the breakpoint the list becomes a sheet over a
-   full-bleed map, because a phone has room for one or the other, not both. */
+/* ── Responsive list / map layout ──
+   Phone (<481px): a partial bottom sheet over the map, with a bottom nav.
+   Narrow (481-767px): full-page listing grid with a floating "Show map" pill.
+   Tablet (768-1023px): split view, single-column listing grid.
+   Desktop (>=1024px): split view, two-column listing grid, more padding. */
 
 .list-pane {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 75%;
+  height: 55%;
   z-index: 3;
   background: var(--surface);
   overflow-y: auto;
@@ -427,71 +428,22 @@ button {
   }
 }
 
-@media (min-width: 900px) {
-  /* Only when the list is open. Without the modifier the grid column existed
-     unconditionally, so closing the list left an empty column and the map still
-     squeezed into half the screen. */
-  .stage.with-list {
-    display: grid;
-    grid-template-columns: minmax(380px, 0.85fr) minmax(0, 1.15fr);
-  }
-  .stage.with-list .list-pane {
-    position: relative;
-    inset: auto;
-    height: 100%;
-    border-radius: 0;
-    transform: none;
-    transition: none;
-    border-right: 1px solid var(--border);
-  }
-  .stage.with-list .map-wrap {
-    position: relative;
-    inset: auto;
-  }
-}
-
-/* MapLibre puts its own `maplibregl-map` class on this element, and
-   maplibre-gl.css sets `position: relative` on it. That stylesheet is imported
-   from MapView.tsx, so Vite emits it in the code-split MapView chunk which
-   loads AFTER this file — at equal specificity the later rule won, `inset: 0`
-   stopped applying, and the container collapsed to zero height. The map then
-   rendered into MapLibre's 300px fallback and showed nothing.
-
-   `.map-wrap > .map` outranks it, and the explicit 100% sizing means this holds
-   even if the positioning is overridden again. */
-.map-wrap > .map {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
 .bottom-nav {
   display: none;
 }
 
-@media (max-width: 899px) {
-  /* The list is a partial bottom sheet so the map stays visible behind it. */
+.show-map-btn {
+  display: none;
+}
+
+/* Phone: bottom sheet + bottom nav. */
+@media (max-width: 480px) {
+  .results-close {
+    display: none;
+  }
   .list-pane {
     bottom: 56px;
-    height: 55%;
     box-shadow: 0 -4px 24px rgb(0 0 0 / 16%);
-  }
-
-  .results {
-    padding-top: 12px;
-  }
-
-  .results-handle {
-    display: block;
-  }
-
-  .results-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .results-head h2 {
-    font-size: 18px;
   }
 
   .bottom-nav {
@@ -527,6 +479,155 @@ button {
   .bottom-nav-item.active {
     color: var(--accent);
   }
+
+  .results {
+    padding-top: 12px;
+  }
+
+  .results-handle {
+    display: block;
+  }
+
+  .results-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .results-head h2 {
+    font-size: 18px;
+  }
+}
+
+/* Narrow: full-page listings with a Show map pill. */
+@media (min-width: 481px) and (max-width: 767px) {
+  .results-close {
+    display: none;
+  }
+
+  .list-pane {
+    bottom: 0;
+    height: 100%;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .show-map-btn {
+    position: fixed;
+    right: var(--s2);
+    bottom: var(--s2);
+    z-index: 10;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px;
+    background: #222222;
+    color: #ffffff;
+    border: none;
+    border-radius: 999px;
+    font-size: var(--t2);
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 3px 12px rgb(0 0 0 / 32%);
+  }
+
+  .results-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
+
+/* Tablet: split view, single-column cards. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .stage.with-list {
+    display: grid;
+    grid-template-columns: minmax(340px, 0.45fr) minmax(0, 0.55fr);
+  }
+  .stage.with-list .list-pane {
+    position: relative;
+    inset: auto;
+    width: auto;
+    height: 100%;
+    bottom: auto;
+    border-radius: 0;
+    transform: none;
+    transition: none;
+    border-right: 1px solid var(--border);
+  }
+  .stage.with-list .map-wrap {
+    position: relative;
+    inset: auto;
+  }
+  .stage:not(.with-list) .list-pane {
+    display: none;
+  }
+  .stage:not(.with-list) .map-wrap {
+    position: absolute;
+    inset: 0;
+  }
+
+  .results {
+    padding: 20px;
+  }
+
+  .results-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .results-close {
+    display: none;
+  }
+}
+
+/* Desktop: split view, two-column cards, generous padding. */
+@media (min-width: 1024px) {
+  .stage.with-list {
+    display: grid;
+    grid-template-columns: minmax(420px, 0.5fr) minmax(0, 0.5fr);
+  }
+  .stage.with-list .list-pane {
+    position: relative;
+    inset: auto;
+    width: auto;
+    height: 100%;
+    bottom: auto;
+    border-radius: 0;
+    transform: none;
+    transition: none;
+    border-right: 1px solid var(--border);
+  }
+  .stage.with-list .map-wrap {
+    position: relative;
+    inset: auto;
+  }
+  .stage:not(.with-list) .list-pane {
+    display: none;
+  }
+  .stage:not(.with-list) .map-wrap {
+    position: absolute;
+    inset: 0;
+  }
+
+  .results {
+    padding: 24px;
+  }
+
+  .results-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* MapLibre puts its own `maplibregl-map` class on this element, and
+   maplibre-gl.css sets `position: relative` on it. That stylesheet is imported
+   from MapView.tsx, so Vite emits it in the code-split MapView chunk which
+   loads AFTER this file — at equal specificity the later rule won, `inset: 0`
+   stopped applying, and the container collapsed to zero height. The map then
+   rendered into MapLibre's 300px fallback and showed nothing.
+
+   `.map-wrap > .map` outranks it, and the explicit 100% sizing means this holds
+   even if the positioning is overridden again. */
+.map-wrap > .map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 /* ─── Venue card ──────────────────────────────────────────────────────── */

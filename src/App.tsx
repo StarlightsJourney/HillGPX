@@ -26,7 +26,9 @@ import type { Route, RoutePoint, Venue } from './types';
 import { CloseIcon, ListIcon, LocationArrowIcon, MapIcon, Mark } from './components/icons';
 import { loadLocalRoutes, saveLocalRoutes } from './lib/localRoutes';
 import { routeFromPoints } from './lib/routes';
+import { logSession } from './lib/training';
 import { HeaderControls } from './components/HeaderControls';
+import { TrainingPanel } from './components/TrainingPanel';
 import { UnitsProvider } from './components/UnitsContext';
 
 /** One shared empty list, so "no dataset yet" is a stable reference to memo on. */
@@ -37,12 +39,12 @@ const NO_VENUES: Venue[] = [];
 // fetched once someone actually opens it.
 const MapView = lazy(() => import('./map/MapView').then((m) => ({ default: m.MapView })));
 
-type View = 'landing' | 'map';
+type View = 'landing' | 'map' | 'training';
 
 function viewFromHash(): View {
-  return window.location.hash === '#map' || window.location.hash.startsWith('#venue/')
-    ? 'map'
-    : 'landing';
+  if (window.location.hash === '#map' || window.location.hash.startsWith('#venue/')) return 'map';
+  if (window.location.hash === '#training') return 'training';
+  return 'landing';
 }
 
 function detailSlugFromHash(): string | null {
@@ -67,6 +69,8 @@ export default function App() {
     <UnitsProvider>
       {view === 'landing' ? (
         <Landing onOpen={() => (window.location.hash = '#map')} />
+      ) : view === 'training' ? (
+        <TrainingPanel onClose={() => (window.location.hash = '#map')} />
       ) : (
         <MapApp />
       )}
@@ -251,6 +255,7 @@ function MapApp() {
       const next = [...localRoutes, route];
       saveLocalRoutes(next);
       setLocalRoutes(next);
+      logSession({ routeName: route.name, gainM: route.gainM, distanceM: route.distanceM });
     },
     [localRoutes],
   );
@@ -385,7 +390,7 @@ function MapApp() {
           </div>
         ) : (
           <div className="map-wrap">
-            <Suspense fallback={<div className="empty small muted">Loading the map…</div>}>
+            <Suspense fallback={<div className="map-skeleton"><div className="map-skeleton-pulse" /></div>}>
               <MapView
                 venues={venues}
                 selectedSlug={selectedSlug}

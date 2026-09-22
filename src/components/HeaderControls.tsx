@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckIcon, GitHubIcon, GlobeIcon, MenuIcon } from './icons';
+import { CheckIcon, ChartIcon, GitHubIcon, GlobeIcon, MenuIcon } from './icons';
 import { useUnits } from './UnitsContext';
 import type { Units } from '../lib/units';
 
@@ -27,7 +27,13 @@ const UNIT_CHOICES: { value: Units; label: string; note: string }[] = [
  * project needs most: a verified height is a one-line diff and a route is one
  * GPX file.
  */
-const MENU_LINKS: { href: string; label: string; note: string }[] = [
+const MENU_LINKS: { href: string; label: string; note: string; icon?: React.ReactNode }[] = [
+  {
+    href: '/#training',
+    label: 'Training balance',
+    note: 'Weekly elevation goal and sessions',
+    icon: <ChartIcon size={16} />,
+  },
   {
     href: `${CONTRIBUTING_URL}#add-a-route`,
     label: 'Add a route',
@@ -200,12 +206,15 @@ export function HeaderControls() {
                   key={link.href}
                   className="hdr-item"
                   href={link.href}
-                  target="_blank"
-                  rel="noreferrer"
+                  target={link.href.startsWith('http') ? '_blank' : undefined}
+                  rel={link.href.startsWith('http') ? 'noreferrer' : undefined}
                   onClick={() => setOpen(null)}
                 >
-                  <span className="hdr-item-label">{link.label}</span>
-                  <span className="hdr-note">{link.note}</span>
+                  {link.icon && <span className="hdr-item-icon">{link.icon}</span>}
+                  <span className="hdr-item-text">
+                    <span className="hdr-item-label">{link.label}</span>
+                    <span className="hdr-note">{link.note}</span>
+                  </span>
                 </a>
               ))}
             </div>

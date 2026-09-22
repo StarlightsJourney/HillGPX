@@ -5,12 +5,12 @@
  */
 
 /**
- * The product mark: a square rounded tile with an elevation trace rising
- * through it. Matches public/favicon.svg — change the two together.
+ * The product mark: an app-icon-style rounded tile with a mountain-and-route
+ * emblem. Matches public/favicon.svg — change the two together.
  *
- * The trace is the app's own output (route profiles, the landing chart) made
- * into a symbol. No snow-capped alpine peak: this is a tool for any hill,
- * staircase or route, tropical or otherwise.
+ * The shape is a bold elevation profile that also reads as two peaks: a route
+ * climbs, dips, then climbs to a summit dot. This keeps it legible at 22 px in
+ * the header and as a favicon.
  */
 export function Mark({ size = 22 }: { size?: number }) {
   return (
@@ -24,34 +24,42 @@ export function Mark({ size = 22 }: { size?: number }) {
     >
       <defs>
         <linearGradient id="markGradient" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#d9653d" />
-          <stop offset="1" stopColor="#b04428" />
+          <stop offset="0" stopColor="#e06c44" />
+          <stop offset="0.55" stopColor="#c1502e" />
+          <stop offset="1" stopColor="#9c3a1d" />
         </linearGradient>
+        <filter id="markShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="#000000" floodOpacity="0.2" />
+        </filter>
       </defs>
       <rect width="32" height="32" rx="7" fill="url(#markGradient)" />
-      {/* Background grid, faint. */}
-      <path d="M7 7h18v18H7Z" fill="none" stroke="#ffffff" strokeOpacity="0.12" strokeWidth="1" />
-      <path d="M7 13h18M7 19h18M13 7v18M19 7v18" fill="none" stroke="#ffffff" strokeOpacity="0.08" strokeWidth="1" />
-      {/* Elevation trace, white with a subtle casing. */}
+      {/* Subtle mountain backdrop. */}
       <path
-        d="M6 23 L11 19 L15 21 L20 13 L26 16"
+        d="M5 26 L13 12 L19 18 L27 6 L27 26 Z"
+        fill="#ffffff"
+        fillOpacity="0.08"
+      />
+      {/* Route trace with a soft casing for contrast against the backdrop. */}
+      <path
+        d="M5 25 L13 17 L19 20 L27 9"
         fill="none"
-        stroke="#7e3425"
+        stroke="#7e2e1b"
         strokeWidth="4"
         strokeLinecap="round"
         strokeLinejoin="round"
-        opacity="0.35"
+        opacity="0.4"
       />
       <path
-        d="M6 23 L11 19 L15 21 L20 13 L26 16"
+        d="M5 25 L13 17 L19 20 L27 9"
         fill="none"
         stroke="#ffffff"
-        strokeWidth="2.25"
+        strokeWidth="2.75"
         strokeLinecap="round"
         strokeLinejoin="round"
+        filter="url(#markShadow)"
       />
       {/* Summit dot. */}
-      <circle cx="26" cy="16" r="2.5" fill="#ffffff" />
+      <circle cx="27" cy="9" r="3" fill="#ffffff" />
     </svg>
   );
 }

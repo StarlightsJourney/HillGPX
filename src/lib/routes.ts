@@ -8,13 +8,13 @@ import type { Bounds } from './venues';
  */
 export type RouteCategory = 'all' | 'loop' | 'short' | 'long' | 'climb' | 'saved';
 
-export const ROUTE_CATEGORIES: { id: RouteCategory; label: string }[] = [
-  { id: 'all', label: 'All routes' },
-  { id: 'climb', label: 'Big climbs' },
-  { id: 'loop', label: 'Loops' },
-  { id: 'short', label: 'Under 10 km' },
-  { id: 'long', label: 'Ultra 30 km+' },
-  { id: 'saved', label: 'On this device' },
+export const ROUTE_CATEGORIES: { id: RouteCategory; label: string; shortLabel: string }[] = [
+  { id: 'all', label: 'All routes', shortLabel: 'All' },
+  { id: 'climb', label: 'Big climbs', shortLabel: 'Big EG' },
+  { id: 'loop', label: 'Loops', shortLabel: 'Loops' },
+  { id: 'short', label: 'Under 10 km', shortLabel: '<10 km' },
+  { id: 'long', label: 'Ultra 30 km+', shortLabel: '30 km+' },
+  { id: 'saved', label: 'On this device', shortLabel: 'Saved' },
 ];
 
 export interface RouteFilters {

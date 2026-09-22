@@ -135,6 +135,7 @@ function CategoryBarInner({
                     key={category.id}
                     id={category.id}
                     label={category.label}
+                    shortLabel={category.shortLabel}
                     active={routeFilters.category === category.id}
                     disabled={count === 0}
                     onClick={() => onRouteFiltersChange({ ...routeFilters, category: category.id as RouteCategory })}
@@ -172,12 +173,14 @@ function CategoryBarInner({
 function CategoryButton({
   id,
   label,
+  shortLabel,
   active,
   disabled = false,
   onClick,
 }: {
   id: string;
   label: string;
+  shortLabel?: string;
   active: boolean;
   disabled?: boolean;
   onClick: () => void;
@@ -187,12 +190,14 @@ function CategoryButton({
       type="button"
       role="tab"
       aria-selected={active}
+      aria-label={label}
       className={`category${active ? ' on' : ''}`}
       disabled={disabled}
       onClick={onClick}
     >
       <CategoryIcon id={id} />
-      <span>{label}</span>
+      <span className="category-label">{label}</span>
+      {shortLabel && <span className="category-label-short">{shortLabel}</span>}
     </button>
   );
 }
@@ -327,11 +332,15 @@ function ClimbCategories({ types, visibleVenues, filters, onChange }: FilterBarP
       withPhoto: category === 'photo',
     });
 
-  const categories: { id: ClimbCategory; label: string }[] = [
+  const categories: { id: ClimbCategory; label: string; shortLabel?: string }[] = [
     { id: 'all', label: 'All' },
-    ...types.map((type) => ({ id: type as ClimbCategory, label: type === 'hill' ? 'Hills & summits' : `${VENUE_TYPE_LABEL[type]}s` })),
-    { id: 'top', label: 'Top EG' },
-    { id: 'photo', label: 'With photos' },
+    ...types.map((type) => ({
+      id: type as ClimbCategory,
+      label: type === 'hill' ? 'Hills & summits' : `${VENUE_TYPE_LABEL[type]}s`,
+      shortLabel: type === 'hill' ? 'Hills' : type === 'hdb_block' ? 'Blocks' : type === 'stairs' ? 'Stairs' : `${VENUE_TYPE_LABEL[type]}s`,
+    })),
+    { id: 'top', label: 'Top EG', shortLabel: 'Top' },
+    { id: 'photo', label: 'With photos', shortLabel: 'Photos' },
   ];
 
   return (
@@ -342,6 +351,7 @@ function ClimbCategories({ types, visibleVenues, filters, onChange }: FilterBarP
             key={category.id}
             id={category.id}
             label={category.label}
+            shortLabel={category.shortLabel}
             active={active === category.id}
             onClick={() => pick(category.id)}
           />

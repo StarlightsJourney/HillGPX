@@ -179,6 +179,8 @@ function PhotoCard({ venue }: { venue: Venue }) {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localPhotos, setLocalPhotos] = useState<Photo[]>(() => photosForVenue(venue.slug));
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [fetchingUrl, setFetchingUrl] = useState(false);
 
   const onSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const selected = event.target.files?.[0];
@@ -215,6 +217,33 @@ function PhotoCard({ venue }: { venue: Venue }) {
 
   const hasPhoto = Boolean(venue.photo?.file) || localPhotos.length > 0;
 
+  const fetchFromUrl = async () => {
+    const url = photoUrl.trim();
+    if (!url) return;
+    setFetchingUrl(true);
+    setError(null);
+    try {
+      const response = await fetch(url, { mode: 'cors' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      if (!blob.type.startsWith('image/')) throw new Error('URL did not return an image');
+      if (blob.size > 5 * 1024 * 1024) throw new Error('Image is too large. Please choose one under 5 MB.');
+      const filename = url.split('/').pop()?.split('?')[0] || 'photo.jpg';
+      const fetchedFile = new File([blob], filename, { type: blob.type });
+      setFile(fetchedFile);
+      setPreview(URL.createObjectURL(fetchedFile));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(
+        message.includes('CORS') || message.includes('Failed to fetch')
+          ? 'This site does not allow direct fetching. Please save the image and upload it instead.'
+          : `Could not fetch photo: ${message}`,
+      );
+    } finally {
+      setFetchingUrl(false);
+    }
+  };
+
   return (
     <section className="venue-detail-section photo-section">
       <div className="venue-section-heading"><h2>Photos</h2></div>
@@ -249,6 +278,23 @@ function PhotoCard({ venue }: { venue: Venue }) {
             )}
             <input type="file" accept="image/*" onChange={onSelect} />
           </label>
+          <div className="photo-url-row">
+            <input
+              className="review-author"
+              type="url"
+              placeholder="Or paste an image URL"
+              value={photoUrl}
+              onChange={(event) => setPhotoUrl(event.target.value)}
+            />
+            <button
+              type="button"
+              className="btn btn-light"
+              disabled={!photoUrl.trim() || fetchingUrl}
+              onClick={fetchFromUrl}
+            >
+              {fetchingUrl ? '…' : 'Fetch'}
+            </button>
+          </div>
           <input
             className="review-author"
             type="text"

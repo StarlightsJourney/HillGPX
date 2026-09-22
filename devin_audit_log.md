@@ -99,4 +99,18 @@ npm run build
 python3 scripts/build_data.py
 ```
 
+### 11. Playwright route scraper for dynamic sites
+- **Severity**: medium
+- **Details**: User needed a production-ready way to scrape GPX routes from authenticated/dynamic sites and insert them into the app.
+- **Fix**: Added `scripts/scrape_routes_playwright.py` using async Playwright, stealth launch, saved state/cookie persistence, network response interception, generic JSON/GeoJSON coordinate extraction, and site-specific adapters. Generates `data/routes/<slug>.gpx` + sidecar, then optionally runs `build_data.py` via `--build`.
+- **Status**: fixed
+- **Re-test**: `python3 -m py_compile scripts/scrape_routes_playwright.py` and local test server route interception succeeded.
+
+### 12. API reverse-engineering route importer
+- **Severity**: medium
+- **Details**: User wanted a backend-API-first importer using copied session headers/cookies, with retry logic and deduplication when inserting into the app.
+- **Fix**: Added `scripts/api_route_import.py` using `httpx`, `tenacity` and `gpxpy`. Supports Strava route export/streams, Komoot tour GPX, Wikiloc best-effort, and generic JSON/GPX endpoints. Parses coordinates, builds a structured GPX, writes to `data/routes/` with sidecar, and deduplicates against existing GPX files and `public/data/routes.json`. Optional `--build` regenerates app datasets.
+- **Status**: fixed
+- **Re-test**: Local JSON API test succeeded; duplicate import was correctly skipped.
+
 Last verified: all commands above passed with zero errors/warnings.

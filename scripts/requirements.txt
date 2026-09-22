@@ -13,3 +13,7 @@ python-dotenv>=1.0.0
 # scrape_routes_playwright.py — dynamic browser scraping and GPX generation
 playwright>=1.40.0
 gpxpy>=1.6.0
+
+# api_route_import.py — backend API route importer
+httpx>=0.27.0
+tenacity>=8.0.0

@@ -11,6 +11,7 @@ All generated outputs are committed. The app does not run Python or need these c
 | `import_gpx.py` | Import a route from a file, URL, OSM route relation or your own Strava route, with a provenance sidecar | GPX file/URL, Overpass, Strava API | `data/routes/<slug>.gpx`, `data/routes/<slug>.json` | Network only for URL/OSM/Strava; standard library only; Strava needs `STRAVA_ACCESS_TOKEN` | Per contributed route |
 | `fetch_photos.py` | Fetch, resize and record the latest Mapillary image within 60 m of each venue | `public/data/venues.json`, Mapillary, existing `data/photos.json` | `public/photos/*.webp`, `data/photos.json` | Network; Pillow, python-dotenv and `MAPILLARY_TOKEN` in `.env.local` | As imagery is added |
 | `scrape_routes_playwright.py` | Scrape a GPX route from dynamic/SPA sites by intercepting network traffic | Site URL, optional saved browser state | `data/routes/<slug>.gpx`, `data/routes/<slug>.json` | Network; Playwright, gpxpy; optional saved login state | Per contributed route |
+| `api_route_import.py` | Import a route by calling the platform's backend API with copied headers/cookies/tokens | Site URL/API URL, headers/cookies JSON | `data/routes/<slug>.gpx`, `data/routes/<slug>.json` | Network; httpx, tenacity, gpxpy; user-supplied session | Per contributed route |
 
 For a full rebuild:
 
@@ -66,6 +67,35 @@ python3 scripts/scrape_routes_playwright.py "https://www.alltrails.com/trail/...
 ```
 
 **Important:** only scrape routes you have permission to republish. The script prefers official APIs (e.g. Strava with `STRAVA_ACCESS_TOKEN`) where possible. It does not bypass Cloudflare or CAPTCHAs; for authenticated sites you generally need to log in once with `--no-headless --save-state` and reuse that state.
+
+### Importing routes via backend APIs
+
+`api_route_import.py` calls the platform's own REST/GraphQL endpoints using session headers you copy from your browser. It is more reliable than HTML scraping because the response shape is stable.
+
+```bash
+# 1. Open the route/activity page, press F12 → Network, reload, find the API call.
+# 2. Right-click the request → Copy → Copy as cURL. Save the headers you need:
+cat > headers.json <<'EOF'
+{
+  "Authorization": "Bearer abc123",
+  "User-Agent": "Mozilla/5.0 ..."
+}
+EOF
+
+# Strava route — uses official export_gpx endpoint if Bearer is present
+python3 scripts/api_route_import.py "https://www.strava.com/routes/12345678" \
+    --name "My Strava route" --headers headers.json --contributor @you --licence "Permission" --build
+
+# Strava activity streams (if you only have an activity URL)
+python3 scripts/api_route_import.py "https://www.strava.com/activities/12345678" \
+    --name "Morning run" --headers headers.json --contributor @you --build
+
+# Generic JSON API — tell the script where the coordinates live
+python3 scripts/api_route_import.py "https://example.com/api/route/123" \
+    --name "Example route" --headers headers.json --json-path data.trackPoints --build
+```
+
+The script retries failed requests with exponential backoff (`tenacity`), writes the GPX + sidecar, and optionally runs `build_data.py`. It also checks existing `data/routes/*.gpx` and `public/data/routes.json` for duplicates and skips identical tracks unless you pass `--force`.
 
 Keep `GAIN_THRESHOLD_M` and `SMOOTH_WINDOW` in `build_data.py` in sync with the `computeGain` defaults in `src/lib/elevation.ts`.
 

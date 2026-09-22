@@ -320,6 +320,20 @@ export function townName(code: string | null | undefined): string | null {
   return TOWN_NAMES[code] ?? code;
 }
 
+/** Title-case an imported street while preserving numbered blocks and common initialisms. */
+export function titleCaseStreet(street: string): string {
+  const uppercase = new Set(['HDB', 'MRT', 'CTE']);
+  return street
+    .toLowerCase()
+    .split(/\s+/)
+    .map((token) => {
+      const upper = token.toUpperCase();
+      if (/\d/.test(token) || uppercase.has(upper)) return upper;
+      return token.replace(/(^|[-/])([a-z])/g, (_, separator: string, letter: string) => `${separator}${letter.toUpperCase()}`);
+    })
+    .join(' ');
+}
+
 export function boundsOf(points: { lng: number; lat: number }[]): Bounds | null {
   if (points.length === 0) return null;
   let west = points[0].lng;

@@ -24,20 +24,11 @@ export function Mark({ size = 22 }: { size?: number }) {
       aria-hidden="true"
       focusable="false"
     >
-      <rect width="32" height="32" rx="7" className="mark-bg" />
+      <rect width="32" height="32" rx="7" fill="#c85b3c" />
       {/* A single clean curve: small rise, short dip, then the climb. */}
-      <path
-        className="mark-fill"
-        d="M5 26 V18 C8 22 13 18 16 14 C19 10 24 10 27 8 V26 Z"
-      />
-      <path
-        className="mark-trace"
-        d="M5 18 C8 22 13 18 16 14 C19 10 24 10 27 8"
-        fill="none"
-        strokeWidth="2.3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M-2 28 8 19l5 5 5-6 6 6 4-3 6 7v6H-2Z" fill="#7e3425" opacity="0.4" />
+      <circle cx="16" cy="10" r="3.5" fill="#ffffff" />
+      <path d="M10.5 15.5q-1.5 0-.5 1.5l4.5 9.5q1.5 2.5 3 0L22 17q1-1.5-.5-1.5Z" fill="#ffffff" />
     </svg>
   );
 }

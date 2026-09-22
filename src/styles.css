@@ -1,10 +1,4 @@
-/* hillGPX — mobile-first.
-   The map is the product, so on a phone it gets the whole screen and the detail
-   panel becomes a bottom sheet that only rises when there is something to say.
-   Above 860px the sheet becomes a fixed sidebar.
-
-   Animation is deliberately limited to transform and opacity, which the
-   compositor handles without re-laying-out the map underneath. */
+/* hillGPX — a full-screen map and listing interface with one mobile breakpoint. */
 
 :root {
   /* Light-first, the way the reference is: white ground, near-black text, one
@@ -20,8 +14,8 @@
   --danger: #c13515;
   --shadow-card: 0 6px 16px rgb(0 0 0 / 12%);
   --radius: 12px;
-  --topbar-h: 48px;
-  --sheet-peek: 84px;
+  --topbar-h: 64px;
+  --font-sans: 'Figtree', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
 
   /* Type scale */
   --t1: 13px;
@@ -61,13 +55,7 @@ body,
 body {
   background: var(--bg);
   color: var(--ink);
-  font:
-    15px/1.55 'Inter',
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    sans-serif;
-  font-feature-settings: 'cv11'; /* single-storey a, closer to Airbnb's face */
+  font: 15px/1.5 var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -90,10 +78,12 @@ button {
   color: var(--danger);
 }
 
-/* The gap here is for the logo lockup on the landing page and must NOT apply to
-   the plain text wordmark: "hill" and the "GPX" span are separate flex children,
-   so a gap wedges a space into the middle of the name. */
+/* Both headers use the same mark-and-name lockup; the nested span keeps "hill"
+   and "GPX" together while the flex gap separates the mark from the name. */
 .wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 620;
   font-size: var(--t3);
   letter-spacing: -0.02em;
@@ -188,7 +178,7 @@ button {
 .lp-hero h1 {
   font-size: clamp(34px, 6.4vw, 66px);
   line-height: 1.02;
-  /* Inter Black at its natural tracking, the way gpx.studio sets its hero.
+  /* The black weight at its natural tracking, the way gpx.studio sets its hero.
      The tight -0.04em this used to carry was doing the work a heavier weight
      does better: at 900 the letters already hold together, and pulling them
      in on top of that just closes up the counters. */
@@ -332,13 +322,14 @@ button {
 }
 
 .topbar {
-  height: 56px;
+  position: relative;
+  height: 64px;
   flex: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 12px;
-  padding: 0 var(--s2);
-  background: var(--bg-raised);
+  padding: 0 16px;
+  background: #fff;
   border-bottom: 1px solid var(--border);
   /* Above the filter bar below it, which is opaque and would otherwise paint
      over the first rows of the search dropdown — tying at 4 let source order
@@ -350,7 +341,7 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
+  justify-self: end;
 }
 
 .gpx-link,
@@ -369,15 +360,18 @@ button {
 }
 
 .gpx-link {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 10px 12px;
+  border-radius: 22px;
+  background: none;
   border: none;
-  border-radius: 0;
-  padding: 4px 0;
-  color: var(--accent);
-  font-weight: 500;
   text-decoration: none;
 }
 .gpx-link:hover {
-  text-decoration: underline;
+  background: var(--bg-raised);
+  text-decoration: none;
 }
 
 .icon-btn {
@@ -409,26 +403,17 @@ button {
   isolation: isolate;
 }
 
-/* ── Responsive list / map layout ──
-   Phone (<481px): a partial bottom sheet over the map, with a bottom nav.
-   Narrow (481-767px): full-page listing grid with a floating "Show map" pill.
-   Tablet (768-1023px): split view, single-column listing grid.
-   Desktop (>=1024px): split view, two-column listing grid, more padding. */
-
 .list-pane {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 45%;
+  position: absolute;
+  inset: 0;
   z-index: 3;
-  background: var(--surface);
+  display: none;
+  min-width: 0;
+  background: #fff;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border-radius: 16px 16px 0 0;
-  transform: translateY(100%);
-  transition: transform 0.24s ease;
-  will-change: transform;
+  container-type: inline-size;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -438,173 +423,76 @@ button {
 }
 
 .list-pane.open {
-  transform: translateY(0);
+  display: block;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .list-pane {
-    transition: none;
-  }
+.view-toggle {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 20px;
+  background: var(--ink);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 20%);
 }
 
-.show-map-btn {
-  display: none;
-}
-
-/* Phone: bottom sheet. */
-@media (max-width: 480px) {
-  .list-pane {
-    bottom: 0;
-    box-shadow: 0 -4px 24px rgb(0 0 0 / 16%);
+@media (min-width: 900px) {
+  .topbar {
+    height: 80px;
+    padding: 0 40px;
   }
 
-  .results {
-    padding-top: 12px;
+  .filterbar {
+    padding: 12px 40px;
   }
 
-  .results-handle {
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    transition: grid-template-columns 0.35s ease;
+  }
+
+  .list-pane,
+  .list-pane.open {
+    position: relative;
+    inset: auto;
     display: block;
-  }
-
-  .results-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .results-head h2 {
-    font-size: 18px;
-  }
-}
-
-/* Narrow: full-page listings with a Show map pill. */
-@media (min-width: 481px) and (max-width: 767px) {
-  .list-pane {
-    top: 48px;
-    bottom: 0;
-    height: auto;
-    border-radius: 0;
-    box-shadow: none;
-  }
-
-  .show-map-btn {
-    position: fixed;
-    right: var(--s2);
-    bottom: var(--s2);
-    z-index: 10;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 18px;
-    background: #222222;
-    color: #ffffff;
-    border: none;
-    border-radius: 999px;
-    font-size: var(--t2);
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 3px 12px rgb(0 0 0 / 32%);
-  }
-
-  .results-grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  }
-}
-
-/* Tablet: split view, single-column cards. */
-@media (min-width: 768px) and (max-width: 1023px) {
-  .stage.with-list {
-    display: grid;
-    grid-template-columns: minmax(340px, 0.45fr) minmax(0, 0.55fr);
-    grid-template-rows: 1fr;
-  }
-  .stage.with-list .list-pane {
-    position: relative;
-    inset: auto;
-    width: auto;
     height: 100%;
-    bottom: auto;
-    border-radius: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    visibility: visible;
     transform: none;
-    transition: none;
-  }
-  .stage.with-list .map-wrap {
-    position: relative;
-    inset: auto;
-  }
-  .stage.with-list .map-wrap > .map {
-    position: absolute;
-    inset: 18px;
-    width: auto;
-    height: auto;
-    border-radius: 12px !important;
-    overflow: hidden;
-  }
-  .stage:not(.with-list) .list-pane {
-    display: none;
-  }
-  .stage:not(.with-list) .map-wrap {
-    position: absolute;
-    inset: 0;
+    transition: visibility 0s;
   }
 
   .results {
-    padding: 24px;
+    opacity: 1;
+    transition: opacity 0.2s;
   }
 
-  .results-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Small laptops: keep two cards per row in the split list. */
-@media (min-width: 900px) and (max-width: 1023px) {
-  .results-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* Desktop: split view, two-column cards, generous padding. */
-@media (min-width: 1024px) {
-  .stage.with-list {
-    display: grid;
-    grid-template-columns: minmax(420px, 0.5fr) minmax(0, 0.5fr);
-    grid-template-rows: 1fr;
-  }
-  .stage.with-list .list-pane {
+  .map-wrap {
     position: relative;
     inset: auto;
-    width: auto;
-    height: 100%;
-    bottom: auto;
-    border-radius: 0;
-    transform: none;
-    transition: none;
+    min-width: 0;
   }
-  .stage.with-list .map-wrap {
-    position: relative;
-    inset: auto;
-  }
-  .stage.with-list .map-wrap > .map {
-    position: absolute;
-    inset: 24px;
-    width: auto;
-    height: auto;
-    border-radius: 16px !important;
-    overflow: hidden;
-  }
-  .stage:not(.with-list) .list-pane {
+
+  .view-toggle {
     display: none;
-  }
-  .stage:not(.with-list) .map-wrap {
-    position: absolute;
-    inset: 0;
   }
 
   .results {
-    padding: 32px;
-  }
-
-  .results-grid {
-    grid-template-columns: repeat(2, 1fr);
+    padding: 24px 40px 40px;
   }
 }
 
@@ -628,21 +516,109 @@ button {
   inset: 0;
   width: 100%;
   height: 100%;
-  transition:
-    top 0.25s ease,
-    right 0.25s ease,
-    bottom 0.25s ease,
-    left 0.25s ease,
-    border-radius 0.25s ease;
+  container: map / size;
+  transition: left 0.35s ease;
+}
+
+@media (min-width: 900px) {
+  .map-wrap > .map {
+    position: absolute;
+    inset: 24px 24px 24px 0;
+    width: auto;
+    height: auto;
+    border-radius: 16px !important;
+    overflow: hidden;
+  }
+
+  .stage.map-expanded {
+    grid-template-columns: minmax(0, 0fr) minmax(0, 1fr);
+  }
+
+  .stage.map-expanded .list-pane {
+    visibility: hidden;
+    transition: visibility 0s 0.35s;
+  }
+
+  .stage.map-expanded .results {
+    opacity: 0;
+  }
+
+  .stage.map-expanded .map-wrap > .map {
+    left: 24px;
+  }
+}
+
+.pin-anchor {
+  display: block;
+}
+.pin-anchor.is-hidden {
+  display: none;
+}
+
+.pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px 0 9px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font: 600 14px/1 var(--font-sans);
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 6%), 0 3px 10px rgb(0 0 0 / 18%);
+  transition: transform .12s ease, background-color .12s ease, box-shadow .12s ease;
+}
+.pin:hover,
+.pin.is-hover {
+  background: var(--ink);
+  color: #fff;
+  transform: scale(1.06);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 6%), 0 6px 16px rgb(0 0 0 / 24%);
+}
+.pin.is-selected {
+  background: var(--ink);
+  color: #fff;
+}
+.pin.is-visited:not(.is-selected):not(.is-hover):not(:hover) {
+  background: #f2f2f2;
+  color: #6a6a6a;
+}
+.pin.is-mini {
+  width: 26px;
+  height: 16px;
+  padding: 0;
+}
+.pin.is-mini > * {
+  display: none;
+}
+.pin.is-mini.is-hover,
+.pin.is-mini:hover {
+  width: auto;
+  height: 32px;
+  padding: 0 12px 0 9px;
+}
+.pin.is-mini.is-hover > *,
+.pin.is-mini:hover > * {
+  display: inline-flex;
+}
+.pin-glyph {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
 }
 
 /* ─── Venue card ──────────────────────────────────────────────────────── */
 
 .venue-card {
-  width: 320px;
-  max-width: calc(100vw - var(--s3) * 2);
-  max-height: min(420px, 55vh);
-  overflow-y: auto;
+  position: relative;
+  width: min(320px, calc(100cqw - 32px));
+  max-width: calc(100vw - 48px);
+  max-height: none;
+  overflow: hidden;
   background: var(--surface);
   /* No border. A hairline plus a heavy shadow reads as two edges stacked; the
      reference floats the card on shadow alone and lets the photo run to the
@@ -672,11 +648,11 @@ button {
   display: none;
 }
 
-.card-close,
-.card-favorite {
+.card-close {
   position: absolute;
   top: 12px;
-  z-index: 1;
+  left: 12px;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -690,23 +666,33 @@ button {
   box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
 }
 
-.card-close {
-  right: 12px;
-}
-
-.card-favorite {
-  left: 12px;
-}
-
-.card-favorite.on {
-  color: var(--accent);
-}
-
 .card-photo {
   position: relative;
-  height: 200px;
+  aspect-ratio: 16 / 10;
+  height: auto;
   overflow: hidden;
   border-radius: 16px 16px 0 0;
+}
+
+@container map (max-height: 560px) {
+  .venue-card .card-photo {
+    aspect-ratio: 16 / 7;
+  }
+}
+
+@container map (max-height: 360px) {
+  .venue-card .card-photo {
+    display: none;
+  }
+
+  .venue-card .card-summary {
+    padding-top: 16px;
+  }
+
+  .venue-card .card-title-row {
+    padding-right: 38px;
+    padding-left: 38px;
+  }
 }
 
 /* The empty photo slot, as a link. Hover has to register on the whole box —
@@ -782,8 +768,8 @@ button {
   font-size: var(--t1);
   line-height: 1;
 }
-/* The card hero is 168px tall and names the venue directly underneath, so it
-   carries a larger mark than a thumbnail in the two-column list. */
+/* The card hero is larger than a list thumbnail, so its empty state carries a
+   larger mark too. */
 .card-photo .placeholder-icon {
   width: 34px;
   height: 34px;
@@ -795,14 +781,13 @@ button {
 }
 
 .card-summary {
-  padding: 12px var(--s2) var(--s2);
+  display: block;
+  padding: 12px var(--s2) 8px;
+  color: inherit;
+  text-decoration: none;
 }
 
-.card-summary.clickable {
-  cursor: pointer;
-}
-
-.card-summary.clickable:hover {
+.card-summary:hover {
   background: var(--bg-raised);
 }
 
@@ -818,37 +803,22 @@ button {
   margin: 0;
 }
 
-.card-rating {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border: none;
-  border-radius: 999px;
-  background: var(--bg-raised);
-  color: var(--ink);
-  font-size: var(--t1);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.card-rating:hover {
-  background: var(--border);
-}
-
-.card-views {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin: 0 0 8px;
-}
-
 .card-kind {
   margin: 0 0 4px;
   font-size: var(--t1);
   color: var(--muted);
   line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.venue-card > .photo-credit {
+  margin: 0;
+  padding: 0 var(--s2) 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .card-note {
@@ -968,13 +938,10 @@ button {
   padding: var(--s2);
 }
 
-.results-handle {
-  display: none;
-  width: 40px;
-  height: 4px;
-  background: var(--border);
-  border-radius: 2px;
-  margin: 0 auto 12px;
+@media (min-width: 900px) {
+  .results {
+    padding: 24px 40px 40px;
+  }
 }
 
 .results-head {
@@ -982,14 +949,14 @@ button {
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--s2);
-  margin-bottom: var(--s2);
+  margin-bottom: 0;
 }
 
 .results-head h2 {
-  font-size: var(--t3);
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.02em;
-  margin: 0;
+  margin: 0 0 24px;
 }
 .results-head p {
   margin: 2px 0 0;
@@ -1000,8 +967,57 @@ button {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: var(--s2);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 40px 24px;
+}
+
+@container (max-width: 639px) {
+  .results-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (min-width: 960px) {
+  .results-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sk-thumb,
+.sk-line {
+  display: block;
+  background: #ebebeb;
+}
+
+.sk-thumb {
+  width: 100%;
+  aspect-ratio: 20 / 15;
+  border-radius: 12px;
+  margin-bottom: 2px;
+}
+
+.sk-line {
+  width: 60%;
+  height: 12px;
+  border-radius: 6px;
+}
+
+.sk-line:nth-child(3) {
+  width: 40%;
+}
+
+.sk-line:nth-child(4) {
+  width: 30%;
+}
+
+.result-item {
+  position: relative;
 }
 
 .result-card {
@@ -1015,13 +1031,15 @@ button {
   border: none;
   border-radius: 14px;
   padding: 0;
+  color: inherit;
+  text-decoration: none;
   cursor: pointer;
 }
 
 .result-card .card-thumb {
   width: 100%;
   aspect-ratio: 20 / 15;
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
   background: var(--bg-raised);
   margin-bottom: 6px;
@@ -1040,57 +1058,68 @@ button {
 
 .result-badge {
   position: absolute;
-  top: 10px;
-  left: 10px;
+  top: 12px;
+  left: 12px;
   z-index: 1;
-  padding: 5px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
   border-radius: 999px;
-  font-size: 11px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 13px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: #ffffff;
-  background: var(--ink);
+  text-transform: none;
+  letter-spacing: 0;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 14%);
 }
 
-.result-badge.tall {
-  background: #1a1a1a;
-}
-
-.result-badge.new {
-  background: var(--accent);
-}
-
-.result-favorite {
+.result-favorite,
+.card-favorite {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 12px;
+  right: 12px;
   z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
+  padding: 0;
   border: none;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 85%);
+  border-radius: 0;
+  background: none;
   color: var(--ink);
   cursor: pointer;
+  box-shadow: none;
   transition: transform 0.1s ease;
 }
 
-.result-favorite:hover {
-  transform: scale(1.08);
+.result-favorite svg,
+.card-favorite svg {
+  fill: rgb(0 0 0 / 50%);
+  stroke: #fff;
+  stroke-width: 2;
 }
 
-.result-favorite.on {
-  color: var(--accent);
+.result-favorite.on svg,
+.card-favorite.on svg {
+  fill: var(--accent);
+}
+
+.result-favorite:hover,
+.card-favorite:hover {
+  background: none;
+  transform: scale(1.1);
 }
 
 .result-card-name {
   font-weight: 600;
-  font-size: var(--t2);
-  line-height: 1.25;
+  font-size: 16px;
+  line-height: 1.35;
+  margin-top: 12px;
   /* Long block names must not push the card taller than its neighbours. */
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -1099,14 +1128,14 @@ button {
 }
 
 .result-card-meta {
-  font-size: var(--t1);
+  font-size: 15px;
   color: var(--muted);
-  line-height: 1.3;
+  line-height: 1.5;
 }
 
 .result-card-gain {
-  font-size: var(--t1);
-  margin-top: 2px;
+  font-size: 15px;
+  margin-top: 4px;
 }
 .result-card-gain strong {
   font-weight: 600;
@@ -1118,13 +1147,13 @@ button {
   justify-content: center;
   align-items: center;
   gap: 8px;
-  margin-top: var(--s3);
+  margin-top: 40px;
   padding: var(--s2) 0;
 }
 
 .page-btn {
-  min-width: 36px;
-  height: 36px;
+  min-width: 40px;
+  height: 40px;
   padding: 0 10px;
   border: none;
   border-radius: 999px;
@@ -1162,16 +1191,16 @@ button {
 
 .sheet {
   position: absolute;
-  z-index: 4;
+  z-index: 6;
   right: var(--s3);
   bottom: var(--s3);
-  width: 340px;
+  width: 360px;
   max-width: calc(100% - var(--s4));
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
-  padding: var(--s2);
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 22%), 0 0 0 1px rgb(0 0 0 / 5%);
+  padding: 24px;
 }
 
 .sheet-head {
@@ -1187,13 +1216,6 @@ button {
 }
 
 @media (max-width: 720px) {
-  .topbar {
-    height: auto;
-    flex-wrap: wrap;
-    padding: var(--s1) var(--s2);
-    gap: var(--s1);
-  }
-  .venue-card,
   .sheet {
     left: var(--s1);
     right: var(--s1);
@@ -1203,50 +1225,352 @@ button {
   }
 }
 
+@media (min-width: 900px) {
+  .sheet {
+    right: 48px;
+    bottom: 48px;
+  }
+}
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 20px;
+  border: 1.5px dashed #b0b0b0;
+  border-radius: 12px;
+  text-align: center;
+}
+.dropzone.dragging {
+  border-color: var(--ink);
+  background: var(--bg-raised);
+}
+.dropzone p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.dropzone-browse {
+  height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dropzone-error,
+.gpx-save-error {
+  margin: 0;
+  color: var(--danger) !important;
+  font-size: 13px;
+}
+
+.gpx-panel {
+  position: absolute;
+  z-index: 5;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 22%), 0 0 0 1px rgb(0 0 0 / 5%);
+}
+.gpx-panel-head,
+.gpx-panel-actions,
+.gpx-stats,
+.gpx-touches {
+  display: flex;
+  align-items: center;
+}
+.gpx-panel-head {
+  justify-content: space-between;
+  gap: 16px;
+}
+.gpx-panel-head h2 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gpx-panel-actions {
+  flex: none;
+  gap: 8px;
+}
+.gpx-save,
+.gpx-download {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gpx-save {
+  border: none;
+  background: var(--ink);
+  color: #fff;
+}
+.gpx-save:disabled {
+  opacity: .5;
+  cursor: default;
+}
+.gpx-download {
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.gpx-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-raised);
+  cursor: pointer;
+}
+.gpx-stats {
+  gap: 24px;
+  margin-top: 10px;
+}
+.gpx-stat {
+  display: flex;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+}
+.gpx-stat strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+.gpx-stat span,
+.gpx-altitude-tag,
+.gpx-touches > span,
+.gpx-saved-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+.gpx-altitude-tag {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--bg-raised);
+}
+.gpx-touches {
+  gap: 8px;
+  margin: 10px 0 6px;
+  min-height: 28px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.gpx-touches > strong {
+  font-size: 13px;
+}
+.gpx-touches a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.gpx-saved-note {
+  margin: 0 0 4px;
+}
+
+.profile {
+  position: relative;
+}
+.profile-chart {
+  position: relative;
+  margin-left: 34px;
+}
+.profile-guide {
+  stroke: var(--ink);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.profile-dot {
+  fill: var(--accent);
+  stroke: #fff;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.profile-tooltip {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.profile-y-labels {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -34px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 11px;
+}
+.profile-axis {
+  display: flex;
+  justify-content: space-between;
+  margin: 2px 0 8px 34px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+@media (min-width: 900px) {
+  .gpx-panel {
+    left: 40px;
+    right: 40px;
+    bottom: 40px;
+  }
+}
+
+@media (max-width: 599px) {
+  .gpx-panel-head {
+    position: relative;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-right: 40px;
+  }
+
+  .gpx-panel-head h2 {
+    flex: 1 0 100%;
+    max-width: 100%;
+  }
+
+  .gpx-panel-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .gpx-close {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
+
+  .gpx-stats {
+    flex-wrap: wrap;
+    gap: 12px 20px;
+  }
+
+  .gpx-stat {
+    white-space: nowrap;
+  }
+
+  .hide-narrow {
+    display: none;
+  }
+}
+
 /* ─── Search ──────────────────────────────────────────────────────────── */
 
 .searchbar {
   position: relative;
-  flex: 1;
-  min-width: 0;
-  max-width: 520px;
+  justify-self: center;
+  flex: 0 1 auto;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
   z-index: 5;
+  transition: width .22s ease;
+}
+
+.searchbar.expanded {
+  width: min(480px, calc(100vw - 300px));
+}
+
+@media (min-width: 900px) {
+  .searchbar.expanded {
+    width: min(480px, calc(100vw - 620px));
+  }
+}
+
+@media (max-width: 599px) {
+  .searchbar.expanded {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 10px;
+    width: auto;
+    max-width: none;
+    z-index: 7;
+  }
+}
+
+.searchbar-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%), 0 4px 12px rgb(0 0 0 / 5%);
+  transition: all .22s ease;
+}
+
+.searchbar.expanded .searchbar-toggle {
+  top: 6px;
+  right: 6px;
+  left: auto;
+  width: 32px;
+  height: 32px;
+  box-shadow: none;
 }
 
 .searchbar input {
+  position: absolute;
+  inset: 0;
   width: 100%;
+  height: 44px;
   font: inherit;
   font-size: var(--t2);
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--border);
-  /* Airbnb's search is a pill; it reads as one control rather than a form. */
   border-radius: 999px;
-  padding: 10px 48px 10px 16px;
+  padding: 10px 48px 10px 20px;
+  opacity: 0;
+  pointer-events: none;
   box-shadow: 0 1px 4px rgb(0 0 0 / 8%);
+  transition: opacity .22s ease;
+}
+
+.searchbar.expanded input {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .searchbar input:focus {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
-}
-
-.searchbar-submit {
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #ffffff;
-  cursor: pointer;
 }
 
 .searchbar-results {
@@ -1419,9 +1743,16 @@ button {
   flex: none;
   position: relative;
   z-index: 4;
-  background: var(--bg-raised);
+  background: #fff;
   border-bottom: 1px solid var(--border);
-  padding: 8px var(--s2);
+  padding: 12px 16px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 4%);
+}
+
+@media (min-width: 900px) {
+  .filterbar {
+    padding: 12px 40px;
+  }
 }
 
 .filterbar-row {
@@ -1429,13 +1760,6 @@ button {
   justify-content: center;
   align-items: center;
   gap: var(--s1);
-}
-
-.filterbar-divider {
-  flex: none;
-  width: 1px;
-  height: 24px;
-  background: var(--border);
 }
 
 /* The chips scroll sideways instead of wrapping. On a phone this row is five
@@ -1457,49 +1781,36 @@ button {
   display: none;
 }
 
+.filter-open,
 .chip {
   flex: none;
-  white-space: nowrap;
-  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 6px 12px;
-  font-size: var(--t1);
+  background: #fff;
+  font-size: 14px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
+.filter-open:hover,
 .chip:hover {
   border-color: var(--ink);
   background: var(--bg-raised);
 }
-/* Filled with the brand accent, not tinted. A chip that only changes its border
-   is easy to miss at a glance, and the whole point of the row is knowing what is on. */
+/* Selected chips use Airbnb's quiet grey fill and doubled ink edge, so the
+   state is clear without introducing a second accent-coloured action. */
 .chip.on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #ffffff;
-}
-.chip.on:hover {
-  filter: brightness(0.95);
+  background: var(--bg-raised);
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+  color: var(--ink);
 }
 
-.filter-open {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-size: var(--t1);
-  font-weight: 600;
-  cursor: pointer;
-}
-.filter-open:hover {
-  border-color: var(--ink);
-}
 .filter-open.on {
   border-color: var(--ink);
   box-shadow: inset 0 0 0 1px var(--ink);
@@ -1517,13 +1828,6 @@ button {
   color: #ffffff;
   font-size: 11px;
   line-height: 1;
-}
-
-.filterbar-summary {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin: 8px 0 0;
 }
 
 /* A button that reads as a link — used where the action is a footnote to the
@@ -1643,7 +1947,7 @@ button {
 
 @media (max-width: 720px) {
   .filterbar {
-    padding: var(--s1) var(--s2);
+    padding: 12px 16px;
   }
 
   .filterbar-row {
@@ -1673,18 +1977,24 @@ button {
   pointer-events: none;
 }
 
-.map-busy-dot {
+.dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dots > .dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--ink);
+  background: currentColor;
   opacity: 0.28;
   animation: map-busy-pulse 1.1s ease-in-out infinite;
 }
-.map-busy-dot:nth-child(2) {
+.dots > .dot:nth-child(2) {
   animation-delay: 0.16s;
 }
-.map-busy-dot:nth-child(3) {
+.dots > .dot:nth-child(3) {
   animation-delay: 0.32s;
 }
 
@@ -1705,7 +2015,7 @@ button {
    hiding the capsule — the message still needs to arrive, it just should not
    move. */
 @media (prefers-reduced-motion: reduce) {
-  .map-busy-dot {
+  .dots > .dot {
     animation: none;
     opacity: 0.5;
   }
@@ -1732,6 +2042,27 @@ button {
 }
 .maplibregl-ctrl-group button:hover {
   background: var(--bg-raised) !important;
+}
+
+/* The expand button draws an inline SVG rather than MapLibre's background-image
+   icon, so it needs centring of its own: as inline content the glyph would sit
+   at the left of the block button MapLibre's stylesheet makes it. The doubled
+   class outranks that stylesheet's `.maplibregl-ctrl-group button`, which ties
+   with a single class and wins on source order. */
+.maplibregl-ctrl-group.map-expand-ctrl button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.map-expand-ctrl svg {
+  display: block;
+}
+
+@media (max-width: 899px) {
+  .map-expand-ctrl {
+    display: none;
+  }
 }
 
 /* Text for screen readers only. The capsule says "still working" visually with
@@ -1764,6 +2095,7 @@ button {
   justify-content: center;
   padding: var(--s3);
   background: rgb(0 0 0 / 45%);
+  animation: scrim-in .2s ease both;
 }
 
 /* A flex column, which is what makes the header and footer stick: the body is
@@ -1779,6 +2111,48 @@ button {
   background: var(--surface);
   border-radius: 16px;
   box-shadow: 0 12px 40px rgb(0 0 0 / 28%);
+  animation: modal-in .26s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.filter-scrim.closing {
+  animation: scrim-out .18s ease-in both;
+}
+
+.filter-modal.closing {
+  animation: modal-out .18s ease-in both;
+}
+
+.filter-modal.entered:not(.closing) {
+  animation: none;
+}
+
+@keyframes scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scrim-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(-24px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes modal-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-16px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-scrim,
+  .filter-modal,
+  .filter-scrim.closing,
+  .filter-modal.closing {
+    animation: none;
+  }
 }
 
 .filter-modal-head {
@@ -2027,8 +2401,8 @@ button {
 }
 
 .hdr-btn {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   flex: none;
   display: grid;
   place-items: center;
@@ -2194,209 +2568,260 @@ button {
   white-space: nowrap;
 }
 
-/* On a phone the header already wraps, and four controls plus a search field on
-   one line leaves the field about 100px wide — unusable for typing a street
-   name. So the search takes a row of its own below them. The two round buttons
-   stay: an icon is the cheapest thing in the row at 36px, and hiding the units
-   control on the device most people carry to a staircase would be the wrong
-   half to drop. */
-@media (max-width: 720px) {
-  .topbar .searchbar {
-    order: 3;
-    flex-basis: 100%;
-    max-width: none;
-  }
-  .topbar .ghost-btn {
-    margin-left: auto;
-  }
-  .hdr-btn {
-    width: 44px;
-    height: 44px;
-  }
-}
-
-/* ─── Venue detail sheet ──────────────────────────────────────────────── */
+/* ─── Venue detail page ───────────────────────────────────────────────── */
 
 .venue-detail {
   position: fixed;
   inset: 0;
-  z-index: 10;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.venue-detail-scrim {
-  position: absolute;
-  inset: 0;
-  background: rgb(0 0 0 / 35%);
-}
-
-.venue-detail-sheet {
-  position: relative;
-  width: 460px;
-  max-width: 100%;
-  height: 100%;
-  background: var(--surface);
-  box-shadow: -6px 0 24px rgb(0 0 0 / 12%);
+  z-index: 20;
+  background: #fff;
   overflow-y: auto;
 }
 
-.venue-detail-close {
-  position: absolute;
-  top: var(--s2);
-  left: var(--s2);
-  z-index: 2;
+.venue-detail-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 64px;
+  padding: 0 24px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+}
+.venue-detail-topbar .header-controls { margin-left: auto; }
+.venue-detail-back {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   border: none;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 90%);
-  color: var(--ink);
+  border-radius: 50%;
+  background: var(--bg-raised);
   cursor: pointer;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 10%);
 }
+.venue-detail-back:hover { background: var(--border); }
 
+.venue-detail-content {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 40px 80px;
+}
+.venue-detail-title-row,
+.venue-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.venue-detail-title-row { margin-bottom: 20px; }
+.venue-detail-title-row h1 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.venue-detail-title-actions,
+.venue-card-actions,
+.venue-route-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.venue-detail-title-actions button,
+.venue-card-actions button,
+.venue-route-actions button,
+.venue-open-map {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.venue-detail-title-actions button:hover,
+.venue-card-actions button:hover,
+.venue-route-actions button:hover,
+.venue-open-map:hover { background: var(--bg-raised); }
+
+.venue-detail-gallery { margin-bottom: 16px; }
 .venue-detail-hero {
   width: 100%;
-  height: 240px;
+  aspect-ratio: 2 / 1;
+  overflow: hidden;
   background: var(--bg-raised);
+  border-radius: 12px;
 }
-
 .venue-detail-hero .card-thumb,
 .venue-detail-hero img {
   width: 100%;
   height: 100%;
   border-radius: 0;
 }
-
-.venue-detail-hero .placeholder-icon {
-  width: 48px;
-  height: 48px;
+.venue-detail-gallery .photo-credit {
+  margin: 7px 0 0;
+  text-align: right;
 }
-
-.venue-detail-body {
-  padding: var(--s3);
-}
-
-.venue-detail-title {
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  margin: 0 0 6px;
-  line-height: 1.25;
-}
-
-.venue-detail-subtitle {
-  margin: 0 0 12px;
-  color: var(--muted);
-  font-size: var(--t2);
-}
-
-.venue-detail-height {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin: 0 0 var(--s2);
-  color: var(--ink);
-}
-
-.venue-detail-height strong {
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.venue-detail-section {
-  padding: var(--s2) 0;
-  border-top: 1px solid var(--border);
-}
-
-.venue-detail-section h2 {
-  font-size: var(--t3);
-  font-weight: 600;
-  margin: 0 0 var(--s1);
-}
-
-.venue-detail-section p {
-  margin: 0 0 8px;
-  color: var(--ink);
-  line-height: 1.55;
-}
-
-.venue-detail-section p:last-child {
-  margin-bottom: 0;
-}
-
-.venue-detail-features {
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-}
-
-.venue-detail-features li {
-  padding: 8px 14px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  font-size: var(--t2);
-  background: var(--bg-raised);
-}
-
-.venue-detail-routes {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.venue-detail-empty-photo {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.venue-detail-route {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 3px 3px 3px 14px;
-}
-
-.venue-detail-route-btn {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 8px 0;
-  text-align: left;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: inherit;
-}
-
-.venue-detail-route-btn.active .route-name {
-  color: var(--accent);
-}
-
-.venue-detail-download {
-  flex: none;
-  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  gap: 6px;
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  margin-bottom: 16px;
+  padding: 24px;
+  border-radius: 12px;
+  background: #f7f7f7;
+  text-align: center;
+}
+.venue-detail-empty-photo strong { font-size: 16px; font-weight: 600; }
+.venue-detail-empty-photo p { margin: 0; color: var(--muted); font-size: 14px; }
+
+.venue-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 372px;
+  column-gap: 88px;
+  align-items: start;
+}
+.venue-detail-main { min-width: 0; }
+.venue-detail-intro,
+.venue-detail-section { padding: 32px 0; border-bottom: 1px solid var(--border); }
+.venue-detail-intro h2,
+.venue-detail-section h2 {
+  margin: 0 0 10px;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.venue-detail-intro p { margin: 0; font-size: 16px; line-height: 1.5; }
+.venue-detail-section p { margin: 0 0 8px; line-height: 1.55; }
+.venue-about-copy.clamped {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+.venue-show-more {
+  padding: 4px 0;
   border: none;
-  border-radius: 10px;
   background: none;
-  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
   cursor: pointer;
 }
 
-.venue-detail-download:hover {
-  background: var(--bg-raised);
-  color: var(--accent);
+.venue-route-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.venue-route-card { min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: 12px; }
+.venue-route-profile { overflow: hidden; margin-bottom: 12px; padding: 8px; border-radius: 12px; background: var(--bg-raised); }
+.venue-route-card h3 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+.venue-route-card > p { margin: 0 0 6px; color: var(--muted); font-size: 13px; }
+.local-route-tag { color: var(--muted); font-size: 12px; }
+.venue-route-actions { flex-wrap: wrap; margin-top: 10px; }
+.venue-no-routes { color: var(--muted) !important; font-size: 14px; }
+
+.venue-section-heading { margin-bottom: 16px; }
+.venue-section-heading h2 { margin: 0; }
+.venue-section-heading span { color: var(--muted); font-size: 14px; }
+.nearby-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.nearby-card { display: flex; min-width: 0; flex-direction: column; gap: 4px; color: var(--ink); text-decoration: none; }
+.nearby-card .card-thumb { width: 100%; aspect-ratio: 20 / 15; margin-bottom: 5px; border-radius: 12px; }
+.nearby-card .card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.nearby-card strong { overflow: hidden; font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.nearby-card > span { color: var(--muted); font-size: 13px; line-height: 1.35; }
+
+.mini-map,
+.mini-map-fallback { width: 100%; height: 380px; overflow: hidden; border-radius: 12px; background: var(--bg-raised); }
+.venue-location-section { border-bottom: none; }
+.venue-location-line { margin: 12px 0 2px !important; color: var(--muted) !important; font-size: 14px; }
+.venue-open-map { padding-left: 0; }
+
+.venue-detail-side { position: sticky; top: 24px; padding-top: 32px; }
+.venue-actions-card,
+.venue-plan-card {
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 6px 16px rgb(0 0 0 / 12%);
+  background: #fff;
+}
+.venue-actions-height { margin: 0; font-size: 16px; }
+.venue-actions-height strong { font-size: 22px; font-weight: 600; }
+.venue-actions-source { margin: 5px 0 18px; color: var(--muted); font-size: 13px; }
+.venue-primary-action,
+.venue-download-action {
+  width: 100%;
+  height: 48px;
+  margin-top: 10px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.venue-primary-action { border: none; background: var(--accent); color: #fff; }
+.venue-download-action { border: 1px solid var(--ink); background: #fff; }
+.venue-card-actions { justify-content: space-around; margin-top: 10px; }
+.venue-report { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 20px 0 24px; color: var(--ink); font-size: 13px; text-decoration: underline; }
+.venue-plan-card h2 { margin: 0 0 16px; font-size: 16px; font-weight: 600; }
+.venue-plan-stepper { display: flex; align-items: center; justify-content: space-between; }
+.venue-plan-stepper > div { display: flex; align-items: center; gap: 14px; }
+.venue-plan-stepper button { width: 32px; height: 32px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: #fff; font-size: 20px; cursor: pointer; }
+.venue-plan-result { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+.venue-plan-result p { margin: 0 0 5px; }
+.venue-plan-mobile,
+.venue-mobile-bar { display: none; }
+
+@media (max-width: 899px) {
+  .venue-detail-topbar { padding: 0 16px; }
+  .venue-detail-content { padding: 20px 16px 120px; }
+  .venue-detail-title-row { align-items: flex-start; }
+  .venue-detail-title-row h1 { min-width: 0; font-size: 24px; }
+  .venue-detail-title-actions { flex: none; flex-wrap: nowrap; justify-content: flex-end; }
+  .venue-detail-title-actions button {
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--bg-raised);
+    text-decoration: none;
+  }
+  .venue-detail-title-actions .venue-action-label { display: none; }
+  .venue-detail-hero,
+  .venue-detail-empty-photo { aspect-ratio: 4 / 3; }
+  .venue-detail-layout { display: block; }
+  .venue-detail-side { display: none; }
+  .venue-plan-mobile { display: block; padding-top: 32px; }
+  .venue-route-grid { grid-template-columns: minmax(0, 1fr); }
+  .nearby-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .venue-mobile-bar {
+    position: fixed;
+    z-index: 22;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    background: #fff;
+    border-top: 1px solid var(--border);
+  }
+  .venue-mobile-bar p { margin: 0; font-size: 14px; }
+  .venue-mobile-bar strong { display: block; font-size: 18px; }
+  .venue-mobile-bar button { height: 46px; padding: 0 20px; border: none; border-radius: 8px; background: var(--accent); color: #fff; font-size: 15px; font-weight: 600; }
 }
 

@@ -37,17 +37,26 @@ const MAX_AREAS = 3;
 export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const enterTimerRef = useRef<number | null>(null);
+  const leaveTimerRef = useRef<number | null>(null);
   const units = useUnits();
+
+  const clearIntentTimers = () => {
+    if (enterTimerRef.current != null) window.clearTimeout(enterTimerRef.current);
+    if (leaveTimerRef.current != null) window.clearTimeout(leaveTimerRef.current);
+    enterTimerRef.current = null;
+    leaveTimerRef.current = null;
+  };
 
   // Lowercase names once, not once per keystroke.
   const haystack = useMemo(
     () => venues.map((v) => `${v.name} ${v.town ?? ''}`.toLowerCase()),
     [venues],
   );
-
   const areas = useMemo(() => buildAreas(venues), [venues]);
-
   const normalised = useMemo(() => normaliseQuery(query), [query]);
 
   // Every match, not just the ones that fit on screen. Truncating during the
@@ -72,24 +81,36 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
     [areas, normalised],
   );
 
-  // Close the dropdown when clicking anywhere else.
+  useEffect(() => () => clearIntentTimers(), []);
+
+  // Close the dropdown when clicking anywhere else, and collapse the bar if nothing has been typed.
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      if (!rootRef.current || rootRef.current.contains(e.target as Node)) return;
+      clearIntentTimers();
+      setOpen(false);
+      if (!query) setExpanded(false);
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, []);
+  }, [query]);
+
+  const collapse = () => {
+    clearIntentTimers();
+    setQuery('');
+    setOpen(false);
+    setExpanded(false);
+    inputRef.current?.blur();
+  };
 
   const pick = (slug: string) => {
     onPick(slug);
-    setOpen(false);
-    setQuery('');
+    collapse();
   };
 
   const pickArea = (area: Area) => {
     onFitBounds(area.bounds);
-    setOpen(false);
+    collapse();
   };
 
   /**
@@ -121,48 +142,76 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
     ) : null;
 
   return (
-    <div className="searchbar" ref={rootRef}>
+    <div
+      className={`searchbar${expanded ? ' expanded' : ''}`}
+      ref={rootRef}
+      onMouseEnter={() => {
+        clearIntentTimers();
+        if (!window.matchMedia('(hover: hover)').matches) return;
+        enterTimerRef.current = window.setTimeout(() => setExpanded(true), 120);
+      }}
+      onMouseLeave={() => {
+        if (enterTimerRef.current != null) window.clearTimeout(enterTimerRef.current);
+        enterTimerRef.current = null;
+        if (query || document.activeElement === inputRef.current) return;
+        leaveTimerRef.current = window.setTimeout(() => setExpanded(false), 160);
+      }}
+      onFocusCapture={() => {
+        clearIntentTimers();
+        setExpanded(true);
+      }}
+    >
+      <button
+        type="button"
+        className="searchbar-toggle"
+        aria-label="Search"
+        // Keep focus off the button: a mousedown here would focus it, and the
+        // focus handler above would expand the bar before the click arrived —
+        // leaving the click to decide it was a submit of an empty query, so the
+        // input never got the caret. It also keeps the caret in the input when
+        // the same button is pressed to run a typed search.
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => {
+          clearIntentTimers();
+          if (query.trim()) submit();
+          else {
+            setExpanded(true);
+            requestAnimationFrame(() => inputRef.current?.focus());
+          }
+        }}
+      >
+        <SearchIcon size={18} />
+      </button>
       <input
+        ref={inputRef}
         type="search"
         value={query}
         placeholder="Search hills, blocks, or streets"
         aria-label="Search hills, blocks, and streets"
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          clearIntentTimers();
+          setExpanded(true);
+          setOpen(true);
+        }}
         onChange={(e) => {
           setQuery(e.target.value);
+          setExpanded(true);
           setOpen(true);
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
-          if (e.key === 'Escape') setOpen(false);
+          if (e.key === 'Escape') collapse();
         }}
       />
-      <button
-        type="button"
-        className="searchbar-submit"
-        aria-label="Search"
-        onClick={submit}
-      >
-        <SearchIcon size={18} />
-      </button>
-
-      {open && (message !== null || areaHits.length > 0 || results.length > 0) && (
+      {expanded && open && (message !== null || areaHits.length > 0 || results.length > 0) && (
         <div className="searchbar-results">
           {message}
-
           {areaHits.map((area) => (
-            <button
-              key={area.code}
-              className="result-row area-row"
-              onClick={() => pickArea(area)}
-            >
+            <button key={area.code} className="result-row area-row" onClick={() => pickArea(area)}>
               <span className="result-name">{area.name}</span>
-              <span className="result-meta small muted">
-                Area · {area.venueCount} places mapped
-              </span>
+              <span className="result-meta small muted">Area · {area.venueCount} places mapped</span>
             </button>
           ))}
-
           {results.map((venue) => {
             const height = venueHeight(venue);
             return (

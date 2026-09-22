@@ -1,42 +1,41 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import maplibregl, { type GeoJSONSource, type Map as MlMap } from 'maplibre-gl';
+import maplibregl, { type GeoJSONSource, type Map as MlMap, type Offset } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Route, RoutePoint, Venue } from '../types';
-import { venueHeight, type Bounds } from '../lib/venues';
+import { rankingHeight, type Bounds } from '../lib/venues';
+import { haversineM } from '../lib/elevation';
 import { useUnits } from '../components/UnitsContext';
 import { VenueCard } from '../components/VenueCard';
 import {
-  add3dBuildings,
   addRouteLayers,
   addVenueLayers,
-  set3dBuildings,
   setActiveRoute,
-  setHoveredVenue,
-  setSelectedVenue,
-  setVisitedVenues,
-  setVisibleMarkers,
+  setRouteHover,
   venuesToGeoJson,
-  loadMarkerImages,
   MARKER_COLS,
   MARKER_ROWS,
 } from './layers';
+import { VenueMarkers } from './markers';
+import { MAP_STYLE_URL } from './constants';
 
 /**
  * Basemap tiles come from OpenFreeMap, which is free to use and needs no API
  * key or account. That is what lets someone clone this repo and have a working
  * map immediately — please keep it that way when swapping styles.
  */
-const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 
-/**
- * The layers a click can land on. `venues-selected` is in the list because the
- * selected pill is drawn on top of its own plain one and would otherwise
- * swallow the click meant to reopen it. Naming a layer that does not exist
- * makes `queryRenderedFeatures` throw, so this is kept in one place rather
- * than repeated at each call site.
- */
-const INTERACTIVE_LAYERS = ['venues-pill', 'venues-visited', 'venues-selected'];
+const VENUE_POPUP_OFFSET: Offset = {
+  center: [0, 0],
+  top: [0, 22],
+  bottom: [0, -22],
+  left: [46, 0],
+  right: [-46, 0],
+  'top-left': [32, 18],
+  'top-right': [-32, 18],
+  'bottom-left': [32, -18],
+  'bottom-right': [-32, -18],
+};
 
 /** Where the data currently is — the opening view, not a fence. */
 const SINGAPORE_CENTRE: [number, number] = [103.8198, 1.3521];
@@ -77,11 +76,8 @@ interface MapViewProps {
   selectedSlug: string | null;
   selectedVenue: Venue | null;
   routes: Route[];
-  activeRouteSlug: string | null;
-  onSelectRoute: (slug: string | null) => void;
   activeRoute: RoutePoint[] | null;
   onSelectVenue: (slug: string | null) => void;
-  onOpenDetail?: () => void;
   hoveredSlug?: string | null;
   onHover?: (slug: string | null) => void;
   /**
@@ -97,15 +93,14 @@ interface MapViewProps {
    * town or show mostly Johor. Nonced for the same reason `focus` is.
    */
   focusBounds?: { bounds: Bounds; nonce: number } | null;
-  /** Extruded buildings on/off. Also pitches the camera, since flat 3D is pointless. */
-  show3d?: boolean;
-  onToggle3d?: () => void;
+  mapExpanded: boolean;
+  injectedVenueSlugs: string[];
+  hoverPoint: [number, number] | null;
+  onRouteHover: (index: number | null) => void;
+  routePanelOpen: boolean;
+  onToggleExpand: () => void;
   favorites: Set<string>;
   onToggleFavorite: (slug: string) => void;
-  ratings: Record<string, number>;
-  onRate: (slug: string, rating: number) => void;
-  views: Record<string, number>;
-  onView: (slug: string) => void;
   onLocateHint?: (message: string | null) => void;
   /** Raised when the basemap itself fails, so the failure is never silent. */
   onMapError?: (message: string) => void;
@@ -138,40 +133,6 @@ function boundsMeaningfullyChanged(
   );
 }
 
-function sortedSlugs(slugs: string[]): string[] {
-  return slugs.slice().sort();
-}
-
-function slugsEqual(a: string[] | null, b: string[]): boolean {
-  if (a == null || a.length !== b.length) return false;
-  const as = sortedSlugs(a);
-  const bs = sortedSlugs(b);
-  return as.every((s, i) => s === bs[i]);
-}
-
-export function panToShowCard(map: MlMap) {
-  const container = map.getContainer();
-  const popupEl = container.querySelector('.maplibregl-popup') as HTMLElement | null;
-  if (!popupEl) return;
-
-  const mapRect = container.getBoundingClientRect();
-  const popupRect = popupEl.getBoundingClientRect();
-  const pad = { top: 80, right: 24, bottom: 24, left: 24 };
-  const maxR = mapRect.right - pad.right;
-  const maxB = mapRect.bottom - pad.bottom;
-
-  let dx = 0;
-  let dy = 0;
-  if (popupRect.left < mapRect.left + pad.left) dx = popupRect.left - (mapRect.left + pad.left);
-  if (popupRect.right > maxR) dx = popupRect.right - maxR;
-  if (popupRect.top < mapRect.top + pad.top) dy = popupRect.top - (mapRect.top + pad.top);
-  if (popupRect.bottom > maxB) dy = popupRect.bottom - maxB;
-
-  if (dx !== 0 || dy !== 0) {
-    map.panBy([dx, dy], { duration: 350, essential: true });
-  }
-}
-
 function flyToVenue(map: MlMap, center: maplibregl.LngLatLike) {
   map.flyTo({
     center,
@@ -181,35 +142,26 @@ function flyToVenue(map: MlMap, center: maplibregl.LngLatLike) {
     // open above the marker rather than forcing the user into street level.
     padding: { top: 220, bottom: 64, left: 64, right: 64 },
   });
-  map.once('moveend', () => panToShowCard(map));
 }
 
-class ThreeDControl {
+class ExpandControl {
   private button: HTMLButtonElement | null = null;
-  private active: boolean;
+  private expanded: boolean;
   private onClick: () => void;
 
-  constructor(active: boolean, onClick: () => void) {
-    this.active = active;
+  constructor(expanded: boolean, onClick: () => void) {
+    this.expanded = expanded;
     this.onClick = onClick;
   }
 
   onAdd(_map: MlMap): HTMLElement {
     const group = document.createElement('div');
-    group.className = 'maplibregl-ctrl maplibregl-ctrl-group';
-
+    group.className = 'maplibregl-ctrl maplibregl-ctrl-group map-expand-ctrl';
     this.button = document.createElement('button');
     this.button.type = 'button';
     this.button.className = 'maplibregl-ctrl-icon';
-    this.button.title = 'Tilt the map and raise the buildings';
-    this.button.setAttribute('aria-pressed', String(this.active));
-    this.button.textContent = '3D';
-    this.button.style.fontSize = '10px';
-    this.button.style.fontWeight = '700';
-    this.button.style.letterSpacing = '-0.02em';
     this.button.addEventListener('click', () => this.onClick());
-
-    this.update(this.active);
+    this.update(this.expanded);
     group.appendChild(this.button);
     return group;
   }
@@ -219,38 +171,38 @@ class ThreeDControl {
     this.button = null;
   }
 
-  update(active: boolean): void {
-    this.active = active;
+  update(expanded: boolean): void {
+    this.expanded = expanded;
     if (!this.button) return;
-    this.button.setAttribute('aria-pressed', String(active));
-    this.button.style.background = active ? '#222222' : 'transparent';
-    this.button.style.color = active ? '#ffffff' : 'inherit';
+    const label = expanded ? 'Show list' : 'Expand map';
+    this.button.setAttribute('aria-label', label);
+    this.button.setAttribute('aria-pressed', String(expanded));
+    this.button.title = label;
+    this.button.innerHTML = expanded
+      ? '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4l-5 5M11 5v4h4M4 16l5-5M9 15v-4H5"/></svg>'
+      : '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4h5v5M16 4l-6 6M9 16H4v-5M4 16l6-6"/></svg>';
   }
 }
-
 
 export function MapView({
   venues,
   selectedSlug,
   selectedVenue,
   routes,
-  activeRouteSlug,
-  onSelectRoute,
   activeRoute,
   onSelectVenue,
-  onOpenDetail,
   hoveredSlug,
   onHover,
   focus,
   focusBounds,
-  show3d = false,
-  onToggle3d,
+  mapExpanded,
+  onToggleExpand,
+  injectedVenueSlugs,
+  hoverPoint,
+  onRouteHover,
+  routePanelOpen,
   favorites,
   onToggleFavorite,
-  ratings,
-  onRate,
-  views,
-  onView,
   onLocateHint,
   onMapError,
   onViewportChange,
@@ -260,54 +212,54 @@ export function MapView({
   const mapRef = useRef<MlMap | null>(null);
   const [ready, setReady] = useState(false);
   const { units } = useUnits();
-  const unitsRef = useRef(units);
-  unitsRef.current = units;
 
   const [busy, setBusy] = useState(false);
+  const markersRef = useRef<VenueMarkers | null>(null);
   const refreshMarkersRef = useRef<(force?: boolean) => void>(() => {});
   const onSelectRef = useRef(onSelectVenue);
   onSelectRef.current = onSelectVenue;
   const venuesRef = useRef(venues);
   venuesRef.current = venues;
-  const selectedRef = useRef(selectedSlug);
-  selectedRef.current = selectedSlug;
+  const venueBySlugRef = useRef(new Map(venues.map((venue) => [venue.slug, venue])));
+  const selectedSlugRef = useRef(selectedSlug);
+  selectedSlugRef.current = selectedSlug;
+  const hoveredSlugRef = useRef(hoveredSlug ?? null);
+  hoveredSlugRef.current = hoveredSlug ?? null;
   const onMapErrorRef = useRef(onMapError);
   onMapErrorRef.current = onMapError;
   const userLocationRef = useRef(userLocation);
   userLocationRef.current = userLocation;
-  const show3dRef = useRef(show3d);
-  show3dRef.current = show3d;
+  const injectedVenueSlugsRef = useRef(injectedVenueSlugs);
+  injectedVenueSlugsRef.current = injectedVenueSlugs;
+  const activeRouteRef = useRef(activeRoute);
+  activeRouteRef.current = activeRoute;
+  const onRouteHoverRef = useRef(onRouteHover);
+  onRouteHoverRef.current = onRouteHover;
   const onViewportRef = useRef(onViewportChange);
   onViewportRef.current = onViewportChange;
   const onHoverRef = useRef(onHover);
   onHoverRef.current = onHover;
-  const lastHoverSentRef = useRef(hoveredSlug ?? null);
-  lastHoverSentRef.current = hoveredSlug ?? null;
-  const pendingTargetRef = useRef(hoveredSlug ?? null);
-  pendingTargetRef.current = hoveredSlug ?? null;
-  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const visitedRef = useRef(new Set<string>());
   const onLocateHintRef = useRef(onLocateHint);
   onLocateHintRef.current = onLocateHint;
-  const onToggle3dRef = useRef(onToggle3d);
-  onToggle3dRef.current = onToggle3d;
-  const threeDControlRef = useRef<ThreeDControl | null>(null);
+  const onToggleExpandRef = useRef(onToggleExpand);
+  onToggleExpandRef.current = onToggleExpand;
+  const mapExpandedRef = useRef(mapExpanded);
+  mapExpandedRef.current = mapExpanded;
+  const expandControlRef = useRef<ExpandControl | null>(null);
 
-  // Stabilise the visible marker set: only re-filter when the viewport has
-  // moved enough to change the shortlist. Constant `setFilter` calls while a
-  // user is panning are what makes the pills flicker. The viewport and marker
-  // bounds are tracked separately, because `reportViewport` and `refreshMarkers`
-  // both run on `moveend` and should not step on each other.
+  // The viewport and marker bounds are tracked separately because list updates
+  // and the 6 × 4 marker shortlist use different thresholds.
   const viewportBoundsRef = useRef<{ west: number; south: number; east: number; north: number } | null>(null);
   const markerBoundsRef = useRef<{ west: number; south: number; east: number; north: number } | null>(null);
-  const lastSlugsRef = useRef<string[] | null>(null);
+  const lastZoomRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: STYLE_URL,
+      style: MAP_STYLE_URL,
       center: SINGAPORE_CENTRE,
       zoom: 12,
       minZoom: 9,
@@ -316,6 +268,7 @@ export function MapView({
       attributionControl: { compact: true },
     });
     mapRef.current = map;
+    let routeHoverFrame = 0;
 
     const collapseAttribution = () => {
       const el = map.getContainer().querySelector('.maplibregl-ctrl-attrib');
@@ -333,6 +286,10 @@ export function MapView({
       onMapErrorRef.current?.(message);
     });
 
+    expandControlRef.current = new ExpandControl(mapExpandedRef.current, () =>
+      onToggleExpandRef.current(),
+    );
+    map.addControl(expandControlRef.current, 'top-right');
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
     const geolocate = new maplibregl.GeolocateControl({
@@ -353,68 +310,52 @@ export function MapView({
     });
     map.addControl(geolocate, 'top-right');
 
-    threeDControlRef.current = new ThreeDControl(show3dRef.current, () => onToggle3dRef.current?.());
-    map.addControl(threeDControlRef.current, 'top-right');
-
-    map.on('load', async () => {
-      try {
-        await loadMarkerImages(map);
-      } catch (err) {
-        if (mapRef.current === map) {
-          onMapErrorRef.current?.(err instanceof Error ? err.message : 'Unable to load map markers');
-        }
-        return;
-      }
+    map.on('load', () => {
       if (mapRef.current !== map) return;
 
-      addVenueLayers(map, venuesToGeoJson(venuesRef.current, unitsRef.current));
+      addVenueLayers(map, venuesToGeoJson(venuesRef.current));
       addUserLocationSource(map);
       const loc = userLocationRef.current;
       if (loc) {
         (map.getSource('user-location') as GeoJSONSource).setData(userLocationFeature(loc.lng, loc.lat));
       }
       addRouteLayers(map);
-      add3dBuildings(map);
-      set3dBuildings(map, show3dRef.current);
-      setSelectedVenue(map, selectedRef.current);
-      refreshMarkersRef.current();
+      markersRef.current = new VenueMarkers(map, {
+        onSelect: (slug) => onSelectRef.current(slug),
+        onHover: (slug) => onHoverRef.current?.(slug),
+      });
+      refreshMarkersRef.current(true);
       setReady(true);
 
-      const scheduleHover = (next: string | null) => {
-        if (next === lastHoverSentRef.current) return;
-        clearTimeout(hoverTimeoutRef.current ?? undefined);
-        hoverTimeoutRef.current = setTimeout(() => {
-          lastHoverSentRef.current = next;
-          onHoverRef.current?.(next);
-        }, 120);
-      };
-
-      map.on('mousemove', (e) => {
-        const [feature] = map.queryRenderedFeatures(e.point, { layers: INTERACTIVE_LAYERS });
-        const slug = feature?.properties?.slug ?? null;
-        const nextSlug = typeof slug === 'string' ? slug : null;
-        // Don't draw a hover pill on top of the already-selected one.
-        const target = nextSlug === selectedRef.current ? null : nextSlug;
-        map.getCanvas().style.cursor = target ? 'pointer' : '';
-        pendingTargetRef.current = target;
-        scheduleHover(target);
+      map.on('click', () => onSelectRef.current(null));
+      map.on('mousemove', (event) => {
+        cancelAnimationFrame(routeHoverFrame);
+        routeHoverFrame = requestAnimationFrame(() => {
+          const features = map.queryRenderedFeatures(
+            [
+              [event.point.x - 6, event.point.y - 6],
+              [event.point.x + 6, event.point.y + 6],
+            ],
+            { layers: ['active-route-line'] },
+          );
+          const points = activeRouteRef.current;
+          if (features.length === 0 || !points?.length) {
+            onRouteHoverRef.current(null);
+            return;
+          }
+          let nearest = 0;
+          let distance = Infinity;
+          for (let index = 0; index < points.length; index++) {
+            const next = haversineM(event.lngLat.lng, event.lngLat.lat, points[index][0], points[index][1]);
+            if (next < distance) {
+              distance = next;
+              nearest = index;
+            }
+          }
+          onRouteHoverRef.current(nearest);
+        });
       });
-      map.on('mouseleave', () => {
-        map.getCanvas().style.cursor = '';
-        pendingTargetRef.current = null;
-        scheduleHover(null);
-      });
-
-      map.on('click', (e) => {
-        const [feature] = map.queryRenderedFeatures(e.point, { layers: INTERACTIVE_LAYERS });
-        const slug = feature?.properties?.slug ?? null;
-        if (typeof slug !== 'string') {
-          onSelectRef.current(null);
-          return;
-        }
-        onSelectRef.current(slug);
-        flyToVenue(map, e.lngLat);
-      });
+      map.on('mouseleave', () => onRouteHoverRef.current(null));
     });
 
     const reportViewport = (e?: { originalEvent?: unknown }) => {
@@ -432,6 +373,8 @@ export function MapView({
 
     const refreshMarkers = (force = false) => {
       const b = map.getBounds();
+      const zoom = map.getZoom();
+      const zoomingOut = lastZoomRef.current != null && zoom < lastZoomRef.current - 0.01;
       const west = b.getWest();
       const east = b.getEast();
       const south = b.getSouth();
@@ -439,36 +382,75 @@ export function MapView({
       const spanX = east - west;
       const spanY = north - south;
       if (spanX <= 0 || spanY <= 0) {
-        setVisibleMarkers(map, []);
+        markersRef.current?.setVenues([]);
+        lastZoomRef.current = zoom;
         return;
       }
 
       if (!force && !boundsMeaningfullyChanged(markerBoundsRef.current, { west, south, east, north })) return;
       markerBoundsRef.current = { west, south, east, north };
 
-      const tallestPerCell = new Map<number, { slug: string; height: number }>();
-      for (const v of venuesRef.current) {
-        if (v.lng < west || v.lng > east || v.lat < south || v.lat > north) continue;
-        const col = Math.min(MARKER_COLS - 1, Math.floor(((v.lng - west) / spanX) * MARKER_COLS));
-        const row = Math.min(MARKER_ROWS - 1, Math.floor(((north - v.lat) / spanY) * MARKER_ROWS));
+      const cellWinners = new Map<number, Venue>();
+      for (const venue of venuesRef.current) {
+        if (venue.lng < west || venue.lng > east || venue.lat < south || venue.lat > north) continue;
+        const col = Math.min(MARKER_COLS - 1, Math.floor(((venue.lng - west) / spanX) * MARKER_COLS));
+        const row = Math.min(MARKER_ROWS - 1, Math.floor(((north - venue.lat) / spanY) * MARKER_ROWS));
         const cell = row * MARKER_COLS + col;
-        const height = venueHeight(v)?.value ?? -1;
-        const held = tallestPerCell.get(cell);
-        if (!held || height > held.height) tallestPerCell.set(cell, { slug: v.slug, height });
+        const held = cellWinners.get(cell);
+        if (!held || rankingHeight(venue) > rankingHeight(held)) cellWinners.set(cell, venue);
       }
 
-      const nextSlugs = [...tallestPerCell.values()].map((x) => x.slug);
-      if (slugsEqual(lastSlugsRef.current, nextSlugs)) return;
-      lastSlugsRef.current = nextSlugs;
-      setVisibleMarkers(map, nextSlugs);
+      const next = new Map<string, Venue>();
+      for (const venue of cellWinners.values()) next.set(venue.slug, venue);
+      for (const slug of [
+        hoveredSlugRef.current,
+        selectedSlugRef.current,
+        ...injectedVenueSlugsRef.current,
+      ]) {
+        if (!slug) continue;
+        const venue = venueBySlugRef.current.get(slug);
+        if (venue) next.set(slug, venue);
+      }
+
+      // Carrying is a zoom-in continuity rule: existing ovals get room to open
+      // into full pills. Zooming out starts fresh so old neighbourhood detail
+      // does not accumulate over the wider view.
+      const carried = zoomingOut
+        ? []
+        : (markersRef.current?.currentSlugs() ?? [])
+            .map((slug) => venueBySlugRef.current.get(slug))
+            .filter(
+              (venue): venue is Venue =>
+                Boolean(
+                  venue &&
+                    venue.lng >= west &&
+                    venue.lng <= east &&
+                    venue.lat >= south &&
+                    venue.lat <= north &&
+                    !next.has(venue.slug),
+                ),
+            )
+            .sort((a, b) => rankingHeight(b) - rankingHeight(a));
+      for (const venue of carried.slice(0, Math.max(0, 48 - next.size))) {
+        next.set(venue.slug, venue);
+      }
+
+      markersRef.current?.setVenues([...next.values()]);
+      markersRef.current?.layout();
+      lastZoomRef.current = zoom;
     };
     refreshMarkersRef.current = refreshMarkers;
 
+    const layoutMarkers = () => markersRef.current?.layout();
     map.on('moveend', reportViewport);
     map.on('moveend', refreshMarkers);
+    map.on('moveend', layoutMarkers);
+    map.on('zoomend', layoutMarkers);
+    map.on('resize', layoutMarkers);
     map.once('load', () => {
       reportViewport();
       refreshMarkers();
+      layoutMarkers();
     });
 
     let showTimer: ReturnType<typeof setTimeout> | null = null;
@@ -489,15 +471,21 @@ export function MapView({
     map.on('dataloading', markBusy);
     map.on('idle', markIdle);
 
-    const observer = new ResizeObserver(() => map.resize());
+    const observer = new ResizeObserver(() => {
+      map.resize();
+      map.redraw();
+    });
     observer.observe(containerRef.current);
     const settle = setTimeout(() => map.resize(), 0);
     map.on('load', () => map.resize());
 
     return () => {
       clearTimeout(settle);
+      cancelAnimationFrame(routeHoverFrame);
       if (showTimer) clearTimeout(showTimer);
       observer.disconnect();
+      markersRef.current?.remove();
+      markersRef.current = null;
       map.remove();
       mapRef.current = null;
       setReady(false);
@@ -508,36 +496,27 @@ export function MapView({
     const map = mapRef.current;
     if (!map || !ready) return;
     const source = map.getSource('venues') as GeoJSONSource | undefined;
-    source?.setData(venuesToGeoJson(venues, units));
-    setSelectedVenue(map, selectedSlug);
+    venueBySlugRef.current = new Map(venues.map((venue) => [venue.slug, venue]));
+    source?.setData(venuesToGeoJson(venues));
     refreshMarkersRef.current(true);
-  }, [venues, units, ready]);
+  }, [venues, ready]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ready) return;
-    setSelectedVenue(map, selectedSlug);
-    if (selectedSlug && !visitedRef.current.has(selectedSlug)) {
-      visitedRef.current.add(selectedSlug);
-      setVisitedVenues(map, [...visitedRef.current]);
-    }
-  }, [selectedSlug, ready]);
+    if (!ready || !markersRef.current) return;
+    refreshMarkersRef.current(true);
+    if (selectedSlug) visitedRef.current.add(selectedSlug);
+    markersRef.current.setState({
+      selected: selectedSlug,
+      hovered: hoveredSlug ?? null,
+      visited: visitedRef.current,
+      units,
+    });
+    markersRef.current.layout();
+  }, [selectedSlug, hoveredSlug, injectedVenueSlugs, units, ready]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ready) return;
-    setHoveredVenue(map, hoveredSlug ?? null);
-    clearTimeout(hoverTimeoutRef.current ?? undefined);
-    lastHoverSentRef.current = hoveredSlug ?? null;
-    pendingTargetRef.current = hoveredSlug ?? null;
-  }, [hoveredSlug, ready]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ready) return;
-    set3dBuildings(map, show3d);
-    threeDControlRef.current?.update(show3d);
-  }, [show3d, ready]);
+    expandControlRef.current?.update(mapExpanded);
+  }, [mapExpanded]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -576,9 +555,18 @@ export function MapView({
           [activeRoute[0][0], activeRoute[0][1]],
         ),
       );
-      map.fitBounds(bounds, { padding: { top: 220, bottom: 80, left: 80, right: 80 }, maxZoom: 16 });
+      map.fitBounds(bounds, {
+        padding: { top: 80, bottom: routePanelOpen ? 280 : 80, left: 80, right: 80 },
+        maxZoom: 16,
+      });
     }
-  }, [activeRoute, ready]);
+  }, [activeRoute, routePanelOpen, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    setRouteHover(map, hoverPoint);
+  }, [hoverPoint, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -596,9 +584,11 @@ export function MapView({
       <div ref={containerRef} className="map" />
       {busy && (
         <div className="map-busy" role="status" aria-live="polite">
-          <span className="map-busy-dot" />
-          <span className="map-busy-dot" />
-          <span className="map-busy-dot" />
+          <span className="dots" aria-hidden="true">
+            <span className="dot" />
+            <span className="dot" />
+            <span className="dot" />
+          </span>
           <span className="visually-hidden">Loading the map</span>
         </div>
       )}
@@ -607,16 +597,9 @@ export function MapView({
           map={mapRef.current}
           venue={selectedVenue}
           routes={routes}
-          activeRouteSlug={activeRouteSlug}
-          onSelectRoute={onSelectRoute}
           onClose={closeCard}
-          onOpenDetail={onOpenDetail}
           favorites={favorites}
           onToggleFavorite={onToggleFavorite}
-          ratings={ratings}
-          onRate={onRate}
-          views={views}
-          onView={onView}
         />
       )}
     </>
@@ -628,30 +611,16 @@ function VenuePopup({
   map,
   venue,
   routes,
-  activeRouteSlug,
-  onSelectRoute,
   onClose,
-  onOpenDetail,
   favorites,
   onToggleFavorite,
-  ratings,
-  onRate,
-  views,
-  onView,
 }: {
   map: MlMap;
   venue: Venue;
   routes: Route[];
-  activeRouteSlug: string | null;
-  onSelectRoute: (slug: string | null) => void;
   onClose: () => void;
-  onOpenDetail?: () => void;
   favorites: Set<string>;
   onToggleFavorite: (slug: string) => void;
-  ratings: Record<string, number>;
-  onRate: (slug: string, rating: number) => void;
-  views: Record<string, number>;
-  onView: (slug: string) => void;
 }) {
   const [content] = useState(() => document.createElement('div'));
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -660,16 +629,46 @@ function VenuePopup({
     const popup = new maplibregl.Popup({
       closeButton: false,
       closeOnClick: false,
-      anchor: 'bottom',
-      offset: [0, -16],
+      focusAfterOpen: false,
+      offset: VENUE_POPUP_OFFSET,
       className: 'venue-popup',
       maxWidth: 'none',
     })
       .setLngLat([venue.lng, venue.lat])
-      .setDOMContent(content)
       .addTo(map);
+    popup.setDOMContent(content);
     popupRef.current = popup;
+
+    let frame = 0;
+    const clampToMap = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        content.style.transform = '';
+        const card = content.querySelector('.venue-card');
+        if (!(card instanceof HTMLElement)) return;
+        const cardRect = card.getBoundingClientRect();
+        const mapRect = map.getContainer().getBoundingClientRect();
+        const dx = cardRect.left < mapRect.left
+          ? mapRect.left - cardRect.left
+          : cardRect.right > mapRect.right
+            ? mapRect.right - cardRect.right
+            : 0;
+        const dy = cardRect.top < mapRect.top
+          ? mapRect.top - cardRect.top
+          : cardRect.bottom > mapRect.bottom
+            ? mapRect.bottom - cardRect.bottom
+            : 0;
+        if (dx || dy) content.style.transform = `translate(${dx}px, ${dy}px)`;
+      });
+    };
+    map.on('move', clampToMap);
+    map.on('resize', clampToMap);
+    clampToMap();
+
     return () => {
+      cancelAnimationFrame(frame);
+      map.off('move', clampToMap);
+      map.off('resize', clampToMap);
       popup.remove();
       popupRef.current = null;
     };
@@ -688,16 +687,9 @@ function VenuePopup({
       <VenueCard
         venue={venue}
         routes={routes}
-        activeRouteSlug={activeRouteSlug}
-        onSelectRoute={onSelectRoute}
         onClose={onClose}
-        onOpenDetail={onOpenDetail}
         isFavorite={favorites.has(venue.slug)}
         onToggleFavorite={() => onToggleFavorite(venue.slug)}
-        rating={ratings[venue.slug] ?? 0}
-        onRate={(rating) => onRate(venue.slug, rating)}
-        views={views[venue.slug] ?? 0}
-        onView={() => onView(venue.slug)}
       />
     </div>,
     content,

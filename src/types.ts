@@ -96,7 +96,8 @@ export interface Route {
 
   coordinates: RoutePoint[];
 
-  source: 'curated' | 'community';
+  /** `local` means saved in this browser only. */
+  source: 'curated' | 'community' | 'local';
   /** GitHub handle of whoever contributed the GPX, for credit. */
   contributor?: string;
   description?: string;

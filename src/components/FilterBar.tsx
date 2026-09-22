@@ -1,5 +1,6 @@
 import {
   memo,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -16,7 +17,7 @@ import {
   NO_FILTERS,
   VENUE_TYPE_LABEL,
   activeFilterCount,
-  formatCount,
+  filterVenues,
   rankingHeight,
   type VenueFilters,
 } from '../lib/venues';
@@ -25,14 +26,12 @@ interface FilterBarProps {
   /** The types present in the data, so no chip is offered that returns nothing. */
   types: VenueType[];
   /**
-   * Venues inside the current map viewport. The height histogram and counts are
-   * drawn from these so the filters always describe the area on screen.
+   * Venues inside the current map viewport before filtering. The histogram and
+   * draft count stay anchored to the area on screen while controls change.
    */
   visibleVenues: Venue[];
   filters: VenueFilters;
   onChange: (filters: VenueFilters) => void;
-  /** How many venues in the current viewport survive the current filters. */
-  matchCount: number;
 }
 
 /**
@@ -48,7 +47,7 @@ interface FilterBarProps {
  * room to be understood — the type choice, the height distribution — lives in
  * the dialog.
  */
-function FilterBarInner({ types, visibleVenues, filters, onChange, matchCount }: FilterBarProps) {
+function FilterBarInner({ types, visibleVenues, filters, onChange }: FilterBarProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const openerRef = useRef<HTMLButtonElement>(null);
 
@@ -61,8 +60,6 @@ function FilterBarInner({ types, visibleVenues, filters, onChange, matchCount }:
         ? filters.types.filter((t) => t !== type)
         : [...filters.types, type],
     });
-
-  const clearAll = () => onChange(NO_FILTERS);
 
   return (
     <div className="filterbar">
@@ -79,8 +76,6 @@ function FilterBarInner({ types, visibleVenues, filters, onChange, matchCount }:
           Filters
           {count > 0 && <span className="filter-badge">{count}</span>}
         </button>
-
-        <span className="filterbar-divider" aria-hidden="true" />
 
         {/* The height chips that used to sit here are gone: height is a range
             now, and a "30 m+" pill beside a slider that says 30–2187 is the same
@@ -108,26 +103,12 @@ function FilterBarInner({ types, visibleVenues, filters, onChange, matchCount }:
         </div>
       </div>
 
-      {count > 0 && (
-        <p className="filterbar-summary small">
-          <span className="muted">
-            {matchCount === 0
-              ? 'No matches'
-              : `${matchCount.toLocaleString()} venue${matchCount === 1 ? '' : 's'} match`}
-          </span>
-          <button type="button" className="linkish" onClick={clearAll}>
-            Clear all
-          </button>
-        </p>
-      )}
-
       {modalOpen && (
         <FilterModal
           types={types}
           visibleVenues={visibleVenues}
           filters={filters}
           onChange={onChange}
-          matchCount={matchCount}
           onClose={() => setModalOpen(false)}
           returnFocusTo={openerRef}
         />
@@ -144,25 +125,41 @@ interface FilterModalProps extends FilterBarProps {
 }
 
 /**
- * Changes apply as they are made rather than on a draft the footer commits.
- *
- * The map is directly behind the dialog and only half-covered on a wide screen,
- * so dragging the height handles repaints the pins as you go — which is the
- * answer you opened the filters to get. Buffering that into a draft would trade
- * a live picture for the ability to cancel, and there is nothing here that is
- * expensive to undo: every control is one press from where it was.
+ * Dialog changes are drafted, and the footer count catches up after a short
+ * pause so its number does not flicker while a height handle is being dragged.
+ * Pressing Show commits the draft — Airbnb's pattern. The chips outside the
+ * dialog remain immediate.
  */
 function FilterModal({
   types,
   visibleVenues,
   filters,
   onChange,
-  matchCount,
   onClose,
   returnFocusTo,
 }: FilterModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const [draft, setDraft] = useState<VenueFilters>(filters);
+  const [draftCount, setDraftCount] = useState(() => filterVenues(visibleVenues, filters).length);
+  const [counting, setCounting] = useState(true);
+  const [entered, setEntered] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  const requestClose = useCallback(() => {
+    if (closing) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) onClose();
+    else setClosing(true);
+  }, [closing, onClose]);
+
+  useEffect(() => {
+    setCounting(true);
+    const timer = window.setTimeout(() => {
+      setDraftCount(filterVenues(visibleVenues, draft).length);
+      setCounting(false);
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [draft, visibleVenues]);
 
   // Escape and the focus trap are on the document rather than the dialog so
   // they still fire while a handle inside is being dragged with the pointer
@@ -171,7 +168,7 @@ function FilterModal({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        requestClose();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -196,7 +193,7 @@ function FilterModal({
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [requestClose]);
 
   useEffect(() => {
     const opener = returnFocusTo.current;
@@ -221,27 +218,32 @@ function FilterModal({
     [visibleVenues],
   );
 
-  const selectedType: VenueType | null = filters.types.length === 1 ? filters.types[0] : null;
+  const selectedType: VenueType | null = draft.types.length === 1 ? draft.types[0] : null;
 
   // Portalled to the body: .filterbar sits in a stacking context below the
   // topbar, so a scrim rendered in place would be painted under the search bar
   // it is supposed to cover.
   return createPortal(
     <div
-      className="filter-scrim"
+      className={`filter-scrim${closing ? ' closing' : ''}`}
       // mousedown, not click: a drag that starts on a handle and ends outside
       // the dialog fires a click on the scrim, which would shut the dialog the
       // instant you overshot the end of the slider.
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) requestClose();
       }}
     >
       <div
-        className="filter-modal"
+        className={`filter-modal${entered ? ' entered' : ''}${closing ? ' closing' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="filter-modal-title"
         ref={dialogRef}
+        onAnimationEnd={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.animationName === 'modal-in') setEntered(true);
+          if (closing && event.animationName === 'modal-out') onClose();
+        }}
       >
         <header className="filter-modal-head">
           <h2 id="filter-modal-title">Filters</h2>
@@ -250,7 +252,7 @@ function FilterModal({
             ref={closeRef}
             className="filter-modal-close"
             aria-label="Close filters"
-            onClick={onClose}
+            onClick={requestClose}
           >
             <CloseIcon />
           </button>
@@ -263,7 +265,7 @@ function FilterModal({
             <div className="seg" role="radiogroup" aria-labelledby="filter-type-label">
               <Segment
                 selected={selectedType === null}
-                onSelect={() => onChange({ ...filters, types: [] })}
+                onSelect={() => setDraft({ ...draft, types: [] })}
               >
                 Any type
               </Segment>
@@ -271,7 +273,7 @@ function FilterModal({
                 <Segment
                   key={type}
                   selected={selectedType === type}
-                  onSelect={() => onChange({ ...filters, types: [type] })}
+                  onSelect={() => setDraft({ ...draft, types: [type] })}
                 >
                   {VENUE_TYPE_LABEL[type]}
                 </Segment>
@@ -283,21 +285,43 @@ function FilterModal({
             <h3>Elevation range</h3>
             <HeightRange
               heights={heights}
-              minHeightM={filters.minHeightM}
-              maxHeightM={filters.maxHeightM}
-              onChange={(minHeightM, maxHeightM) => onChange({ ...filters, minHeightM, maxHeightM })}
+              minHeightM={draft.minHeightM}
+              maxHeightM={draft.maxHeightM}
+              onChange={(minHeightM, maxHeightM) => setDraft({ ...draft, minHeightM, maxHeightM })}
             />
           </section>
         </div>
 
         <footer className="filter-modal-foot">
-          <button type="button" className="linkish" onClick={() => onChange(NO_FILTERS)}>
+          <button type="button" className="linkish" onClick={() => setDraft(NO_FILTERS)}>
             Clear all
           </button>
-          <button type="button" className="filter-apply" onClick={onClose}>
-            {matchCount === 0
-              ? 'No matches'
-              : `Show ${formatCount(matchCount)} venue${matchCount === 1 ? '' : 's'}`}
+          <button
+            type="button"
+            className="filter-apply"
+            disabled={counting}
+            aria-busy={counting}
+            onClick={() => {
+              onChange(draft);
+              requestClose();
+            }}
+          >
+            {counting ? (
+              <>
+                <span className="dots" aria-hidden="true">
+                  <span className="dot" />
+                  <span className="dot" />
+                  <span className="dot" />
+                </span>
+                <span className="visually-hidden" aria-live="polite">Counting…</span>
+              </>
+            ) : draftCount === 0 ? (
+              'No matches'
+            ) : draftCount >= 1000 ? (
+              'Show over 1,000 venues'
+            ) : (
+              `Show ${draftCount.toLocaleString()} venue${draftCount === 1 ? '' : 's'}`
+            )}
           </button>
         </footer>
       </div>

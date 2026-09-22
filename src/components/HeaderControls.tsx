@@ -21,8 +21,8 @@ const UNIT_CHOICES: { value: Units; label: string; note: string }[] = [
 /**
  * What the menu offers, and why these and not the usual header fare.
  *
- * There is no account to sign into and nothing to save, so every row here is a
- * link to something that already exists in the repo. The three contribution
+ * There is no account to sign into and saved routes stay in this browser, so
+ * every row here links to something that already exists in the repo. The three contribution
  * routes come first because the README is explicit that they are what the
  * project needs most: a verified height is a one-line diff and a route is one
  * GPX file.

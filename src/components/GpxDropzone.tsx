@@ -1,148 +1,102 @@
 import { useCallback, useRef, useState } from 'react';
-import type { RoutePoint } from '../types';
+import type { RoutePoint, Venue } from '../types';
 import { GpxParseError, parseGpx, simplify } from '../lib/gpx';
 import { ElevationModel, computeGain, totalDistanceM } from '../lib/elevation';
-import { ElevationProfile } from './ElevationProfile';
-import { useUnits } from './UnitsContext';
+import { linkVenues } from '../lib/routes';
 
 interface GpxDropzoneProps {
   elevationModel: ElevationModel | null;
-  onRouteLoaded: (points: RoutePoint[] | null) => void;
+  venues: Venue[];
+  onLoaded: (loaded: LoadedGpx) => void;
 }
 
-interface LoadedGpx {
+export interface LoadedGpx {
   name: string;
   points: RoutePoint[];
   distanceM: number;
   gainM: number;
   lossM: number;
-  /** True when we replaced the file's own altitudes with terrain-model values. */
   resampled: boolean;
+  venueSlugs: string[];
 }
 
 /**
  * Drop a GPX in, get a real elevation profile out.
  *
- * The file is read with FileReader and parsed in this tab. Nothing is uploaded —
- * there is no server to upload it to — so someone can analyse a route without
- * handing over their GPS history. Worth keeping true as the project grows.
+ * The file is read and parsed in this tab. Nothing is uploaded — there is no
+ * server to upload it to — so someone can analyse a route without handing over
+ * their GPS history. Worth keeping true as the project grows.
  */
-export function GpxDropzone({ elevationModel, onRouteLoaded }: GpxDropzoneProps) {
-  const [loaded, setLoaded] = useState<LoadedGpx | null>(null);
+export function GpxDropzone({ elevationModel, venues, onLoaded }: GpxDropzoneProps) {
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const units = useUnits();
 
   const handleFile = useCallback(
     async (file: File) => {
       setError(null);
       try {
-        const text = await file.text();
-        const parsed = parseGpx(text);
-
+        const parsed = parseGpx(await file.text());
         // Watch exports routinely run to tens of thousands of points; thin them
         // before anything else touches the data.
         let points = simplify(parsed.points);
-
-        // Never trust GPX altitude when we have a terrain model to hand.
-        const resampled = elevationModel != null;
+        const covered = elevationModel
+          ? points.filter(([lng, lat]) => elevationModel.covers(lng, lat)).length
+          : 0;
+        const resampled = points.length > 0 && covered / points.length >= 0.5;
         if (elevationModel) points = elevationModel.resampleElevation(points);
-
         const { gainM, lossM } = computeGain(points);
-
-        const result: LoadedGpx = {
+        onLoaded({
           name: parsed.name ?? file.name.replace(/\.gpx$/i, ''),
           points,
           distanceM: totalDistanceM(points),
           gainM,
           lossM,
           resampled,
-        };
-        setLoaded(result);
-        onRouteLoaded(points);
-      } catch (err) {
-        const message =
-          err instanceof GpxParseError
-            ? err.message
-            : `Could not read that file: ${(err as Error).message}`;
-        setError(message);
-        setLoaded(null);
-        onRouteLoaded(null);
+          venueSlugs: linkVenues(points, venues),
+        });
+      } catch (caught) {
+        setError(
+          caught instanceof GpxParseError
+            ? caught.message
+            : `Could not read that file: ${(caught as Error).message}`,
+        );
       }
     },
-    [elevationModel, onRouteLoaded],
+    [elevationModel, onLoaded, venues],
   );
-
-  const clear = () => {
-    setLoaded(null);
-    setError(null);
-    onRouteLoaded(null);
-    if (inputRef.current) inputRef.current.value = '';
-  };
-
-  if (loaded) {
-    return (
-      <section className="dropzone-result">
-        <header className="panel-head">
-          <h3>{loaded.name}</h3>
-          <button className="icon-btn" onClick={clear} aria-label="Clear route">
-            ×
-          </button>
-        </header>
-        <div className="stats">
-          <div className="stat">
-            <span className="stat-value">{units.height(loaded.gainM)}</span>
-            <span className="stat-label small muted">Gain</span>
-          </div>
-          <div className="stat">
-            <span className="stat-value">{units.distance(loaded.distanceM)}</span>
-            <span className="stat-label small muted">Distance</span>
-          </div>
-          <div className="stat">
-            <span className="stat-value">{units.height(loaded.lossM)}</span>
-            <span className="stat-label small muted">Descent</span>
-          </div>
-        </div>
-        <ElevationProfile points={loaded.points} />
-        <p className="muted small">
-          {loaded.resampled
-            ? 'Elevation re-sampled from the bundled terrain model, not the file — GPS altitude is too noisy to sum directly.'
-            : 'Terrain model unavailable, so these figures come from the file’s own GPS altitude and will read high.'}
-        </p>
-      </section>
-    );
-  }
 
   return (
     <section
       className={`dropzone${dragging ? ' dragging' : ''}`}
-      onDragOver={(e) => {
-        e.preventDefault();
+      onDragOver={(event) => {
+        event.preventDefault();
         setDragging(true);
       }}
       onDragLeave={() => setDragging(false)}
-      onDrop={(e) => {
-        e.preventDefault();
+      onDrop={(event) => {
+        event.preventDefault();
         setDragging(false);
-        const file = e.dataTransfer.files[0];
+        const file = event.dataTransfer.files[0];
         if (file) void handleFile(file);
       }}
     >
-      <p>
-        <strong>Drop a GPX here</strong> to see its real elevation profile.
-      </p>
-      <p className="muted small">Parsed in your browser. The file is never uploaded.</p>
+      <strong>Drop a GPX here</strong>
+      <button type="button" className="dropzone-browse" onClick={() => inputRef.current?.click()}>
+        Browse files
+      </button>
+      <p>Parsed in your browser. The file is never uploaded.</p>
       <input
         ref={inputRef}
+        className="visually-hidden"
         type="file"
         accept=".gpx,application/gpx+xml"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
+        onChange={(event) => {
+          const file = event.target.files?.[0];
           if (file) void handleFile(file);
         }}
       />
-      {error && <p className="error small">{error}</p>}
+      {error && <p className="dropzone-error">{error}</p>}
     </section>
   );
 }

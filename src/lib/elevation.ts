@@ -80,6 +80,12 @@ export class ElevationModel {
     return top * (1 - fy) + bottom * fy;
   }
 
+  /** Whether a coordinate has a usable sample in this terrain model. */
+  covers(lng: number, lat: number): boolean {
+    const { west, south, east, north } = this.header;
+    return lng >= west && lng <= east && lat >= south && lat <= north && !Number.isNaN(this.sample(lng, lat));
+  }
+
   /** Replace each point's elevation with the terrain-model value. */
   resampleElevation(points: RoutePoint[]): RoutePoint[] {
     return points.map(([lng, lat, ele]) => {

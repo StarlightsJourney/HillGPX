@@ -9,14 +9,17 @@ npm install
 npm run dev
 ```
 
-No database, no keys, no `.env`. If that isn't true for you, it's a bug — please open an issue.
+The browser opens at [http://localhost:5180](http://localhost:5180). Port 5180 is strict, so stop whatever is using it rather than expecting Vite to choose another one.
 
-For anything that regenerates data you'll also want:
+The web app needs no database, keys or `.env` file. If that isn't true for you, it's a bug — please open an issue. `scripts/build_data.py` also needs nothing beyond the Python standard library.
+
+For the other data scripts, install their dependencies:
 
 ```bash
 pip install -r scripts/requirements.txt
-python scripts/fetch_dem.py     # once, ~3.5 MB terrain model
 ```
+
+`scripts/fetch_dem.py` and `scripts/fetch_photos.py` need Pillow. Only `scripts/ingest_hdb.py` and `scripts/fetch_photos.py` need `.env.local`: copy `.env.example`, then add OneMap credentials or a Mapillary token as appropriate. See [`scripts/README.md`](scripts/README.md) before regenerating data.
 
 ---
 
@@ -63,13 +66,19 @@ Two numbers matter, and they're different:
 - **`summitM`** — height above sea level at the top.
 - **`gainM`** — what you actually climb from the normal starting point. This is the one people train by, and it's usually much smaller. Bukit Timah's summit is around 163 m, but nobody starts at sea level.
 
-To fix one:
+A venue with both numbers `null` is dropped at build time and does not appear. Mount Faber, Marang Trail, Telok Blangah Hill Park, Kent Ridge Park, Bukit Gombak, Fort Canning Hill, Pearl's Hill City Park and Mount Emily Park are all invisible today. Verifying either number puts one on the map.
+
+**Note:** until this is fixed in `build_data.py`, a curated entry with no height can also hide the OSM record for the same hill — Mount Faber is the current example.
+
+To fix a curated venue:
 
 1. Find a real source, or measure it — a barometric watch on a still day, averaged over a few ascents, is good enough.
 2. Update the value, set `"elevationSource"` to `"verified"`, and say where the number came from in `notes`.
 3. `python scripts/build_data.py`, then commit.
 
 Cite the source. An unsourced number is the thing we already have.
+
+OpenStreetMap summits live in generated `data/venues/peaks.json`; do not hand-edit it. Correct the `ele` tag in OpenStreetMap and run `python scripts/fetch_peaks.py --region sg-my`, or use the appropriate region or bounding box. If you measured the *climb*, add or extend a curated entry in `data/venues/hills.json` with `gainM`; curated entries load first and win the deduplication.
 
 ---
 
@@ -93,22 +102,33 @@ Anywhere public that people actually train on: hills, park staircases, multi-sto
 
 `type` is one of `hill`, `stairs`, `park`, `carpark`, `bridge`. (`hdb_block` is generated — don't add those by hand.)
 
-Leave a number `null` rather than guessing. A null is an honest gap someone can fill; a wrong number looks authoritative and can sit there for years.
+Leave a number `null` rather than guessing. A null is an honest gap someone can fill; a wrong number looks authoritative and can sit there for years. This records the venue, but it will not appear in the app until either `gainM` or `summitM` is filled in.
 
 **Access matters.** If it's private, gated, or somewhere you technically shouldn't be, say so in `notes` — or don't add it. This should not become a list of places to trespass.
 
 ---
 
+## Photos
+
+Photos are not added to the repository by hand. Upload useful street-level imagery to [Mapillary](https://www.mapillary.com/), or put a Mapillary token in `.env.local` and run `python scripts/fetch_photos.py`. The script downloads and resizes the latest nearby image, and records its creator and image ID in `data/photos.json`; run `python scripts/build_data.py` afterwards to attach it to the venue.
+
+Mapillary imagery is CC-BY-SA 4.0. Keep the creator credit and image ID intact — the app displays that attribution with every photo.
+
+---
+
 ## Code
 
-Normal stuff: fork, branch, PR. `npm run typecheck` should pass. There's no linter yet; match the surrounding style.
+Normal stuff: fork, branch, PR. `npm run typecheck` and `npm run build` are the CI gates. There's no linter or test framework yet; match the surrounding style.
 
 A few things worth preserving, because they're the point of the project rather than incidental:
 
 - **No backend.** The app is static files. If a feature seems to need a server, say so in an issue first — there's usually a way to keep it static, and the zero-setup clone is what makes this contributable.
 - **No API keys.** A fresh clone must run with no accounts and no config.
-- **Dropped GPX files never leave the browser.** People upload their training history here. It stays in their tab.
-- **Never trust GPX altitude.** Re-sample against the terrain model. If you change the gain threshold in `src/lib/elevation.ts`, change it in `scripts/build_data.py` too — otherwise the app and the baked route data will quietly disagree.
+- **Dropped GPX files never leave the browser.** People upload their training history here. It stays in their tab — or, if they choose to save it, in their own browser's `localStorage`.
+- **Never trust GPX altitude.** Re-sample against the terrain model wherever it has coverage. If you change `GAIN_THRESHOLD_M` or `SMOOTH_WINDOW` in `scripts/build_data.py`, change the defaults in `src/lib/elevation.ts` too — otherwise the app and the baked route data will quietly disagree.
+- **Never present `summitM` as a climb.** Go through `venueHeight()` for display and use `rankingHeight()` only for sorting.
+- **Build URLs from `import.meta.env.BASE_URL`.** Follow `DATA_BASE`; root-absolute paths break the GitHub Pages build under `/HillGPX/`.
+- **Map pins are HTML markers, not symbol layers.** `src/map/markers.ts` renders them as DOM elements so they share the app's font and CSS. If you ever add a MapLibre `symbol` layer, use exactly one font in `text-font`: a fallback list makes OpenFreeMap request a glyph stack that 404s, and labels silently disappear.
 
 ## Reporting things
 

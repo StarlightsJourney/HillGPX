@@ -258,8 +258,8 @@ function RouteFilterModal({
         </header>
         <div className="filter-modal-body">
           <section className="filter-group">
-            <h3>Climbing</h3>
-            <div className="seg" role="radiogroup" aria-label="Minimum climbing">
+            <h3>Minimum EG</h3>
+            <div className="seg" role="radiogroup" aria-label="Minimum EG">
               {GAIN_CHOICES.map((choice) => (
                 <Segment key={choice.label} selected={draft.minGainM === choice.value} onSelect={() => setDraft({ ...draft, minGainM: choice.value })}>
                   {choice.label}
@@ -330,7 +330,7 @@ function ClimbCategories({ types, visibleVenues, filters, onChange }: FilterBarP
   const categories: { id: ClimbCategory; label: string }[] = [
     { id: 'all', label: 'All' },
     ...types.map((type) => ({ id: type as ClimbCategory, label: type === 'hill' ? 'Hills & summits' : `${VENUE_TYPE_LABEL[type]}s` })),
-    { id: 'top', label: 'Top climbs' },
+    { id: 'top', label: 'Top EG' },
     { id: 'photo', label: 'With photos' },
   ];
 

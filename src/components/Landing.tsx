@@ -83,6 +83,8 @@ export function Landing({ onOpen }: LandingProps) {
         </div>
       </header>
 
+      <HeroBlock dataset={dataset} mode={mode} />
+
       <main className="home-shell home-main">
         {mode === 'routes' ? (
           <>
@@ -129,6 +131,63 @@ export function Landing({ onOpen }: LandingProps) {
         </div>
       </footer>
     </div>
+  );
+}
+
+/* ─── Hero ─────────────────────────────────────────────────────────────── */
+
+function HeroBlock({ dataset, mode }: { dataset: Dataset | null; mode: Mode }) {
+  const totalVenues = dataset?.venues.length ?? 0;
+  const totalRoutes = dataset?.routes.length ?? 0;
+  const regions = useMemo(() => {
+    if (!dataset) return DESTINATIONS.slice(0, 4);
+    const seen = new Set<string>();
+    return dataset.venues.reduce<Destination[]>((acc, venue) => {
+      const region = regionOf(venue.lng, venue.lat);
+      const dest = region ? DESTINATIONS.find((d) => d.name === region) : undefined;
+      if (dest && !seen.has(dest.name)) {
+        seen.add(dest.name);
+        acc.push(dest);
+      }
+      return acc;
+    }, []);
+  }, [dataset]);
+
+  return (
+    <section className="home-hero">
+      <div className="home-shell">
+        <div className="home-hero-grid">
+          <div className="home-hero-copy">
+            <h1 className="home-hero-title">Find your next vertical, anywhere.</h1>
+            <p className="home-hero-lead">
+              Hills, staircases, tall blocks and real GPX routes. Compare honest elevation gain, drop a route to see its profile, and train with a plan.
+            </p>
+            <div className="home-hero-stats">
+              <div>
+                <strong>{totalVenues.toLocaleString()}</strong>
+                <span>venues</span>
+              </div>
+              <div>
+                <strong>{totalRoutes.toLocaleString()}</strong>
+                <span>routes</span>
+              </div>
+            </div>
+            <div className="home-hero-chips">
+              {regions.slice(0, 5).map((dest) => (
+                <button key={dest.name} type="button" className="home-hero-chip" onClick={() => openMap(mode, boundsToHash(dest.bounds))}>
+                  {dest.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="home-hero-art" aria-hidden="true">
+            <div className="home-hero-card home-hero-card-1" />
+            <div className="home-hero-card home-hero-card-2" />
+            <div className="home-hero-card home-hero-card-3" />
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -281,7 +340,7 @@ function buildRows(venues: Venue[]): RowSpec[] {
   }
   const sg = byRegion.get('Singapore') ?? [];
   const rows: RowSpec[] = [
-    { title: 'Tallest climbs in Singapore', venues: showcase(sg.filter((v) => v.type !== 'hdb_block' || v.notable)), bounds: DESTINATIONS[0].bounds },
+    { title: 'Tallest EG in Singapore', venues: showcase(sg.filter((v) => v.type !== 'hdb_block' || v.notable)), bounds: DESTINATIONS[0].bounds },
     { title: 'HDB blocks for stair repeats', venues: showcase(sg.filter((v) => v.type === 'hdb_block' && v.photo)), bounds: DESTINATIONS[0].bounds },
     { title: 'Summits across Malaysia', venues: showcase(byRegion.get('Malaysia') ?? []), bounds: DESTINATIONS[5].bounds },
   ];
@@ -348,7 +407,7 @@ function VenueTile({ venue, index }: { venue: Venue; index: number }) {
     <a className="tile" href={`#venue/${venue.slug}`} style={{ '--i': index } as React.CSSProperties}>
       <span className="tile-media">
         <VenueThumb venue={venue} />
-        {venue.notable && <span className="tile-badge">Top climb</span>}
+        {venue.notable && <span className="tile-badge">Top EG</span>}
       </span>
       <span className="tile-top">
         <span className="tile-name">{venue.name}</span>
@@ -360,7 +419,7 @@ function VenueTile({ venue, index }: { venue: Venue; index: number }) {
       </span>
       {height && (
         <span className="tile-meta">
-          <strong>{units.height(height.value)}</strong> {height.kind === 'gain' ? 'to climb' : 'summit'}
+          <strong>{units.height(height.value)}</strong> {height.kind === 'gain' ? 'EG' : 'summit'}
         </span>
       )}
     </a>
@@ -389,7 +448,7 @@ function RouteTile({ route, index }: { route: Route; index: number }) {
       </span>
       <span className="tile-meta">{[region, route.loop ? 'Loop' : 'Point to point'].filter(Boolean).join(' · ')}</span>
       <span className="tile-meta">
-        <strong>{units.distance(route.distanceM)}</strong> · <strong>{units.height(route.gainM)}</strong> up
+        <strong>{units.distance(route.distanceM)}</strong> · <strong>{units.height(route.gainM)}</strong> EG
       </span>
     </button>
   );
@@ -399,7 +458,7 @@ function ContributeBanner() {
   return (
     <section className="home-contribute">
       <div className="home-contribute-copy">
-        <h2>Know a climb that isn’t here?</h2>
+        <h2>Know a hill that isn’t here?</h2>
         <p>
           Every place, photo, rating and route on hillGPX is a public contribution. Add the stairwell you repeat,
           the hill you race up, or the GPX from your last long run.

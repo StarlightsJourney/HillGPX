@@ -67,7 +67,7 @@ DATA_GOV_URL = "https://data.gov.sg/api/action/datastore_search"
 ONEMAP_AUTH_URL = "https://www.onemap.gov.sg/api/auth/post/getToken"
 ONEMAP_SEARCH_URL = "https://www.onemap.gov.sg/api/common/elastic/search"
 
-FLOOR_HEIGHT_M = 2.8
+FLOOR_HEIGHT_M = 2.5  # HDB floor-to-floor height, used when only storeys are known
 ONEMAP_DELAY_S = 0.25  # 250 ms between OneMap calls (well under 300/min limit)
 BATCH_SIZE = 500  # upsert batch size
 

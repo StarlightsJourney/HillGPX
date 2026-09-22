@@ -76,7 +76,7 @@ REGIONS: dict[str, tuple[tuple[float, float, float, float], float]] = {
     "th": ((5.6, 97.3, 20.5, 105.7), 1000),
     "vn": ((8.4, 102.1, 23.4, 109.5), 1500),
     "ph": ((4.5, 116.9, 21.2, 126.7), 1200),
-    "tw": ((21.85, 119.3, 25.35, 122.1), 2500),     # Taiwan is steep and heavily surveyed
+    "tw": ((21.75, 119.3, 25.5, 122.2), 300),       # keep low hills too: Taiwan has hundreds of named 300-2500 m summits
     "hk": ((22.13, 113.82, 22.57, 114.45), 150),
     "jp": ((24.0, 122.9, 45.6, 146.0), 2000),
     "kr": ((33.1, 124.6, 38.65, 131.9), 800),

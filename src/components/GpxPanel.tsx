@@ -81,7 +81,7 @@ export function GpxPanel({
       <div className="gpx-stats">
         {[
           ['Distance', units.distance(loaded.distanceM)],
-          ['Gain', units.height(loaded.gainM)],
+          ['EG', units.height(loaded.gainM)],
           ['Descent', units.height(loaded.lossM)],
           ['Max', units.height(maxM)],
           ['Min', units.height(minM)],

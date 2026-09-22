@@ -231,7 +231,7 @@ function ResultsListInner({
                     onMouseEnter={() => onHover?.(venue.slug)}
                     onMouseLeave={() => onHover?.(null)}
                   >
-                    {venue.notable && <span className="result-badge">Top climb</span>}
+                    {venue.notable && <span className="result-badge">Top EG</span>}
                     <button
                       type="button"
                       className={`result-favorite${isFavorite ? ' on' : ''}`}
@@ -250,12 +250,13 @@ function ResultsListInner({
                         {VENUE_TYPE_LABEL[venue.type]}
                         {region && region !== 'Singapore' ? ` in ${region}` : ''}
                         {venue.storeys != null && ` · ${venue.storeys} floors`}
+                        {routeCount > 0 && ` · ${routeCount} route${routeCount === 1 ? '' : 's'}`}
                       </span>
                       <span className="result-card-gain">
                         {height ? (
                           <>
                             <strong>{units.height(height.value)}</strong>{' '}
-                            {height.kind === 'gain' ? 'to climb' : 'above sea level'}
+                            {height.kind === 'gain' ? 'EG' : 'summit'}
                           </>
                         ) : (
                           'Height not recorded'

@@ -213,7 +213,7 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
                 <span className="result-name">{venue.name}</span>
                 <span className="result-meta small muted">
                   {VENUE_TYPE_LABEL[venue.type]}
-                  {height && ` · ${units.height(height.value)}${height.kind === 'gain' ? ' up' : ''}`}
+                  {height && ` · ${units.height(height.value)}${height.kind === 'gain' ? ' EG' : ''}`}
                 </span>
               </button>
             );

@@ -89,7 +89,7 @@ export function VenueCard({
           <p className="card-height">
             <strong>{units.height(height.value)}</strong>
             <span>
-              {height.kind === 'gain' ? ' to climb' : ' above sea level'}
+              {height.kind === 'gain' ? ' EG' : ' summit'}
               {routeLabel}
             </span>
           </p>

@@ -90,7 +90,7 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
                       .join(' · ')}
                   </span>
                   <span className="result-card-gain">
-                    <strong>{units.distance(route.distanceM)}</strong> · <strong>{units.height(route.gainM)}</strong> climbing
+                    <strong>{units.distance(route.distanceM)}</strong> · <strong>{units.height(route.gainM)}</strong> EG
                   </span>
                 </button>
               </li>

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { createPortal } from 'react-dom';
 import type { Route, Venue } from '../types';
 import { VENUE_TYPE_LABEL, tallestWithin, titleCaseStreet, townName, venueHeight } from '../lib/venues';
@@ -10,31 +10,76 @@ import { HeaderControls } from './HeaderControls';
 import { downloadRoute } from './VenueCard';
 import { RatingLabel } from './ResultsList';
 import { RouteThumb } from './RouteThumb';
-import { REPO_URL, addPhotoUrl, loadMyRatings, rateVenueUrl, saveMyRating } from '../lib/contribute';
+import { REPO_URL, addPhotoUrl } from '../lib/contribute';
+import {
+  type Photo,
+  type Review,
+  backendConfigured,
+  combinedRating,
+  loadAuthor,
+  photosForVenue,
+  reviewsForVenue,
+  saveAuthor,
+  submitPhoto,
+  submitReview,
+} from '../lib/api';
 import { regionOf } from '../lib/regions';
 
 const MiniMap = lazy(() => import('./MiniMap').then((module) => ({ default: module.MiniMap })));
 
-const RATING_WORDS = ['', 'Not worth it', 'Meh', 'Solid', 'Great session', 'Must climb'];
+const RATING_WORDS = ['', 'Not worth it', 'Meh', 'Solid', 'Great session', 'Must do'];
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
 
 function RateCard({ venue }: { venue: Venue }) {
-  const [mine, setMine] = useState<number>(() => loadMyRatings()[venue.slug] ?? 0);
   const [hover, setHover] = useState(0);
+  const [mine, setMine] = useState(0);
+  const [comment, setComment] = useState('');
+  const [author, setAuthor] = useState(() => loadAuthor());
+  const [submitted, setSubmitted] = useState(false);
+  const [localReviews, setLocalReviews] = useState<Review[]>(() => reviewsForVenue(venue.slug));
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const rating = combinedRating(venue.slug, venue.rating);
   const shown = hover || mine;
+
+  const postReview = async () => {
+    if (mine === 0) return;
+    setSubmitting(true);
+    setError(null);
+    saveAuthor(author);
+    try {
+      await submitReview({ venueSlug: venue.slug, rating: mine, comment, author });
+      setLocalReviews(reviewsForVenue(venue.slug));
+      setSubmitted(true);
+      setComment('');
+      setMine(0);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save your review');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <section className="venue-detail-section rate-section">
       <div className="venue-section-heading">
         <h2>
-          {venue.rating ? (
+          {rating ? (
             <span className="rate-summary">
-              <StarIcon size={20} filled /> {venue.rating.average.toFixed(2)} · {venue.rating.count} rating{venue.rating.count === 1 ? '' : 's'}
+              <StarIcon size={20} filled /> {rating.average.toFixed(2)} · {rating.count} rating{rating.count === 1 ? '' : 's'}
             </span>
           ) : (
             'Be the first to rate it'
           )}
         </h2>
       </div>
-      <p className="muted">How good a training venue is it? Your rating is kept on this device; publish it to add it to the map for everyone.</p>
+      <p className="muted">
+        How good a training venue is it?{backendConfigured() ? '' : ' Your review is stored on this device until a backend is connected.'}
+      </p>
+
       <div className="rate-stars" role="radiogroup" aria-label="Your rating" onMouseLeave={() => setHover(0)}>
         {[1, 2, 3, 4, 5].map((value) => (
           <button
@@ -45,20 +90,61 @@ function RateCard({ venue }: { venue: Venue }) {
             aria-label={`${value} star${value === 1 ? '' : 's'}`}
             className={`rate-star${value <= shown ? ' on' : ''}`}
             onMouseEnter={() => setHover(value)}
-            onClick={() => {
-              setMine(value);
-              saveMyRating(venue.slug, value);
-            }}
+            onClick={() => setMine(value)}
           >
             <StarIcon size={28} filled={value <= shown} />
           </button>
         ))}
         <span className="rate-word">{RATING_WORDS[shown]}</span>
       </div>
-      {mine > 0 && (
-        <a className="btn btn-dark rate-publish" href={rateVenueUrl(venue.slug, mine, venue.name)} target="_blank" rel="noreferrer">
-          Publish rating on GitHub
-        </a>
+
+      {localReviews.length > 0 && (
+        <div className="local-reviews">
+          {localReviews.slice(0, 3).map((review) => (
+            <div key={review.id} className="local-review">
+              <div className="local-review-stars">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <StarIcon key={i} size={14} filled={i < review.rating} />
+                ))}
+              </div>
+              <p className="local-review-comment">{review.comment || <span className="muted">No comment</span>}</p>
+              <p className="local-review-meta">
+                {review.author || 'Anonymous'} · {formatDate(review.createdAt)}
+                {review.syncedAt ? <span className="synced-badge">synced</span> : <span className="pending-badge">pending</span>}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!submitted ? (
+        <div className="review-form">
+          <textarea
+            className="review-comment"
+            placeholder="What should other runners know? (optional)"
+            rows={3}
+            value={comment}
+            onChange={(event) => setComment(event.target.value)}
+          />
+          <input
+            className="review-author"
+            type="text"
+            placeholder="Your name (optional)"
+            value={author}
+            onChange={(event) => setAuthor(event.target.value)}
+          />
+          <button
+            type="button"
+            className="btn btn-dark rate-publish"
+            disabled={mine === 0 || submitting}
+            onClick={postReview}
+          >
+            {submitting ? 'Posting…' : 'Post review'}
+          </button>
+          {error && <p className="review-error">{error}</p>}
+        </div>
+      ) : (
+        <p className="review-thanks">Thanks — your review is saved and will show here{backendConfigured() ? '' : ' once a backend is connected'}.</p>
       )}
     </section>
   );
@@ -83,6 +169,129 @@ function CameraGlyph() {
   return <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 7h4l1.5-2h7L17 7h4v12H3V7Z" /><circle cx="12" cy="13" r="4" /></svg>;
 }
 
+function PhotoCard({ venue }: { venue: Venue }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [credit, setCredit] = useState('');
+  const [licence, setLicence] = useState('Own work, CC BY-SA 4.0');
+  const [author, setAuthor] = useState(() => loadAuthor());
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [localPhotos, setLocalPhotos] = useState<Photo[]>(() => photosForVenue(venue.slug));
+
+  const onSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = event.target.files?.[0];
+    if (!selected) return;
+    if (selected.size > 5 * 1024 * 1024) {
+      setError('Photo is too large. Please choose one under 5 MB.');
+      return;
+    }
+    setFile(selected);
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = () => setPreview(String(reader.result));
+    reader.readAsDataURL(selected);
+  };
+
+  const postPhoto = async () => {
+    if (!file) return;
+    setSubmitting(true);
+    setError(null);
+    saveAuthor(author);
+    try {
+      await submitPhoto({ venueSlug: venue.slug, file, credit, licence, author });
+      setLocalPhotos(photosForVenue(venue.slug));
+      setSubmitted(true);
+      setFile(null);
+      setPreview(null);
+      setCredit('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save your photo');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const hasPhoto = Boolean(venue.photo?.file) || localPhotos.length > 0;
+
+  return (
+    <section className="venue-detail-section photo-section">
+      <div className="venue-section-heading"><h2>Photos</h2></div>
+      <div className="photo-grid">
+        {venue.photo?.file && (
+          <div className="photo-item published-photo">
+            <img src={venue.photo.file} alt={venue.name} />
+            <PhotoCredit venue={venue} />
+          </div>
+        )}
+        {localPhotos.map((photo) => (
+          <div key={photo.id} className="photo-item local-photo">
+            <img src={photo.dataUrl} alt={`Photo by ${photo.author || 'a contributor'}`} />
+            <p className="photo-meta">
+              {photo.credit || photo.author || 'Anonymous'}
+              {photo.syncedAt ? <span className="synced-badge">synced</span> : <span className="pending-badge">pending</span>}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {!submitted ? (
+        <div className="photo-form">
+          <label className="photo-upload">
+            {preview ? (
+              <img src={preview} alt="Preview" />
+            ) : (
+              <>
+                <CameraGlyph />
+                <span>Tap to choose a photo</span>
+              </>
+            )}
+            <input type="file" accept="image/*" onChange={onSelect} />
+          </label>
+          <input
+            className="review-author"
+            type="text"
+            placeholder="Photographer name or credit"
+            value={credit}
+            onChange={(event) => setCredit(event.target.value)}
+          />
+          <input
+            className="review-author"
+            type="text"
+            placeholder="Licence (e.g. Own work, CC BY-SA 4.0)"
+            value={licence}
+            onChange={(event) => setLicence(event.target.value)}
+          />
+          <input
+            className="review-author"
+            type="text"
+            placeholder="Your name (optional)"
+            value={author}
+            onChange={(event) => setAuthor(event.target.value)}
+          />
+          <button
+            type="button"
+            className="btn btn-dark"
+            disabled={!file || submitting}
+            onClick={postPhoto}
+          >
+            {submitting ? 'Uploading…' : hasPhoto ? 'Add another photo' : 'Add a photo'}
+          </button>
+          {error && <p className="review-error">{error}</p>}
+          {!backendConfigured() && (
+            <p className="muted">
+              Photos are stored on this device until a backend is connected. Choose images you have the right to share.
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="review-thanks">Thanks — your photo is saved{backendConfigured() ? '' : ' on this device'}.</p>
+      )}
+    </section>
+  );
+}
+
 function PlannerCard({ venue }: { venue: Venue }) {
   const [reps, setReps] = useState(3);
   const height = venueHeight(venue);
@@ -101,9 +310,9 @@ function PlannerCard({ venue }: { venue: Venue }) {
       </div>
       {height ? (
         <div className="venue-plan-result">
-          <p>{reps} × {units.height(height.value)} = {units.height(total)} of climbing</p>
+          <p>{reps} × {units.height(height.value)} = {units.height(total)} EG</p>
           {height.kind === 'gain' ? (
-            <p>≈ {Math.round(total / 2.8)} floors</p>
+            <p>≈ {Math.round(total / 2.5)} floors</p>
           ) : (
             <p className="muted">Summit height, not the climb from the base.</p>
           )}
@@ -133,7 +342,7 @@ function VenueDetailInner({
   const street = venue.street ? titleCaseStreet(venue.street) : null;
   const address = [venue.blkNo ? titleCaseStreet(venue.blkNo) : null, street].filter(Boolean).join(' ');
   const heightText = height
-    ? `${units.height(height.value)} ${height.kind === 'gain' ? 'to climb' : 'above sea level'}`
+    ? `${units.height(height.value)} ${height.kind === 'gain' ? 'EG' : 'summit'}`
     : 'Height not recorded';
   const introMeta = [venue.storeys ? `${venue.storeys} floors` : null, heightText, address || null]
     .filter(Boolean)
@@ -149,7 +358,7 @@ function VenueDetailInner({
       ? 'Height is to the summit. The actual climb from the usual start is smaller and has not been measured yet.'
       : null,
     venue.type === 'hdb_block' && venue.elevationSource === 'estimated' && venue.storeys
-      ? `Height is estimated from ${venue.storeys} storeys × 2.8 m per floor. Climb by the stairwell and check it is open.`
+      ? `Height is estimated from ${venue.storeys} storeys × 2.5 m per floor. Take the stairwell and check it is open.`
       : null,
     venue.notes ?? null,
   ].filter((part): part is string => Boolean(part));
@@ -178,7 +387,7 @@ function VenueDetailInner({
   };
 
   const sourceLine = venue.elevationSource === 'estimated'
-    ? venue.storeys ? `Estimated from ${venue.storeys} storeys × 2.8 m` : 'Estimated'
+    ? venue.storeys ? `Estimated from ${venue.storeys} storeys × 2.5 m` : 'Estimated'
     : venue.elevationSource === 'dem'
       ? 'Sampled from the terrain model'
       : venue.elevationSource === 'community'
@@ -228,12 +437,12 @@ function VenueDetailInner({
         <div className="venue-detail-layout">
           <div className="venue-detail-main">
             <section className="venue-detail-intro">
-              <h2>The climb</h2>
+              <h2>The EG</h2>
               <p>{introMeta}</p>
             </section>
 
             <section className="venue-detail-section">
-              <h2>About this climb</h2>
+              <h2>About this venue</h2>
               <div className={`venue-about-copy${aboutIsLong && !aboutExpanded ? ' clamped' : ''}`}>
                 {aboutParts.map((part) => <p key={part}>{part}</p>)}
               </div>
@@ -250,7 +459,7 @@ function VenueDetailInner({
                         <RouteThumb route={route} />
                         <div className="venue-route-profile"><ElevationProfile points={route.coordinates} height={64} /></div>
                         <h3>{route.name}</h3>
-                        <p>{units.distance(route.distanceM)} · {units.height(route.gainM)} gain{route.loop ? ' · loop' : ''}</p>
+                        <p>{units.distance(route.distanceM)} · {units.height(route.gainM)} EG{route.loop ? ' · loop' : ''}</p>
                         {route.source === 'local' && <span className="local-route-tag">Saved on this device</span>}
                         <div className="venue-route-actions">
                           <button type="button" onClick={() => onShowOnMap(route.slug)}>Show on map</button>
@@ -270,14 +479,15 @@ function VenueDetailInner({
             </section>
 
             <RateCard venue={venue} />
+            <PhotoCard venue={venue} />
 
             {nearby.length > 0 && (
               <section className="venue-detail-section">
-                <div className="venue-section-heading"><h2>Nearby climbs</h2><span>Within 1 km</span></div>
+                <div className="venue-section-heading"><h2>Nearby venues</h2><span>Within 1 km</span></div>
                 <div className="nearby-grid">
                   {nearby.map(({ venue: item }) => {
                     const itemHeight = venueHeight(item);
-                    return <a className="nearby-card" href={`#venue/${item.slug}`} key={item.slug}><VenueThumb venue={item} /><strong>{item.name}</strong><span>{VENUE_TYPE_LABEL[item.type]}{itemHeight ? ` · ${units.height(itemHeight.value)} ${itemHeight.kind === 'gain' ? 'to climb' : 'above sea level'}` : ''}</span></a>;
+                    return <a className="nearby-card" href={`#venue/${item.slug}`} key={item.slug}><VenueThumb venue={item} /><strong>{item.name}</strong><span>{VENUE_TYPE_LABEL[item.type]}{itemHeight ? ` · ${units.height(itemHeight.value)} ${itemHeight.kind === 'gain' ? 'EG' : 'summit'}` : ''}</span></a>;
                   })}
                 </div>
               </section>
@@ -294,7 +504,7 @@ function VenueDetailInner({
 
           <aside className="venue-detail-side">
             <div className="venue-actions-card">
-              <p className="venue-actions-height">{height ? <><strong>{units.height(height.value)}</strong> {height.kind === 'gain' ? 'to climb' : 'above sea level'}</> : 'Height not recorded'}</p>
+              <p className="venue-actions-height">{height ? <><strong>{units.height(height.value)}</strong> {height.kind === 'gain' ? 'EG' : 'summit'}</> : 'Height not recorded'}</p>
               <p className="venue-actions-source">{sourceLine}</p>
               <button type="button" className="venue-primary-action" onClick={() => onShowOnMap()}><MapIcon size={16} />Show on map</button>
               {routes.length > 0 && <button type="button" className="venue-download-action" onClick={() => downloadRoute(routes[0])}><DownloadIcon size={16} />Download GPX{routes.length > 1 ? ` (${routes.length})` : ''}</button>}
@@ -307,7 +517,7 @@ function VenueDetailInner({
       </main>
 
       <div className="venue-mobile-bar">
-        <p>{height ? <><strong>{units.height(height.value)}</strong> {height.kind === 'gain' ? 'to climb' : 'above sea level'}</> : 'Height not recorded'}</p>
+        <p>{height ? <><strong>{units.height(height.value)}</strong> {height.kind === 'gain' ? 'EG' : 'summit'}</> : 'Height not recorded'}</p>
         <button type="button" onClick={() => onShowOnMap()}><MapIcon size={16} />Show on map</button>
       </div>
     </div>,

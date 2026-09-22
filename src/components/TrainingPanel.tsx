@@ -131,7 +131,7 @@ export function TrainingPanel({ onClose }: TrainingPanelProps) {
         {recent.length === 0 ? (
           <div className="training-empty">
             <p>No sessions logged yet.</p>
-            <p className="muted">Drop a GPX on the map and save it to this device to log your first climb.</p>
+            <p className="muted">Drop a GPX on the map and save it to this device to log your first session.</p>
           </div>
         ) : (
           <ul className="training-sessions">
@@ -139,7 +139,7 @@ export function TrainingPanel({ onClose }: TrainingPanelProps) {
               <li key={session.savedAt} className="training-session">
                 <div>
                   <strong>{session.routeName}</strong>
-                  <span className="muted">{formatDate(session.savedAt)} · {units.height(session.gainM)} gained</span>
+                  <span className="muted">{formatDate(session.savedAt)} · {units.height(session.gainM)} EG</span>
                 </div>
                 <button
                   type="button"

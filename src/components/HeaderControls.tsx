@@ -246,7 +246,7 @@ export function HeaderControls() {
             <div className="hdr-group">
               <p className="hdr-title">About</p>
               <p className="hdr-note">
-                A map of every hill, staircase and tall HDB block in Singapore, with the climb each
+                A map of every hill, staircase and tall HDB block in Singapore, with the elevation each
                 one gives you. No accounts and no server — every venue and route is a file in a
                 public repository, so a wrong number is a one-line fix.
               </p>

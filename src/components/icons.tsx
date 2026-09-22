@@ -5,14 +5,12 @@
  */
 
 /**
- * The product mark: a smooth elevation profile climbing left to right. Matches
- * public/favicon.svg — change the two together.
+ * The product mark: a square rounded tile with an elevation trace rising
+ * through it. Matches public/favicon.svg — change the two together.
  *
- * Deliberately not an alpine peak with a snow cap. Singapore's highest ground
- * is 163 m and tropical; a capped summit is the one thing the place
- * demonstrably is not, which is what made the old mark read as stock clip art.
- * A profile trace is what this app actually draws — on the landing page, and
- * under every route — so the mark is the product's own output at 22px.
+ * The trace is the app's own output (route profiles, the landing chart) made
+ * into a symbol. No snow-capped alpine peak: this is a tool for any hill,
+ * staircase or route, tropical or otherwise.
  */
 export function Mark({ size = 22 }: { size?: number }) {
   return (
@@ -24,11 +22,36 @@ export function Mark({ size = 22 }: { size?: number }) {
       aria-hidden="true"
       focusable="false"
     >
-      <rect width="32" height="32" rx="7" fill="#c85b3c" />
-      {/* A single clean curve: small rise, short dip, then the climb. */}
-      <path d="M-2 28 8 19l5 5 5-6 6 6 4-3 6 7v6H-2Z" fill="#7e3425" opacity="0.4" />
-      <circle cx="16" cy="10" r="3.5" fill="#ffffff" />
-      <path d="M10.5 15.5q-1.5 0-.5 1.5l4.5 9.5q1.5 2.5 3 0L22 17q1-1.5-.5-1.5Z" fill="#ffffff" />
+      <defs>
+        <linearGradient id="markGradient" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#d9653d" />
+          <stop offset="1" stopColor="#b04428" />
+        </linearGradient>
+      </defs>
+      <rect width="32" height="32" rx="7" fill="url(#markGradient)" />
+      {/* Background grid, faint. */}
+      <path d="M7 7h18v18H7Z" fill="none" stroke="#ffffff" strokeOpacity="0.12" strokeWidth="1" />
+      <path d="M7 13h18M7 19h18M13 7v18M19 7v18" fill="none" stroke="#ffffff" strokeOpacity="0.08" strokeWidth="1" />
+      {/* Elevation trace, white with a subtle casing. */}
+      <path
+        d="M6 23 L11 19 L15 21 L20 13 L26 16"
+        fill="none"
+        stroke="#7e3425"
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.35"
+      />
+      <path
+        d="M6 23 L11 19 L15 21 L20 13 L26 16"
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth="2.25"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Summit dot. */}
+      <circle cx="26" cy="16" r="2.5" fill="#ffffff" />
     </svg>
   );
 }

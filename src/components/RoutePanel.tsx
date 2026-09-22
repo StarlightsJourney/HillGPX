@@ -49,11 +49,11 @@ export function RoutePanel({ route, venuesBySlug, hoverIndex, onHoverIndex, onCl
       <div className="gpx-stats">
         {[
           ['Distance', units.distance(route.distanceM)],
-          ['Climbing', units.height(route.gainM)],
+          ['EG', units.height(route.gainM)],
           ['Descent', units.height(route.lossM)],
           ['Highest', units.height(maxM)],
           ['Lowest', units.height(minM)],
-          ['Per km', `${units.height(climbRate(route))}`],
+          ['EG / km', `${units.height(climbRate(route))}`],
         ].map(([label, value]) => (
           <div className="gpx-stat" key={label}>
             <strong>{value}</strong>

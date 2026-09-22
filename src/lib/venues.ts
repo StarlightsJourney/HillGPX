@@ -42,7 +42,23 @@ export interface Bounds {
  */
 export const DATA_BASE = `${import.meta.env.BASE_URL}data`;
 
-export async function loadDataset(baseUrl = DATA_BASE): Promise<Dataset> {
+let datasetPromise: Promise<Dataset> | null = null;
+
+/**
+ * Shared between the landing page and the map, so opening the map after the
+ * landing rows have loaded costs nothing. A failed load is not cached.
+ */
+export function loadDataset(baseUrl = DATA_BASE): Promise<Dataset> {
+  if (!datasetPromise) {
+    datasetPromise = fetchDataset(baseUrl).catch((error: unknown) => {
+      datasetPromise = null;
+      throw error;
+    });
+  }
+  return datasetPromise;
+}
+
+async function fetchDataset(baseUrl: string): Promise<Dataset> {
   const [venueData, routeData] = await Promise.all([
     fetchJson<VenueDataset>(`${baseUrl}/venues.json`),
     fetchJson<RouteDataset>(`${baseUrl}/routes.json`),

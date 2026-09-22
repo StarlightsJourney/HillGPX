@@ -12,6 +12,11 @@ This is the step that makes a route contribution a one-file pull request: drop
 a .gpx into data/routes/, run this, commit the result. Distance and elevation
 gain are computed here rather than trusted from the file.
 
+Community ratings in data/reviews.json (optional) are averaged per venue and
+written as venue["rating"] = {"average", "count"}; venues without reviews carry
+no rating key. Route sidecars may add sourceUrl and licence, and each route gets
+a coarse "country" from its first point when it falls in a known box.
+
 Dependencies: none beyond the standard library. If a terrain model has been
 fetched (scripts/fetch_dem.py), elevations are re-sampled from it; otherwise the
 GPX's own altitudes are used and the output is flagged accordingly.
@@ -193,7 +198,9 @@ def slugify(text: str) -> str:
 # Keys dropped from a venue when they carry no information. At ~10.8k blocks a
 # redundant key costs hundreds of kilobytes of JSON the browser has to parse, so
 # the output keeps only what the app actually reads.
-OPTIONAL_KEYS = ("summitM", "town", "yearCompleted", "notes", "storeys", "blkNo", "street", "photo", "notable")
+OPTIONAL_KEYS = (
+    "summitM", "town", "yearCompleted", "notes", "storeys", "blkNo", "street", "photo", "notable", "rating",
+)
 
 # ~1.1 m at the equator, which is finer than a building pin needs. OneMap
 # returns full float precision; writing all 16 digits is pure waste.
@@ -229,9 +236,13 @@ def mark_notable(venues: list[dict]) -> None:
     silently marks nothing. A 140 m block is remarkable among blocks, which is
     the comparison a person actually makes.
     """
+    # The same logic applies across countries: once Taiwan's 3,000 m peaks are
+    # in the set, no Malaysian or Singaporean hill would ever qualify, so the
+    # ranking is also split by the coarse country of each venue.
     by_type: dict[str, list[dict]] = {}
     for v in venues:
-        by_type.setdefault(v["type"], []).append(v)
+        country = country_for(v["lng"], v["lat"]) or "other"
+        by_type.setdefault(f"{v['type']}/{country}", []).append(v)
 
     for venue_type, group in sorted(by_type.items()):
         heights = sorted((v.get("gainM") or v.get("summitM") or 0) for v in group)
@@ -256,6 +267,66 @@ def load_photos() -> dict[str, dict]:
         return {}
     with open(path, encoding="utf-8") as fh:
         return json.load(fh).get("photos", {})
+
+
+def load_reviews(known_slugs: set[str]) -> dict[str, dict]:
+    """
+    Aggregate data/reviews.json into {slug: {"average": x.xx, "count": n}}.
+
+    Reviews arrive through the rate-venue issue form and are appended to the
+    file by hand or by a maintainer. Anything malformed is reported and
+    skipped rather than failing the build.
+    """
+    path = os.path.join(REPO_ROOT, "data", "reviews.json")
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as fh:
+        reviews = json.load(fh).get("reviews", [])
+
+    totals: dict[str, list[int]] = {}
+    for i, review in enumerate(reviews):
+        slug = review.get("venue") if isinstance(review, dict) else None
+        rating = review.get("rating") if isinstance(review, dict) else None
+        if slug not in known_slugs:
+            print(f"  Warning: review #{i} references unknown venue {slug!r}; ignored")
+            continue
+        if isinstance(rating, bool) or not isinstance(rating, int) or not 1 <= rating <= 5:
+            print(f"  Warning: review #{i} for {slug} has rating {rating!r} outside 1..5; ignored")
+            continue
+        totals.setdefault(slug, []).append(rating)
+
+    return {
+        slug: {"average": round(sum(rs) / len(rs), 2), "count": len(rs)}
+        for slug, rs in totals.items()
+    }
+
+
+# Coarse country lookup for routes, by the first track point. Order matters:
+# the boxes overlap, so small, tight ones (Singapore, Hong Kong, Taiwan) are
+# tested first and Singapore always wins over Malaysia. First match wins; no
+# match omits the key. (south, west, north, east)
+COUNTRY_BBOXES: list[tuple[str, tuple[float, float, float, float]]] = [
+    ("Singapore", (1.15, 103.55, 1.48, 104.10)),
+    ("Hong Kong", (22.13, 113.82, 22.57, 114.45)),
+    ("Taiwan", (21.85, 119.30, 25.35, 122.10)),
+    ("Malaysia", (1.20, 99.60, 6.75, 104.60)),   # peninsular
+    ("Malaysia", (0.85, 109.50, 7.40, 119.30)),  # Sabah and Sarawak (coarse)
+    ("Thailand", (5.60, 97.30, 20.50, 105.70)),
+    ("Vietnam", (8.30, 102.10, 23.40, 109.50)),
+    ("Philippines", (4.50, 116.90, 21.20, 126.70)),
+    ("Indonesia", (-11.00, 94.90, 6.10, 141.10)),
+    ("Japan", (24.00, 122.90, 45.60, 146.00)),
+    ("South Korea", (33.10, 124.60, 38.65, 131.90)),
+    ("Australia", (-43.70, 112.90, -10.00, 153.70)),
+    ("New Zealand", (-47.40, 166.30, -34.30, 178.60)),
+]
+
+
+def country_for(lng: float, lat: float) -> str | None:
+    for name, (s, w, n, e) in COUNTRY_BBOXES:
+        if s <= lat <= n and w <= lng <= e:
+            return name
+    return None
 
 
 def load_venues() -> list[dict]:
@@ -330,7 +401,15 @@ def parse_gpx_file(path: str) -> tuple[str | None, list[list[float]]]:
             ele = 0.0
         points.append([lng, lat, ele])
 
-    name_node = root.find(".//gpx:trk/gpx:name", GPX_NS) or root.find(".//trk/name")
+    # Explicit `is None` checks: an Element with no children is falsy, so the old
+    # `a or b` form was both deprecated and wrong for a <name> element.
+    name_node = root.find(".//gpx:trk/gpx:name", GPX_NS)
+    if name_node is None:
+        name_node = root.find(".//trk/name")
+    if name_node is None:
+        name_node = root.find(".//gpx:rte/gpx:name", GPX_NS)
+    if name_node is None:
+        name_node = root.find(".//rte/name")
     name = name_node.text.strip() if name_node is not None and name_node.text else None
     return name, points
 
@@ -415,7 +494,7 @@ def build_routes(venues: list[dict], dem: Dem | None) -> list[dict]:
         start, end = points[0], points[-1]
         is_loop = haversine_m(start[0], start[1], end[0], end[1]) < 100
 
-        routes.append({
+        route = {
             "slug": slug,
             "name": name,
             "venueSlugs": venue_slugs,
@@ -429,7 +508,16 @@ def build_routes(venues: list[dict], dem: Dem | None) -> list[dict]:
             "source": meta.get("source", "community"),
             "contributor": meta.get("contributor"),
             "description": meta.get("description"),
-        })
+        }
+        # Optional provenance, passed through only when the sidecar has it.
+        for key in ("sourceUrl", "licence"):
+            value = meta.get(key)
+            if isinstance(value, str) and value.strip():
+                route[key] = value.strip()
+        country = country_for(start[0], start[1])
+        if country:
+            route["country"] = country
+        routes.append(route)
 
         flag = "" if resampled else "  (no terrain model — gain from GPX altitude)"
         print(
@@ -544,6 +632,12 @@ def main() -> None:
         print(f"  {dropped:,} venues dropped for having no recorded height")
 
     mark_notable(venues)
+
+    ratings = load_reviews({v["slug"] for v in venues})
+    for v in venues:
+        if v["slug"] in ratings:
+            v["rating"] = ratings[v["slug"]]
+    print(f"  {len(ratings):,} venues have community ratings")
 
     print("\nRoutes")
     routes = build_routes(venues, dem)

@@ -4,25 +4,44 @@ All generated outputs are committed. The app does not run Python or need these c
 
 | Script | Purpose | Reads | Writes | Network and credentials | How often |
 |---|---|---|---|---|---|
-| `build_data.py` | Merge venues, photos and routes; simplify and profile routes; build landing statistics | `data/venues/*.json`, `data/photos.json`, `data/routes/*.gpx` and sidecars, `public/data/dem/` when present | `public/data/venues.json`, `public/data/routes.json`, `public/data/stats.json` | None; standard library only | After any source-data change |
+| `build_data.py` | Merge venues, photos, ratings and routes; simplify and profile routes; tag route country; build landing statistics | `data/venues/*.json`, `data/photos.json`, `data/reviews.json`, `data/routes/*.gpx` and sidecars, `public/data/dem/` when present | `public/data/venues.json`, `public/data/routes.json`, `public/data/stats.json` | None; standard library only | After any source-data change |
 | `fetch_dem.py` | Download and decode Singapore's AWS Terrarium terrain tiles | AWS Open Data terrain tiles | `public/data/dem/sg-dem.json`, `public/data/dem/sg-dem.bin` | Network; Pillow; no credentials | Once |
 | `ingest_hdb.py` | Pull HDB property data and geocode the blocks | data.gov.sg, OneMap, `scripts/.cache/geocode.json` | `data/venues/hdb-blocks.json`, geocode cache | Network; requests, python-dotenv and `ONEMAP_TOKEN` or `ONEMAP_EMAIL` plus `ONEMAP_PASSWORD` in `.env.local` | Roughly annually; about an hour on a cold cache |
-| `fetch_peaks.py` | Fetch named OpenStreetMap peaks with an `ele` tag | Overpass and the existing peaks file unless replacing | `data/venues/peaks.json` | Network; standard library only; no key | When the source region or OSM data changes |
+| `fetch_peaks.py` | Fetch named OpenStreetMap peaks with an `ele` tag, for one or more regions | Overpass and the existing peaks file unless replacing | `data/venues/peaks.json` | Network; standard library only; no key | When the source region or OSM data changes |
+| `import_gpx.py` | Import a route from a file, URL, OSM route relation or your own Strava route, with a provenance sidecar | GPX file/URL, Overpass, Strava API | `data/routes/<slug>.gpx`, `data/routes/<slug>.json` | Network only for URL/OSM/Strava; standard library only; Strava needs `STRAVA_ACCESS_TOKEN` | Per contributed route |
 | `fetch_photos.py` | Fetch, resize and record the latest Mapillary image within 60 m of each venue | `public/data/venues.json`, Mapillary, existing `data/photos.json` | `public/photos/*.webp`, `data/photos.json` | Network; Pillow, python-dotenv and `MAPILLARY_TOKEN` in `.env.local` | As imagery is added |
 
 For a full rebuild:
 
 ```bash
 pip install -r scripts/requirements.txt
-python scripts/fetch_dem.py
-python scripts/ingest_hdb.py
-python scripts/fetch_peaks.py --region sg-my
-python scripts/build_data.py
-python scripts/fetch_photos.py
-python scripts/build_data.py
+python3 scripts/fetch_dem.py
+python3 scripts/ingest_hdb.py
+python3 scripts/fetch_peaks.py --region sg-my
+python3 scripts/build_data.py
+python3 scripts/fetch_photos.py
+python3 scripts/build_data.py
 ```
 
-`fetch_peaks.py` accepts `--region singapore|sg-my|sea|alps|japan|nz` or `--bbox south,west,north,east`; `--min-ele` defaults to 50 m, and `--replace` discards rather than merges the existing file. `fetch_photos.py --limit N` caps a run; `--all` re-checks venues that already have a record.
+`fetch_peaks.py --region` takes one or more comma-separated presets — `singapore`, `sg-my`, `id` (Sumatra/Java/Bali/Lombok), `th`, `vn`, `ph`, `tw`, `hk`, `jp`, `kr`, `au`, `nz`, plus the broad `sea`, `japan`, `alps` — or `--bbox south,west,north,east`. Regions are fetched one after another with a 10 s pause, and merged into the existing file by slug/OSM id, so running `--region hk,tw` keeps the SG/MY entries. Each region has its own minimum elevation (e.g. `sg-my` 100 m, `hk` 150 m, `tw` 2,500 m, `jp` 2,000 m) so mountainous countries do not balloon the file; `--min-ele` overrides it for the whole run and `--max-per-region N` keeps only the tallest N. The script warns when `peaks.json` passes 2 MB — every summit lands in the `venues.json` the browser loads. `--replace` discards rather than merges the existing file. `fetch_photos.py --limit N` caps a run; `--all` re-checks venues that already have a record.
+
+On python.org macOS builds without "Install Certificates.command", HTTPS fails with `CERTIFICATE_VERIFY_FAILED`; `fetch_peaks.py` and `import_gpx.py` then fall back to `certifi` if installed or to `/etc/ssl/cert.pem`, keeping verification on.
+
+### Ratings
+
+`data/reviews.json` holds `{"reviews": [{"venue": "<slug>", "rating": 1-5, "comment": "...", "author": "@handle", "date": "YYYY-MM-DD"}]}`, copied from "Rate a venue" issues. `build_data.py` averages them into each venue as `"rating": {"average": 4.33, "count": 3}` and omits the key for unrated venues. Unknown slugs and out-of-range ratings are skipped with a warning.
+
+### Importing routes
+
+```bash
+python3 scripts/import_gpx.py ~/Downloads/run.gpx --name "Kent Ridge repeats" --contributor @you --licence "CC BY 4.0"
+python3 scripts/import_gpx.py https://example.org/route.gpx --licence CC0
+python3 scripts/import_gpx.py --osm-relation 5993965          # Southern Ridges Walk
+python3 scripts/import_gpx.py --strava-route 1234567890       # your own route, official API
+python3 scripts/build_data.py
+```
+
+The GPX must hold at least two `<trkpt>` or `<rtept>` points; route-only files are converted to a track. `--osm-relation` stitches the relation's ways by nearest endpoints (check the result; branching relations report gaps) and records licence `ODbL © OpenStreetMap contributors` and the relation URL. `--strava-route` calls only `GET /api/v3/routes/{id}/export_gpx` with `STRAVA_ACCESS_TOKEN` from the environment or `.env.local`; it works for routes your token can access and never scrapes strava.com, which Strava's terms forbid. `--dry-run` validates without writing; `--force` overwrites an existing slug. Route sidecars may carry `sourceUrl` and `licence`, which `build_data.py` passes into `routes.json`, and every route gets a coarse `country` from its start point.
 
 Keep `GAIN_THRESHOLD_M` and `SMOOTH_WINDOW` in `build_data.py` in sync with the `computeGain` defaults in `src/lib/elevation.ts`.
 

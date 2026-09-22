@@ -91,7 +91,9 @@ For route or venue changes, also run the workflow skill in `.devin/skills/hillgp
 - **Port 5180 is strict.** `vite.config.ts` sets `strictPort: true`; if another process holds the port, `npm run dev` fails loudly. Stop the other process or temporarily override `PORT`.
 - **OneMap credentials** are only needed for `scripts/ingest_hdb.py`. Without them, do not run that script; use the committed `data/venues/hdb-blocks.json`.
 - **Mapillary token** is only needed for `scripts/fetch_photos.py`. Without it, photos are not refreshed.
-- **Python** must be available. `scripts/build_data.py` uses only the standard library.
+- **Python** must be available. `scripts/build_data.py` uses only the standard library. On this macOS machine the command is `python3` (there is no `python`), and the Python 3.14 install has no CA bundle — network scripts fall back to `certifi` or `/etc/ssl/cert.pem` via `ssl_context()` in `scripts/fetch_peaks.py`.
+- **Route imports** go through `scripts/import_gpx.py` (file/URL, `--osm-relation`, or `--strava-route` via the official API with the owner's token). Do not scrape Strava web pages; it breaks their terms.
+- **Design layer**: patterns follow Airbnb (search pill, icon category bar, listing cards, pill pins). New visual work goes in `src/design.css`; honour `prefers-reduced-motion`.
 - **macOS file quarantines / extended attributes** (`@` in `ls -la`) can appear on downloaded files; they do not affect the build.
 - **No special browser permissions** are required. Geolocation is optional and handled defensively.
 

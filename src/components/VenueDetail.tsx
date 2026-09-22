@@ -5,12 +5,64 @@ import { VENUE_TYPE_LABEL, tallestWithin, titleCaseStreet, townName, venueHeight
 import { useUnits } from './UnitsContext';
 import { ElevationProfile } from './ElevationProfile';
 import { PhotoCredit, VenueThumb } from './VenueThumb';
-import { ChevronLeftIcon, DownloadIcon, HeartIcon, MapIcon, Mark, ShareIcon } from './icons';
+import { ChevronLeftIcon, DownloadIcon, HeartIcon, MapIcon, Mark, ShareIcon, StarIcon } from './icons';
 import { HeaderControls } from './HeaderControls';
 import { downloadRoute } from './VenueCard';
+import { RatingLabel } from './ResultsList';
+import { RouteThumb } from './RouteThumb';
+import { REPO_URL, addPhotoUrl, loadMyRatings, rateVenueUrl, saveMyRating } from '../lib/contribute';
+import { regionOf } from '../lib/regions';
 
 const MiniMap = lazy(() => import('./MiniMap').then((module) => ({ default: module.MiniMap })));
-const REPO_URL = 'https://github.com/StarlightsJourney/HillGPX';
+
+const RATING_WORDS = ['', 'Not worth it', 'Meh', 'Solid', 'Great session', 'Must climb'];
+
+function RateCard({ venue }: { venue: Venue }) {
+  const [mine, setMine] = useState<number>(() => loadMyRatings()[venue.slug] ?? 0);
+  const [hover, setHover] = useState(0);
+  const shown = hover || mine;
+  return (
+    <section className="venue-detail-section rate-section">
+      <div className="venue-section-heading">
+        <h2>
+          {venue.rating ? (
+            <span className="rate-summary">
+              <StarIcon size={20} filled /> {venue.rating.average.toFixed(2)} · {venue.rating.count} rating{venue.rating.count === 1 ? '' : 's'}
+            </span>
+          ) : (
+            'Be the first to rate it'
+          )}
+        </h2>
+      </div>
+      <p className="muted">How good a training venue is it? Your rating is kept on this device; publish it to add it to the map for everyone.</p>
+      <div className="rate-stars" role="radiogroup" aria-label="Your rating" onMouseLeave={() => setHover(0)}>
+        {[1, 2, 3, 4, 5].map((value) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={mine === value}
+            aria-label={`${value} star${value === 1 ? '' : 's'}`}
+            className={`rate-star${value <= shown ? ' on' : ''}`}
+            onMouseEnter={() => setHover(value)}
+            onClick={() => {
+              setMine(value);
+              saveMyRating(venue.slug, value);
+            }}
+          >
+            <StarIcon size={28} filled={value <= shown} />
+          </button>
+        ))}
+        <span className="rate-word">{RATING_WORDS[shown]}</span>
+      </div>
+      {mine > 0 && (
+        <a className="btn btn-dark rate-publish" href={rateVenueUrl(venue.slug, mine, venue.name)} target="_blank" rel="noreferrer">
+          Publish rating on GitHub
+        </a>
+      )}
+    </section>
+  );
+}
 
 interface VenueDetailProps {
   venue: Venue;
@@ -77,7 +129,7 @@ function VenueDetailInner({
   const copyTimer = useRef<number | null>(null);
   const height = venueHeight(venue);
   const typeLabel = VENUE_TYPE_LABEL[venue.type];
-  const area = townName(venue.town);
+  const area = townName(venue.town) ?? regionOf(venue.lng, venue.lat);
   const street = venue.street ? titleCaseStreet(venue.street) : null;
   const address = [venue.blkNo ? titleCaseStreet(venue.blkNo) : null, street].filter(Boolean).join(' ');
   const heightText = height
@@ -143,7 +195,14 @@ function VenueDetailInner({
 
       <main className="venue-detail-content">
         <div className="venue-detail-title-row">
-          <h1>{venue.name}</h1>
+          <div>
+            <h1>{venue.name}</h1>
+            <p className="venue-detail-sub">
+              <RatingLabel rating={venue.rating} />
+              {venue.rating && <span aria-hidden="true"> · </span>}
+              {area ? `${typeLabel} in ${area}` : typeLabel}
+            </p>
+          </div>
           <div className="venue-detail-title-actions">
             <button type="button" aria-label="Share" onClick={() => void share()}><ShareIcon size={16} /><span className="venue-action-label">{copied ? 'Link copied' : 'Share'}</span></button>
             <button type="button" aria-label="Save" onClick={onToggleFavorite}><HeartIcon size={16} filled={isFavorite} /><span className="venue-action-label">{isFavorite ? 'Saved' : 'Save'}</span></button>
@@ -159,14 +218,17 @@ function VenueDetailInner({
           <div className="venue-detail-empty-photo">
             <CameraGlyph />
             <strong>No photo yet</strong>
-            <p>Add a street-level photo on <a href="https://www.mapillary.com" target="_blank" rel="noreferrer">Mapillary</a> and it will be imported with credit</p>
+            <p>Been here? Share a photo so the next person knows what they are walking into.</p>
+            <a className="btn btn-light" href={addPhotoUrl(venue.slug, venue.name)} target="_blank" rel="noreferrer">
+              Add a photo
+            </a>
           </div>
         )}
 
         <div className="venue-detail-layout">
           <div className="venue-detail-main">
             <section className="venue-detail-intro">
-              <h2>{area ? `${typeLabel} in ${area}` : typeLabel}</h2>
+              <h2>The climb</h2>
               <p>{introMeta}</p>
             </section>
 
@@ -185,7 +247,8 @@ function VenueDetailInner({
                   <div className="venue-route-grid">
                     {routes.map((route) => (
                       <article className="venue-route-card" key={route.slug}>
-                        <div className="venue-route-profile"><ElevationProfile points={route.coordinates} height={96} /></div>
+                        <RouteThumb route={route} />
+                        <div className="venue-route-profile"><ElevationProfile points={route.coordinates} height={64} /></div>
                         <h3>{route.name}</h3>
                         <p>{units.distance(route.distanceM)} · {units.height(route.gainM)} gain{route.loop ? ' · loop' : ''}</p>
                         {route.source === 'local' && <span className="local-route-tag">Saved on this device</span>}
@@ -205,6 +268,8 @@ function VenueDetailInner({
                 </div>
               )}
             </section>
+
+            <RateCard venue={venue} />
 
             {nearby.length > 0 && (
               <section className="venue-detail-section">
@@ -235,7 +300,7 @@ function VenueDetailInner({
               {routes.length > 0 && <button type="button" className="venue-download-action" onClick={() => downloadRoute(routes[0])}><DownloadIcon size={16} />Download GPX{routes.length > 1 ? ` (${routes.length})` : ''}</button>}
               <div className="venue-card-actions"><button type="button" onClick={onToggleFavorite}><HeartIcon size={16} filled={isFavorite} />{isFavorite ? 'Saved' : 'Save'}</button><button type="button" onClick={() => void share()}><ShareIcon size={16} />{copied ? 'Link copied' : 'Share'}</button></div>
             </div>
-            <a className="venue-report" href={`${REPO_URL}/issues`} target="_blank" rel="noreferrer"><FlagGlyph />Report a problem with this venue</a>
+            <a className="venue-report" href={`${REPO_URL}/issues/new?title=${encodeURIComponent(`Problem: ${venue.name} (${venue.slug})`)}`} target="_blank" rel="noreferrer"><FlagGlyph />Report a problem with this venue</a>
             <div className="venue-plan-desktop"><PlannerCard venue={venue} /></div>
           </aside>
         </div>

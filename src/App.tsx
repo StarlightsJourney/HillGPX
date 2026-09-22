@@ -4,8 +4,12 @@ import { ResultsList } from './components/ResultsList';
 import { GpxDropzone, type LoadedGpx } from './components/GpxDropzone';
 import { GpxPanel } from './components/GpxPanel';
 import { SearchBar } from './components/SearchBar';
-import { FilterBar } from './components/FilterBar';
+import { FilterBar, type BrowseMode } from './components/FilterBar';
 import { VenueDetail } from './components/VenueDetail';
+import { RoutesList } from './components/RoutesList';
+import { RoutePanel } from './components/RoutePanel';
+import { NO_ROUTE_FILTERS, filterRoutes, routeBounds, type RouteFilters } from './lib/routes';
+import { boundsFromHash } from './lib/regions';
 import { ElevationModel } from './lib/elevation';
 import {
   NO_FILTERS,
@@ -23,7 +27,7 @@ import {
 } from './lib/venues';
 import { haversineM } from './lib/elevation';
 import type { Route, RoutePoint, Venue } from './types';
-import { CloseIcon, ListIcon, LocationArrowIcon, MapIcon, Mark } from './components/icons';
+import { CloseIcon, ListIcon, LocationArrowIcon, MapIcon, Mark, UploadIcon } from './components/icons';
 import { loadLocalRoutes, saveLocalRoutes } from './lib/localRoutes';
 import { routeFromPoints } from './lib/routes';
 import { logSession } from './lib/training';
@@ -42,7 +46,8 @@ const MapView = lazy(() => import('./map/MapView').then((m) => ({ default: m.Map
 type View = 'landing' | 'map' | 'training';
 
 function viewFromHash(): View {
-  if (window.location.hash === '#map' || window.location.hash.startsWith('#venue/')) return 'map';
+  const hash = window.location.hash;
+  if (hash === '#map' || hash === '#routes' || hash.startsWith('#map/') || hash.startsWith('#venue/')) return 'map';
   if (window.location.hash === '#training') return 'training';
   return 'landing';
 }
@@ -75,6 +80,24 @@ export default function App() {
         <MapApp />
       )}
     </UnitsProvider>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <section className="results" aria-busy="true">
+      <div className="sk-line sk-heading" />
+      <ul className="results-grid">
+        {Array.from({ length: 6 }, (_, i) => (
+          <li key={i} className="skeleton-card" aria-hidden="true">
+            <span className="sk-thumb" />
+            <span className="sk-line" />
+            <span className="sk-line" />
+            <span className="sk-line" />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -124,6 +147,13 @@ function MapApp() {
   const [listOpen, setListOpen] = useState(true);
   const [gpxOpen, setGpxOpen] = useState(false);
   const [filters, setFilters] = useState<VenueFilters>(NO_FILTERS);
+  const [mode, setMode] = useState<BrowseMode>(() =>
+    window.location.hash === '#routes' || sessionStorage.getItem('hillgpx:mode') === 'routes' ? 'routes' : 'climbs',
+  );
+  const [routeFilters, setRouteFilters] = useState<RouteFilters>(NO_ROUTE_FILTERS);
+  const [selectedRouteSlug, setSelectedRouteSlug] = useState<string | null>(null);
+  const [hoveredRouteSlug, setHoveredRouteSlug] = useState<string | null>(null);
+  const [routeHoverIndex, setRouteHoverIndex] = useState<number | null>(null);
   const [viewport, setViewport] = useState<
     { west: number; south: number; east: number; north: number } | null
   >(null);
@@ -152,6 +182,19 @@ function MapApp() {
   useEffect(() => {
     localStorage.setItem('hillgpx:favorites', JSON.stringify([...favorites]));
   }, [favorites]);
+
+  useEffect(() => {
+    sessionStorage.setItem('hillgpx:mode', mode);
+  }, [mode]);
+
+  // A landing-page destination arrives as #map/w,s,e,n. Frame it once, then
+  // tidy the hash so a refresh does not keep yanking the camera back.
+  useEffect(() => {
+    const bounds = boundsFromHash(window.location.hash);
+    if (!bounds) return;
+    setFocusBounds({ bounds, nonce: Date.now() });
+    history.replaceState(null, '', '#map');
+  }, []);
 
   const allVenues = dataset?.venues ?? NO_VENUES;
 
@@ -200,16 +243,55 @@ function MapApp() {
     return counts;
   }, [localRoutes]);
 
+  const allRoutes = useMemo(() => [...(dataset?.routes ?? []), ...localRoutes], [dataset, localRoutes]);
+  const filteredRoutes = useMemo(() => filterRoutes(allRoutes, routeFilters), [allRoutes, routeFilters]);
+  const selectedRoute = selectedRouteSlug ? allRoutes.find((route) => route.slug === selectedRouteSlug) ?? null : null;
+
   // A dropped GPX wins the map over a stored route — it is what you just did.
   const activeRoutePoints: RoutePoint[] | null = useMemo(() => {
     if (droppedGpx) return droppedGpx.points;
+    if (selectedRoute) return selectedRoute.coordinates;
     if (!activeRouteSlug) return null;
-    return (
-      dataset?.routeBySlug.get(activeRouteSlug)?.coordinates ??
-      localRoutes.find((route) => route.slug === activeRouteSlug)?.coordinates ??
-      null
-    );
-  }, [droppedGpx, activeRouteSlug, dataset, localRoutes]);
+    return allRoutes.find((route) => route.slug === activeRouteSlug)?.coordinates ?? null;
+  }, [droppedGpx, selectedRoute, activeRouteSlug, allRoutes]);
+
+  const selectRoute = useCallback((slug: string | null) => {
+    setSelectedRouteSlug(slug);
+    setRouteHoverIndex(null);
+    if (slug) {
+      setSelectedSlug(null);
+      setDroppedGpx(null);
+      setListOpen(false);
+    }
+  }, []);
+
+  const frameRoutes = useCallback((routes: Route[]) => {
+    const boxes = routes.map(routeBounds).filter((b): b is Bounds => Boolean(b));
+    if (boxes.length === 0) return;
+    setFocusBounds({
+      bounds: {
+        west: Math.min(...boxes.map((b) => b.west)),
+        south: Math.min(...boxes.map((b) => b.south)),
+        east: Math.max(...boxes.map((b) => b.east)),
+        north: Math.max(...boxes.map((b) => b.north)),
+      },
+      nonce: Date.now(),
+    });
+  }, []);
+
+  // A route card on the landing page hands its slug over to open straight onto it.
+  useEffect(() => {
+    if (!dataset) return;
+    const pending = sessionStorage.getItem('hillgpx:pendingRoute');
+    if (!pending) return;
+    sessionStorage.removeItem('hillgpx:pendingRoute');
+    if (dataset.routeBySlug.has(pending)) selectRoute(pending);
+  }, [dataset, selectRoute]);
+
+  const routeHoverPoint: [number, number] | null =
+    selectedRoute && routeHoverIndex != null && selectedRoute.coordinates[routeHoverIndex]
+      ? [selectedRoute.coordinates[routeHoverIndex][0], selectedRoute.coordinates[routeHoverIndex][1]]
+      : null;
 
   const selectVenue = useCallback(
     (slug: string | null, fly = false) => {
@@ -234,10 +316,13 @@ function MapApp() {
     (routeSlug?: string) => {
       if (!detailVenue) return;
       closeDetail();
+      if (routeSlug) {
+        selectRoute(routeSlug);
+        return;
+      }
       selectVenue(detailVenue.slug, true);
-      setActiveRouteSlug(routeSlug ?? null);
     },
-    [closeDetail, detailVenue, selectVenue],
+    [closeDetail, detailVenue, selectVenue, selectRoute],
   );
 
   const toggleFavorite = useCallback((slug: string) => {
@@ -300,7 +385,9 @@ function MapApp() {
         const [closest] = nearest(allVenues, longitude, latitude, 1);
         const gapM = closest ? haversineM(longitude, latitude, closest.lng, closest.lat) : Infinity;
         if (gapM > 100_000) {
-          setMapError(`You are about ${Math.round(gapM / 1000)} km from the nearest mapped climb. hillGPX only covers Singapore and Peninsular Malaysia.`);
+          setLocateHint(`The nearest mapped climb is about ${Math.round(gapM / 1000)} km away. Know a hill near you? Add it from the menu.`);
+          setUserLocation({ lng: longitude, lat: latitude });
+          setFocus({ lng: longitude, lat: latitude, nonce: Date.now() });
           return;
         }
         const nearby = tallestWithin(allVenues, longitude, latitude, 2_000, 8);
@@ -351,7 +438,8 @@ function MapApp() {
             aria-expanded={gpxOpen}
             aria-controls="gpx-panel"
           >
-            Import GPX
+            <UploadIcon size={16} />
+            <span className="hide-narrow">Import GPX</span>
           </button>
 
           <HeaderControls />
@@ -363,12 +451,22 @@ function MapApp() {
         visibleVenues={viewportVenues}
         filters={filters}
         onChange={setFilters}
+        mode={mode}
+        onModeChange={(next) => {
+          setMode(next);
+          setSelectedSlug(null);
+          if (next === 'climbs') setSelectedRouteSlug(null);
+        }}
+        routes={allRoutes}
+        routeFilters={routeFilters}
+        onRouteFiltersChange={setRouteFilters}
       />
 
       <main className={`stage${mapExpanded ? ' map-expanded' : ''}`}>
         {/* Wide screens start split and can expand the map; small screens toggle views. */}
         <div className={`list-pane${listOpen ? ' open' : ''}`}>
-          {dataset && (
+          {!dataset && !loadError && <ListSkeleton />}
+          {dataset && mode === 'climbs' && (
             <ResultsList
               venues={venues}
               bounds={viewport}
@@ -376,6 +474,17 @@ function MapApp() {
               onHover={setHoveredSlug}
               favorites={favorites}
               onToggleFavorite={toggleFavorite}
+            />
+          )}
+          {dataset && mode === 'routes' && (
+            <RoutesList
+              routes={filteredRoutes}
+              bounds={viewport}
+              selectedSlug={selectedRouteSlug}
+              onSelect={selectRoute}
+              onHover={setHoveredRouteSlug}
+              onImport={() => setGpxOpen(true)}
+              onShowAll={frameRoutes}
             />
           )}
         </div>
@@ -392,7 +501,13 @@ function MapApp() {
           <div className="map-wrap">
             <Suspense fallback={<div className="map-skeleton"><div className="map-skeleton-pulse" /></div>}>
               <MapView
-                venues={venues}
+                allRoutes={mode === 'routes' ? filteredRoutes : allRoutes}
+                mode={mode}
+                selectedRouteSlug={selectedRouteSlug}
+                hoveredRouteSlug={hoveredRouteSlug}
+                onSelectRoute={selectRoute}
+                onHoverRoute={setHoveredRouteSlug}
+                venues={mode === 'routes' ? NO_VENUES : venues}
                 selectedSlug={selectedSlug}
                 selectedVenue={selectedVenue}
                 routes={venueRoutes}
@@ -405,9 +520,9 @@ function MapApp() {
                 mapExpanded={mapExpanded}
                 onToggleExpand={() => setMapExpanded((value) => !value)}
                 injectedVenueSlugs={droppedGpx?.venueSlugs ?? []}
-                hoverPoint={gpxHoverPoint}
-                onRouteHover={setGpxHoverIndex}
-                routePanelOpen={Boolean(droppedGpx)}
+                hoverPoint={gpxHoverPoint ?? routeHoverPoint}
+                onRouteHover={droppedGpx ? setGpxHoverIndex : setRouteHoverIndex}
+                routePanelOpen={Boolean(droppedGpx || selectedRoute)}
                 favorites={favorites}
                 onToggleFavorite={toggleFavorite}
                 onLocateHint={setLocateHint}
@@ -452,6 +567,16 @@ function MapApp() {
               </div>
             )}
 
+            {!droppedGpx && selectedRoute && (
+              <RoutePanel
+                route={selectedRoute}
+                venuesBySlug={dataset?.bySlug ?? new Map()}
+                hoverIndex={routeHoverIndex}
+                onHoverIndex={setRouteHoverIndex}
+                onClose={() => selectRoute(null)}
+              />
+            )}
+
             {droppedGpx && droppedRoute && (
               <GpxPanel
                 loaded={droppedGpx}
@@ -469,7 +594,7 @@ function MapApp() {
           </div>
         )}
 
-        {!(selectedVenue && !listOpen) && !(droppedGpx && !listOpen) && (
+        {!(selectedVenue && !listOpen) && !((droppedGpx || selectedRoute) && !listOpen) && (
           <button type="button" className="view-toggle" onClick={() => setListOpen((v) => !v)}>
             {listOpen ? (
               <>

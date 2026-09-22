@@ -2,8 +2,20 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Venue } from '../types';
 import { VENUE_TYPE_LABEL, rankingHeight, venueHeight, venuesInBounds } from '../lib/venues';
 import { VenueThumb } from './VenueThumb';
-import { HeartIcon, SearchIcon } from './icons';
+import { HeartIcon, SearchIcon, StarIcon } from './icons';
 import { useUnits } from './UnitsContext';
+import { regionOf } from '../lib/regions';
+
+export function RatingLabel({ rating }: { rating?: { average: number; count: number } }) {
+  if (!rating || rating.count === 0) return null;
+  return (
+    <span className="rating" aria-label={`Rated ${rating.average.toFixed(1)} out of 5 by ${rating.count}`}>
+      <StarIcon size={12} filled />
+      {rating.average.toFixed(2).replace(/0$/, '')}
+      <span className="rating-count">({rating.count})</span>
+    </span>
+  );
+}
 
 interface ResultsListProps {
   venues: Venue[];
@@ -205,19 +217,21 @@ function ResultsListInner({
                   <span className="sk-line" />
                 </li>
               ))
-            : rows.map((venue) => {
+            : rows.map((venue, index) => {
                 const height = venueHeight(venue);
                 const isFavorite = favorites.has(venue.slug);
                 const routeCount = venue.routeSlugs.length + (routeCounts.get(venue.slug) ?? 0);
+                const region = regionOf(venue.lng, venue.lat);
 
                 return (
                   <li
                     key={venue.slug}
                     className="result-item"
+                    style={{ '--i': index } as React.CSSProperties}
                     onMouseEnter={() => onHover?.(venue.slug)}
                     onMouseLeave={() => onHover?.(null)}
                   >
-                    {venue.notable && <span className="result-badge">Tall</span>}
+                    {venue.notable && <span className="result-badge">Top climb</span>}
                     <button
                       type="button"
                       className={`result-favorite${isFavorite ? ' on' : ''}`}
@@ -228,9 +242,13 @@ function ResultsListInner({
                     </button>
                     <a className="result-card" data-slug={venue.slug} href={`#venue/${venue.slug}`}>
                       <VenueThumb venue={venue} />
-                      <span className="result-card-name">{venue.name}</span>
+                      <span className="result-card-top">
+                        <span className="result-card-name">{venue.name}</span>
+                        <RatingLabel rating={venue.rating} />
+                      </span>
                       <span className="result-card-meta">
                         {VENUE_TYPE_LABEL[venue.type]}
+                        {region && region !== 'Singapore' ? ` in ${region}` : ''}
                         {venue.storeys != null && ` · ${venue.storeys} floors`}
                       </span>
                       <span className="result-card-gain">

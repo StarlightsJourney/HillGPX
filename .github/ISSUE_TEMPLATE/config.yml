@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Contributing guide
+    url: https://github.com/StarlightsJourney/HillGPX/blob/main/CONTRIBUTING.md
+    about: How venues, routes, photos and ratings get into the map.

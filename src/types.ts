@@ -71,6 +71,9 @@ export interface Venue {
    * fixed metre threshold, so it still means something in another country.
    */
   notable?: boolean;
+
+  /** Aggregated from data/reviews.json at build time. Absent when unrated. */
+  rating?: { average: number; count: number };
 }
 
 export type RouteSurface = 'trail' | 'stairs' | 'road' | 'boardwalk' | 'mixed';
@@ -101,6 +104,11 @@ export interface Route {
   /** GitHub handle of whoever contributed the GPX, for credit. */
   contributor?: string;
   description?: string;
+  /** Coarse country of the start point, derived at build time. */
+  country?: string;
+  /** Where the GPX came from, and under what terms it is republished. */
+  sourceUrl?: string;
+  licence?: string;
 }
 
 /**

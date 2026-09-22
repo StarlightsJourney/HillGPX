@@ -1,0 +1,36 @@
+name: Rate a venue
+description: Rate a place you've trained on, 1 to 5.
+title: "Rating: "
+labels: ["data", "review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ratings are copied into `data/reviews.json` by a maintainer and averaged at build time.
+        Your GitHub handle and today's date are recorded with the rating.
+  - type: input
+    id: venue
+    attributes:
+      label: Venue slug
+      description: The id in the venue's link, e.g. `bukit-timah-hill`.
+      placeholder: bukit-timah-hill
+    validations:
+      required: true
+  - type: dropdown
+    id: rating
+    attributes:
+      label: Rating
+      description: 5 = excellent vertical training venue, 1 = not worth the trip.
+      options:
+        - "1"
+        - "2"
+        - "3"
+        - "4"
+        - "5"
+    validations:
+      required: true
+  - type: textarea
+    id: comment
+    attributes:
+      label: Comment
+      description: Optional. Surface, shade, crowds, water, best time of day.

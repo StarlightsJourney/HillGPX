@@ -8,15 +8,19 @@ import { haversineM } from '../lib/elevation';
 import { useUnits } from '../components/UnitsContext';
 import { VenueCard } from '../components/VenueCard';
 import {
+  addAllRouteLayers,
   addRouteLayers,
   addVenueLayers,
-  setActiveRoute,
+  animateActiveRoute,
+  routesToGeoJson,
+  setRouteEmphasis,
+  setRouteFeatureState,
   setRouteHover,
   venuesToGeoJson,
   MARKER_COLS,
   MARKER_ROWS,
 } from './layers';
-import { VenueMarkers } from './markers';
+import { RouteMarkers, VenueMarkers } from './markers';
 import { MAP_STYLE_URL } from './constants';
 
 /**
@@ -116,6 +120,14 @@ interface MapViewProps {
   ) => void;
   /** The user's current location, shown as a blue dot when available. */
   userLocation?: { lng: number; lat: number } | null;
+  /** Every route to draw, whatever mode the page is in. */
+  allRoutes: Route[];
+  /** Routes mode puts distance pills on route starts and brings the lines forward. */
+  mode: 'climbs' | 'routes';
+  selectedRouteSlug: string | null;
+  hoveredRouteSlug: string | null;
+  onSelectRoute: (slug: string | null) => void;
+  onHoverRoute: (slug: string | null) => void;
 }
 
 function boundsMeaningfullyChanged(
@@ -207,7 +219,22 @@ export function MapView({
   onMapError,
   onViewportChange,
   userLocation,
+  allRoutes,
+  mode,
+  selectedRouteSlug,
+  hoveredRouteSlug,
+  onSelectRoute,
+  onHoverRoute,
 }: MapViewProps) {
+  const allRoutesRef = useRef(allRoutes);
+  allRoutesRef.current = allRoutes;
+  const onSelectRouteRef = useRef(onSelectRoute);
+  onSelectRouteRef.current = onSelectRoute;
+  const onHoverRouteRef = useRef(onHoverRoute);
+  onHoverRouteRef.current = onHoverRoute;
+  const routeMarkersRef = useRef<RouteMarkers | null>(null);
+  const prevSelectedRouteRef = useRef<string | null>(null);
+  const prevHoveredRouteRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const [ready, setReady] = useState(false);
@@ -261,10 +288,9 @@ export function MapView({
       container: containerRef.current,
       style: MAP_STYLE_URL,
       center: SINGAPORE_CENTRE,
-      zoom: 12,
-      minZoom: 9,
+      zoom: 11,
+      minZoom: 2,
       renderWorldCopies: false,
-      maxBounds: [[95, -4], [115, 10]],
       attributionControl: { compact: true },
     });
     mapRef.current = map;
@@ -319,15 +345,42 @@ export function MapView({
       if (loc) {
         (map.getSource('user-location') as GeoJSONSource).setData(userLocationFeature(loc.lng, loc.lat));
       }
+      addAllRouteLayers(map, routesToGeoJson(allRoutesRef.current));
       addRouteLayers(map);
       markersRef.current = new VenueMarkers(map, {
         onSelect: (slug) => onSelectRef.current(slug),
         onHover: (slug) => onHoverRef.current?.(slug),
       });
+      routeMarkersRef.current = new RouteMarkers(map, {
+        onSelect: (slug) => onSelectRouteRef.current(slug),
+        onHover: (slug) => onHoverRouteRef.current(slug),
+      });
       refreshMarkersRef.current(true);
       setReady(true);
 
-      map.on('click', () => onSelectRef.current(null));
+      map.on('click', (event) => {
+        const hit = map.queryRenderedFeatures(event.point, { layers: ['routes-hit'] })[0];
+        const slug = hit?.properties?.slug as string | undefined;
+        if (slug) {
+          onSelectRouteRef.current(slug);
+          return;
+        }
+        onSelectRef.current(null);
+      });
+      let hoveredRoute: string | null = null;
+      map.on('mousemove', 'routes-hit', (event) => {
+        const slug = (event.features?.[0]?.properties?.slug as string | undefined) ?? null;
+        map.getCanvas().style.cursor = slug ? 'pointer' : '';
+        if (slug !== hoveredRoute) {
+          hoveredRoute = slug;
+          onHoverRouteRef.current(slug);
+        }
+      });
+      map.on('mouseleave', 'routes-hit', () => {
+        map.getCanvas().style.cursor = '';
+        hoveredRoute = null;
+        onHoverRouteRef.current(null);
+      });
       map.on('mousemove', (event) => {
         cancelAnimationFrame(routeHoverFrame);
         routeHoverFrame = requestAnimationFrame(() => {
@@ -486,6 +539,8 @@ export function MapView({
       observer.disconnect();
       markersRef.current?.remove();
       markersRef.current = null;
+      routeMarkersRef.current?.remove();
+      routeMarkersRef.current = null;
       map.remove();
       mapRef.current = null;
       setReady(false);
@@ -545,7 +600,32 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    setActiveRoute(map, activeRoute);
+    (map.getSource('routes') as GeoJSONSource | undefined)?.setData(routesToGeoJson(allRoutes));
+    prevSelectedRouteRef.current = null;
+    prevHoveredRouteRef.current = null;
+    routeMarkersRef.current?.setRoutes(mode === 'routes' ? allRoutes : [], units);
+  }, [allRoutes, mode, units, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    setRouteEmphasis(map, mode === 'routes');
+  }, [mode, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    setRouteFeatureState(map, selectedRouteSlug, 'selected', prevSelectedRouteRef.current);
+    setRouteFeatureState(map, hoveredRouteSlug, 'hover', prevHoveredRouteRef.current);
+    prevSelectedRouteRef.current = selectedRouteSlug;
+    prevHoveredRouteRef.current = hoveredRouteSlug;
+    routeMarkersRef.current?.setState(selectedRouteSlug, hoveredRouteSlug);
+  }, [selectedRouteSlug, hoveredRouteSlug, allRoutes, mode, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const cancel = animateActiveRoute(map, activeRoute);
 
     if (activeRoute && activeRoute.length > 1) {
       const bounds = activeRoute.reduce(
@@ -556,10 +636,12 @@ export function MapView({
         ),
       );
       map.fitBounds(bounds, {
-        padding: { top: 80, bottom: routePanelOpen ? 280 : 80, left: 80, right: 80 },
-        maxZoom: 16,
+        padding: { top: 80, bottom: routePanelOpen ? 320 : 80, left: 80, right: 80 },
+        maxZoom: 15,
+        duration: 900,
       });
     }
+    return cancel;
   }, [activeRoute, routePanelOpen, ready]);
 
   useEffect(() => {

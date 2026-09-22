@@ -1,0 +1,67 @@
+name: Add a place
+description: Suggest a hill, staircase, block, park, carpark or bridge worth training vertical on.
+title: "Add place: "
+labels: ["data", "venue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Public places only. If access is gated or restricted, say so below — or don't add it.
+        Leave a number blank rather than guessing; a wrong height is worse than a gap.
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      placeholder: Bukit Timah Hill
+    validations:
+      required: true
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options:
+        - hill
+        - stairs
+        - hdb_block
+        - park
+        - carpark
+        - bridge
+    validations:
+      required: true
+  - type: input
+    id: lat
+    attributes:
+      label: Latitude
+      description: Decimal degrees, e.g. from a long-press in Google Maps or OpenStreetMap.
+      placeholder: "1.3546"
+    validations:
+      required: true
+  - type: input
+    id: lng
+    attributes:
+      label: Longitude
+      placeholder: "103.7764"
+    validations:
+      required: true
+  - type: input
+    id: gain
+    attributes:
+      label: Height gain (m)
+      description: What you actually climb from the usual start. Leave blank if unknown.
+  - type: input
+    id: summit
+    attributes:
+      label: Summit elevation (m above sea level)
+      description: Leave blank if unknown.
+  - type: textarea
+    id: source
+    attributes:
+      label: Source for the numbers
+      description: A link, a survey/map reference, or how you measured it (e.g. barometric watch, averaged over N ascents).
+    validations:
+      required: true
+  - type: textarea
+    id: comment
+    attributes:
+      label: Access notes
+      description: Opening hours, gates, where to start, anything a first-timer should know.

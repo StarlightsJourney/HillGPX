@@ -1,0 +1,42 @@
+name: Add a route
+description: Contribute a GPX route with real vertical in it.
+title: "Route: "
+labels: ["data", "route"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only upload tracks you recorded or have permission to share — not someone else's Strava activity.
+        Trim the first and last few hundred metres if the track starts at your home.
+        Prefer a PR? `python3 scripts/import_gpx.py your.gpx --contributor @you --licence "CC BY 4.0"`.
+  - type: input
+    id: name
+    attributes:
+      label: Route name
+      placeholder: Bukit Timah summit loop
+    validations:
+      required: true
+  - type: textarea
+    id: gpx
+    attributes:
+      label: GPX file or URL
+      description: GitHub only accepts some file types; zip the .gpx (or rename it to .txt) and drag it in, or paste a link.
+    validations:
+      required: true
+  - type: textarea
+    id: comment
+    attributes:
+      label: Description
+      description: Optional. Surface, difficulty, where to start, water points.
+  - type: input
+    id: contributor
+    attributes:
+      label: Credit as
+      placeholder: "@your-github-handle"
+  - type: checkboxes
+    id: licence
+    attributes:
+      label: Licence
+      options:
+        - label: I recorded this track (or have the right to share it) and release it under CC BY 4.0 for use in HillGPX.
+          required: true

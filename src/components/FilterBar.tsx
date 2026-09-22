@@ -12,7 +12,7 @@ import {
 import { createPortal } from 'react-dom';
 import { useUnits } from './UnitsContext';
 import { CloseIcon } from './icons';
-import type { Venue, VenueType } from '../types';
+import type { Route, Venue, VenueType } from '../types';
 import {
   NO_FILTERS,
   VENUE_TYPE_LABEL,
@@ -21,6 +21,10 @@ import {
   rankingHeight,
   type VenueFilters,
 } from '../lib/venues';
+import { NO_ROUTE_FILTERS, ROUTE_CATEGORIES, filterRoutes, type RouteCategory, type RouteFilters } from '../lib/routes';
+import { VENUE_GLYPH_PATH } from '../lib/venueGlyphs';
+
+export type BrowseMode = 'climbs' | 'routes';
 
 interface FilterBarProps {
   /** The types present in the data, so no chip is offered that returns nothing. */
@@ -32,6 +36,268 @@ interface FilterBarProps {
   visibleVenues: Venue[];
   filters: VenueFilters;
   onChange: (filters: VenueFilters) => void;
+}
+
+interface CategoryBarProps extends FilterBarProps {
+  mode: BrowseMode;
+  onModeChange: (mode: BrowseMode) => void;
+  routes: Route[];
+  routeFilters: RouteFilters;
+  onRouteFiltersChange: (filters: RouteFilters) => void;
+}
+
+type ClimbCategory = 'all' | VenueType | 'top' | 'photo';
+
+function climbCategoryOf(filters: VenueFilters): ClimbCategory | null {
+  const { types, notableOnly, withPhoto } = filters;
+  if (types.length === 0 && !notableOnly && !withPhoto) return 'all';
+  if (types.length === 1 && !notableOnly && !withPhoto) return types[0];
+  if (types.length === 0 && notableOnly && !withPhoto) return 'top';
+  if (types.length === 0 && !notableOnly && withPhoto) return 'photo';
+  return null;
+}
+
+const STROKE = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
+
+function CategoryIcon({ id }: { id: string }) {
+  if (id in VENUE_GLYPH_PATH) {
+    return (
+      <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d={VENUE_GLYPH_PATH[id as VenueType]} />
+      </svg>
+    );
+  }
+  const paths: Record<string, ReactNode> = {
+    all: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>,
+    top: <path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7L12 3z" />,
+    photo: <><path d="M3 8h3.5L8 6h8l1.5 2H21v11H3V8z" /><circle cx="12" cy="13" r="3.5" /></>,
+    climb: <path d="M2 20l6-9 4 5 3-4 7 8H2zM15 4l2 3 2-3" />,
+    loop: <><path d="M17 7a7 7 0 1 0 2 5" /><path d="M20 3v5h-5" /></>,
+    short: <><circle cx="6" cy="18" r="2" /><circle cx="18" cy="6" r="2" /><path d="M8 16l8-8" /></>,
+    long: <><circle cx="4" cy="19" r="2" /><circle cx="20" cy="5" r="2" /><path d="M6 18c6-1 3-7 8-9s4-3 4-3" /></>,
+    saved: <><rect x="6" y="2" width="12" height="20" rx="2.5" /><path d="M10 18h4" /></>,
+  };
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" {...STROKE} aria-hidden="true">
+      {paths[id] ?? paths.all}
+    </svg>
+  );
+}
+
+/**
+ * The strip under the header: which kind of thing you are browsing, then a
+ * row of icon categories, then Filters — Airbnb's category bar, pointed at
+ * climbs and routes instead of homes.
+ */
+function CategoryBarInner({
+  mode,
+  onModeChange,
+  routes,
+  routeFilters,
+  onRouteFiltersChange,
+  ...climbProps
+}: CategoryBarProps) {
+  const [routeModalOpen, setRouteModalOpen] = useState(false);
+  const routeOpenerRef = useRef<HTMLButtonElement>(null);
+  const routeFilterCount = (routeFilters.minGainM != null ? 1 : 0) + (routeFilters.maxDistanceM != null ? 1 : 0);
+
+  return (
+    <div className="filterbar">
+      <div className="filterbar-row">
+        <div className="mode-switch" role="tablist" aria-label="Browse">
+          {(['climbs', 'routes'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={mode === value}
+              className={`mode-tab${mode === value ? ' on' : ''}`}
+              onClick={() => onModeChange(value)}
+            >
+              {value === 'climbs' ? 'Climbs' : 'Routes'}
+            </button>
+          ))}
+          <span className={`mode-thumb ${mode}`} aria-hidden="true" />
+        </div>
+
+        <span className="filterbar-divider" aria-hidden="true" />
+
+        {mode === 'climbs' ? (
+          <ClimbCategories {...climbProps} />
+        ) : (
+          <>
+            <div className="categories" role="tablist" aria-label="Route type">
+              {ROUTE_CATEGORIES.map((category) => {
+                const count = filterRoutes(routes, { ...NO_ROUTE_FILTERS, category: category.id }).length;
+                if (category.id === 'saved' && count === 0) return null;
+                return (
+                  <CategoryButton
+                    key={category.id}
+                    id={category.id}
+                    label={category.label}
+                    active={routeFilters.category === category.id}
+                    disabled={count === 0}
+                    onClick={() => onRouteFiltersChange({ ...routeFilters, category: category.id as RouteCategory })}
+                  />
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              ref={routeOpenerRef}
+              className={`filter-open${routeFilterCount > 0 ? ' on' : ''}`}
+              aria-haspopup="dialog"
+              onClick={() => setRouteModalOpen(true)}
+            >
+              <SlidersIcon />
+              Filters
+              {routeFilterCount > 0 && <span className="filter-badge">{routeFilterCount}</span>}
+            </button>
+            {routeModalOpen && (
+              <RouteFilterModal
+                routes={routes}
+                filters={routeFilters}
+                onChange={onRouteFiltersChange}
+                onClose={() => setRouteModalOpen(false)}
+                returnFocusTo={routeOpenerRef}
+              />
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CategoryButton({
+  id,
+  label,
+  active,
+  disabled = false,
+  onClick,
+}: {
+  id: string;
+  label: string;
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      className={`category${active ? ' on' : ''}`}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <CategoryIcon id={id} />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+const GAIN_CHOICES: { label: string; value: number | null }[] = [
+  { label: 'Any', value: null },
+  { label: '200 m+', value: 200 },
+  { label: '500 m+', value: 500 },
+  { label: '1,000 m+', value: 1000 },
+];
+const DISTANCE_CHOICES: { label: string; value: number | null }[] = [
+  { label: 'Any', value: null },
+  { label: 'Up to 10 km', value: 10_000 },
+  { label: 'Up to 25 km', value: 25_000 },
+  { label: 'Up to 50 km', value: 50_000 },
+];
+
+function RouteFilterModal({
+  routes,
+  filters,
+  onChange,
+  onClose,
+  returnFocusTo,
+}: {
+  routes: Route[];
+  filters: RouteFilters;
+  onChange: (filters: RouteFilters) => void;
+  onClose: () => void;
+  returnFocusTo: React.RefObject<HTMLElement>;
+}) {
+  const [draft, setDraft] = useState(filters);
+  const [closing, setClosing] = useState(false);
+  const count = filterRoutes(routes, draft).length;
+  const close = useCallback(() => setClosing(true), []);
+
+  useEffect(() => {
+    const opener = returnFocusTo.current;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      opener?.focus();
+    };
+  }, [close, returnFocusTo]);
+
+  return createPortal(
+    <div
+      className={`filter-scrim${closing ? ' closing' : ''}`}
+      onMouseDown={(e) => e.target === e.currentTarget && close()}
+    >
+      <div
+        className={`filter-modal filter-modal-sm${closing ? ' closing' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="route-filter-title"
+        onAnimationEnd={(e) => e.target === e.currentTarget && closing && onClose()}
+      >
+        <header className="filter-modal-head">
+          <h2 id="route-filter-title">Route filters</h2>
+          <button type="button" className="filter-modal-close" aria-label="Close filters" onClick={close}>
+            <CloseIcon />
+          </button>
+        </header>
+        <div className="filter-modal-body">
+          <section className="filter-group">
+            <h3>Climbing</h3>
+            <div className="seg" role="radiogroup" aria-label="Minimum climbing">
+              {GAIN_CHOICES.map((choice) => (
+                <Segment key={choice.label} selected={draft.minGainM === choice.value} onSelect={() => setDraft({ ...draft, minGainM: choice.value })}>
+                  {choice.label}
+                </Segment>
+              ))}
+            </div>
+          </section>
+          <section className="filter-group">
+            <h3>Distance</h3>
+            <div className="seg" role="radiogroup" aria-label="Maximum distance">
+              {DISTANCE_CHOICES.map((choice) => (
+                <Segment key={choice.label} selected={draft.maxDistanceM === choice.value} onSelect={() => setDraft({ ...draft, maxDistanceM: choice.value })}>
+                  {choice.label}
+                </Segment>
+              ))}
+            </div>
+          </section>
+        </div>
+        <footer className="filter-modal-foot">
+          <button type="button" className="linkish" onClick={() => setDraft({ ...NO_ROUTE_FILTERS, category: draft.category })}>
+            Clear all
+          </button>
+          <button
+            type="button"
+            className="filter-apply"
+            disabled={count === 0}
+            onClick={() => {
+              onChange(draft);
+              close();
+            }}
+          >
+            {count === 0 ? 'No matches' : `Show ${count} route${count === 1 ? '' : 's'}`}
+          </button>
+        </footer>
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
 /**
@@ -47,61 +313,52 @@ interface FilterBarProps {
  * room to be understood — the type choice, the height distribution — lives in
  * the dialog.
  */
-function FilterBarInner({ types, visibleVenues, filters, onChange }: FilterBarProps) {
+function ClimbCategories({ types, visibleVenues, filters, onChange }: FilterBarProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const openerRef = useRef<HTMLButtonElement>(null);
 
   const count = activeFilterCount(filters);
-
-  const toggleType = (type: VenueType) =>
+  const active = climbCategoryOf(filters);
+  const pick = (category: ClimbCategory) =>
     onChange({
       ...filters,
-      types: filters.types.includes(type)
-        ? filters.types.filter((t) => t !== type)
-        : [...filters.types, type],
+      types: category === 'all' || category === 'top' || category === 'photo' ? [] : [category],
+      notableOnly: category === 'top',
+      withPhoto: category === 'photo',
     });
 
+  const categories: { id: ClimbCategory; label: string }[] = [
+    { id: 'all', label: 'All' },
+    ...types.map((type) => ({ id: type as ClimbCategory, label: type === 'hill' ? 'Hills & summits' : `${VENUE_TYPE_LABEL[type]}s` })),
+    { id: 'top', label: 'Top climbs' },
+    { id: 'photo', label: 'With photos' },
+  ];
+
   return (
-    <div className="filterbar">
-      <div className="filterbar-row">
-        <button
-          type="button"
-          ref={openerRef}
-          className={`filter-open${count > 0 ? ' on' : ''}`}
-          aria-haspopup="dialog"
-          aria-expanded={modalOpen}
-          onClick={() => setModalOpen(true)}
-        >
-          <SlidersIcon />
-          Filters
-          {count > 0 && <span className="filter-badge">{count}</span>}
-        </button>
-
-        {/* The height chips that used to sit here are gone: height is a range
-            now, and a "30 m+" pill beside a slider that says 30–2187 is the same
-            fact stated twice, in a place where the two could visibly disagree. */}
-        <div className="filter-chips">
-          {types.map((type) => (
-            <Chip key={type} active={filters.types.includes(type)} onClick={() => toggleType(type)}>
-              {VENUE_TYPE_LABEL[type]}
-            </Chip>
-          ))}
-
-          <Chip
-            active={filters.notableOnly}
-            onClick={() => onChange({ ...filters, notableOnly: !filters.notableOnly })}
-          >
-            Top climbs
-          </Chip>
-
-          <Chip
-            active={filters.withPhoto}
-            onClick={() => onChange({ ...filters, withPhoto: !filters.withPhoto })}
-          >
-            With photo
-          </Chip>
-        </div>
+    <>
+      <div className="categories" role="tablist" aria-label="Climb type">
+        {categories.map((category) => (
+          <CategoryButton
+            key={category.id}
+            id={category.id}
+            label={category.label}
+            active={active === category.id}
+            onClick={() => pick(category.id)}
+          />
+        ))}
       </div>
+      <button
+        type="button"
+        ref={openerRef}
+        className={`filter-open${count > 0 && active === null ? ' on' : ''}`}
+        aria-haspopup="dialog"
+        aria-expanded={modalOpen}
+        onClick={() => setModalOpen(true)}
+      >
+        <SlidersIcon />
+        Filters
+        {count > 0 && <span className="filter-badge">{count}</span>}
+      </button>
 
       {modalOpen && (
         <FilterModal
@@ -113,7 +370,7 @@ function FilterBarInner({ types, visibleVenues, filters, onChange }: FilterBarPr
           returnFocusTo={openerRef}
         />
       )}
-    </div>
+    </>
   );
 }
 
@@ -605,22 +862,6 @@ function Segment({
   );
 }
 
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button type="button" className={`chip${active ? ' on' : ''}`} aria-pressed={active} onClick={onClick}>
-      {children}
-    </button>
-  );
-}
-
 /** Kept local rather than in icons.tsx: nothing else in the app uses it. */
 function SlidersIcon({ size = 14 }: { size?: number }) {
   return (
@@ -646,4 +887,4 @@ function SlidersIcon({ size = 14 }: { size?: number }) {
  * Memoised for the same reason the results list is: the map above re-renders
  * this on every pan and selection, and none of that touches the chips.
  */
-export const FilterBar = memo(FilterBarInner);
+export const FilterBar = memo(CategoryBarInner);

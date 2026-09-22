@@ -1,0 +1,40 @@
+name: Add a photo
+description: Offer a photo of a venue.
+title: "Photo: "
+labels: ["data", "photo"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only photos you took yourself, or that are clearly licensed for reuse. No people's faces or number plates, please.
+        Street-level imagery can also be uploaded to Mapillary, which the map picks up automatically.
+  - type: input
+    id: venue
+    attributes:
+      label: Venue slug
+      description: The id in the venue's link, e.g. `bukit-timah-hill`.
+      placeholder: bukit-timah-hill
+    validations:
+      required: true
+  - type: textarea
+    id: photo
+    attributes:
+      label: Photo
+      description: Drag the image in here, or paste a URL to it.
+    validations:
+      required: true
+  - type: input
+    id: credit
+    attributes:
+      label: Credit
+      description: How the photographer should be credited.
+      placeholder: "@your-github-handle"
+    validations:
+      required: true
+  - type: checkboxes
+    id: licence
+    attributes:
+      label: Licence
+      options:
+        - label: I took this photo (or hold the rights) and release it under CC BY-SA 4.0 for use in HillGPX.
+          required: true

@@ -1,5 +1,5 @@
-import type { Map as MlMap, GeoJSONSource } from 'maplibre-gl';
-import type { Venue } from '../types';
+import type { ExpressionSpecification, Map as MlMap, GeoJSONSource } from 'maplibre-gl';
+import type { Route, Venue } from '../types';
 
 /** MapLibre sources and layers that remain beneath the HTML venue markers. */
 
@@ -67,6 +67,75 @@ export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): voi
   });
 }
 
+const HOT: ExpressionSpecification = [
+  'any',
+  ['boolean', ['feature-state', 'hover'], false],
+  ['boolean', ['feature-state', 'selected'], false],
+];
+
+export function routesToGeoJson(routes: Route[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: routes
+      .filter((route) => route.coordinates.length > 1)
+      .map((route) => ({
+        type: 'Feature' as const,
+        properties: { slug: route.slug },
+        geometry: { type: 'LineString' as const, coordinates: route.coordinates.map(([lng, lat]) => [lng, lat]) },
+      })),
+  };
+}
+
+/**
+ * Every committed and saved route, always on the map. Hover and selection are
+ * feature-state so moving the pointer never re-uploads geometry.
+ */
+export function addAllRouteLayers(map: MlMap, data: GeoJSON.FeatureCollection): void {
+  map.addSource('routes', { type: 'geojson', data, promoteId: 'slug' });
+  const hot = HOT;
+  map.addLayer({
+    id: 'routes-casing',
+    type: 'line',
+    source: 'routes',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': '#ffffff',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 3, 12, 6, 16, 9],
+      'line-opacity': ['case', hot, 1, 0.85],
+    },
+  });
+  map.addLayer({
+    id: 'routes-line',
+    type: 'line',
+    source: 'routes',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#c1502e', hot, '#222222', '#3f3f3f'],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 6, ['case', hot, 3, 1.6], 12, ['case', hot, 4.5, 2.6], 16, ['case', hot, 6, 3.5]],
+      'line-opacity': ['case', hot, 1, 0.7],
+    },
+  });
+  // A fat invisible line under the visible one, so a 2 px trace is still easy to hover and click.
+  map.addLayer({
+    id: 'routes-hit',
+    type: 'line',
+    source: 'routes',
+    paint: { 'line-color': '#000000', 'line-width': 16, 'line-opacity': 0 },
+  });
+}
+
+export function setRouteFeatureState(map: MlMap, slug: string | null, key: 'hover' | 'selected', previous: string | null): void {
+  if (!map.getSource('routes')) return;
+  if (previous && previous !== slug) map.setFeatureState({ source: 'routes', id: previous }, { [key]: false });
+  if (slug) map.setFeatureState({ source: 'routes', id: slug }, { [key]: true });
+}
+
+/** How strongly routes read against the venue pills in each mode. */
+export function setRouteEmphasis(map: MlMap, strong: boolean): void {
+  if (!map.getLayer('routes-line')) return;
+  map.setPaintProperty('routes-line', 'line-opacity', ['case', HOT, 1, strong ? 0.85 : 0.45]);
+}
+
 export function addRouteLayers(map: MlMap): void {
   map.addSource('active-route', {
     type: 'geojson',
@@ -82,7 +151,7 @@ export function addRouteLayers(map: MlMap): void {
     type: 'line',
     source: 'active-route',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.9 },
+    paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': 0.95 },
   });
 
   map.addLayer({
@@ -90,7 +159,23 @@ export function addRouteLayers(map: MlMap): void {
     type: 'line',
     source: 'active-route',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#c1502e', 'line-width': 3.5 },
+    paint: { 'line-color': '#c1502e', 'line-width': 5 },
+  });
+
+  map.addSource('active-route-ends', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+  });
+  map.addLayer({
+    id: 'active-route-ends',
+    type: 'circle',
+    source: 'active-route-ends',
+    paint: {
+      'circle-radius': ['match', ['get', 'end'], 'start', 7, 5],
+      'circle-color': ['match', ['get', 'end'], 'start', '#ffffff', '#222222'],
+      'circle-stroke-width': ['match', ['get', 'end'], 'start', 3, 2.5],
+      'circle-stroke-color': ['match', ['get', 'end'], 'start', '#222222', '#ffffff'],
+    },
   });
 
   map.addLayer({
@@ -104,6 +189,50 @@ export function addRouteLayers(map: MlMap): void {
       'circle-stroke-color': '#ffffff',
     },
   });
+}
+
+/**
+ * Draw the active route on, start to finish, rather than snapping it in. The
+ * reveal is the cue that tells you where the route begins and which way it
+ * runs, which a static line cannot. Returns a cancel function.
+ */
+export function animateActiveRoute(
+  map: MlMap,
+  coordinates: [number, number, number][] | null,
+  durationMs = 1100,
+): () => void {
+  const ends = map.getSource('active-route-ends') as GeoJSONSource | undefined;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!coordinates || coordinates.length < 2 || reduce) {
+    setActiveRoute(map, coordinates);
+    ends?.setData(endsFeature(coordinates));
+    return () => {};
+  }
+  let frame = 0;
+  const start = performance.now();
+  ends?.setData(endsFeature(coordinates.slice(0, 1)));
+  const tick = (now: number) => {
+    const t = Math.min(1, (now - start) / durationMs);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const count = Math.max(2, Math.ceil(eased * coordinates.length));
+    setActiveRoute(map, coordinates.slice(0, count));
+    if (t < 1) frame = requestAnimationFrame(tick);
+    else ends?.setData(endsFeature(coordinates));
+  };
+  frame = requestAnimationFrame(tick);
+  return () => cancelAnimationFrame(frame);
+}
+
+function endsFeature(coordinates: [number, number, number][] | null): GeoJSON.FeatureCollection {
+  if (!coordinates || coordinates.length === 0) return { type: 'FeatureCollection', features: [] };
+  const point = (c: [number, number, number], end: string) => ({
+    type: 'Feature' as const,
+    properties: { end },
+    geometry: { type: 'Point' as const, coordinates: [c[0], c[1]] },
+  });
+  const features = [point(coordinates[0], 'start')];
+  if (coordinates.length > 1) features.unshift(point(coordinates[coordinates.length - 1], 'finish'));
+  return { type: 'FeatureCollection', features };
 }
 
 export function setActiveRoute(

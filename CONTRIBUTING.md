@@ -38,6 +38,15 @@ git add data/routes/ public/data/
 git commit -m "Add Bukit Timah summit loop"
 ```
 
+Or let the importer name, validate and write the sidecar for you:
+
+```bash
+python3 scripts/import_gpx.py ~/Downloads/run.gpx --name "Bukit Timah summit loop" --contributor @you --licence "CC BY 4.0"
+python3 scripts/import_gpx.py --osm-relation 5993965   # an OpenStreetMap hiking relation (ODbL)
+```
+
+It also accepts a GPX URL and, via the official Strava API with your own `STRAVA_ACCESS_TOKEN`, your own Strava routes (`--strava-route ID`). It never scrapes Strava. Not comfortable with git? Use the **Add a route** issue form and attach the GPX.
+
 The build script works out the distance, the gain, whether it's a loop, and which venues it passes. You don't need to supply any of that.
 
 **Optional sidecar.** If you want to add detail or override the automatic venue linking, put a `.json` next to the GPX with the same basename:
@@ -49,7 +58,9 @@ The build script works out the distance, the gain, whether it's a loop, and whic
   "surface": "road",
   "difficulty": "hard",
   "venues": ["bukit-timah-hill", "hindhede-nature-park"],
-  "contributor": "@your-github-handle"
+  "contributor": "@your-github-handle",
+  "licence": "CC BY 4.0",
+  "sourceUrl": "https://example.org/where-it-came-from"
 }
 ```
 
@@ -78,7 +89,7 @@ To fix a curated venue:
 
 Cite the source. An unsourced number is the thing we already have.
 
-OpenStreetMap summits live in generated `data/venues/peaks.json`; do not hand-edit it. Correct the `ele` tag in OpenStreetMap and run `python scripts/fetch_peaks.py --region sg-my`, or use the appropriate region or bounding box. If you measured the *climb*, add or extend a curated entry in `data/venues/hills.json` with `gainM`; curated entries load first and win the deduplication.
+OpenStreetMap summits live in generated `data/venues/peaks.json`; do not hand-edit it. Correct the `ele` tag in OpenStreetMap and run `python3 scripts/fetch_peaks.py --region sg-my` (regions combine, e.g. `--region sg-my,hk,tw`, and merge without dropping existing entries), or use a bounding box. If you measured the *climb*, add or extend a curated entry in `data/venues/hills.json` with `gainM`; curated entries load first and win the deduplication.
 
 ---
 
@@ -105,6 +116,20 @@ Anywhere public that people actually train on: hills, park staircases, multi-sto
 Leave a number `null` rather than guessing. A null is an honest gap someone can fill; a wrong number looks authoritative and can sit there for years. This records the venue, but it will not appear in the app until either `gainM` or `summitM` is filled in.
 
 **Access matters.** If it's private, gated, or somewhere you technically shouldn't be, say so in `notes` — or don't add it. This should not become a list of places to trespass.
+
+---
+
+## Rate a venue
+
+Open the **Rate a venue** issue form (the app can link to it prefilled: `https://github.com/StarlightsJourney/HillGPX/issues/new?template=rate-venue.yml&venue=<slug>&rating=5`). A maintainer appends it to `data/reviews.json`:
+
+```json
+{"venue": "bukit-timah-hill", "rating": 5, "comment": "Shady, steep, busy after 7am", "author": "@you", "date": "2025-01-31"}
+```
+
+`python3 scripts/build_data.py` averages ratings per venue. Ratings with an unknown slug or outside 1–5 are skipped with a warning.
+
+The **Add a place** and **Add a photo** issue forms cover the same ground for people who would rather not edit JSON.
 
 ---
 

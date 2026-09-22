@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CheckIcon, ChartIcon, GitHubIcon, GlobeIcon, MenuIcon } from './icons';
 import { useUnits } from './UnitsContext';
 import type { Units } from '../lib/units';
+import { addPlaceUrl, addRouteUrl } from '../lib/contribute';
 
 const REPO_URL = 'https://github.com/StarlightsJourney/HillGPX';
 
@@ -29,25 +30,25 @@ const UNIT_CHOICES: { value: Units; label: string; note: string }[] = [
  */
 const MENU_LINKS: { href: string; label: string; note: string; icon?: React.ReactNode }[] = [
   {
-    href: '/#training',
+    href: '#training',
     label: 'Training balance',
     note: 'Weekly elevation goal and sessions',
     icon: <ChartIcon size={16} />,
   },
   {
-    href: `${CONTRIBUTING_URL}#add-a-route`,
-    label: 'Add a route',
-    note: 'Drop a GPX in, open a pull request',
+    href: addPlaceUrl(),
+    label: 'Add a place',
+    note: 'A hill, staircase or carpark people train on — anywhere',
+  },
+  {
+    href: addRouteUrl(),
+    label: 'Share a route',
+    note: 'Attach a GPX you have the rights to',
   },
   {
     href: `${CONTRIBUTING_URL}#verify-a-venues-elevation`,
     label: 'Correct an elevation',
     note: 'Most heights here are unverified seed values',
-  },
-  {
-    href: `${CONTRIBUTING_URL}#add-a-venue`,
-    label: 'Add a venue',
-    note: 'A staircase, hill or carpark people train on',
   },
 ];
 

@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Venue } from '../types';
 import { VENUE_TYPE_LABEL, rankingHeight, venueHeight, venuesInBounds } from '../lib/venues';
 import { VenueThumb } from './VenueThumb';
-import { HeartIcon } from './icons';
+import { HeartIcon, SearchIcon } from './icons';
 import { useUnits } from './UnitsContext';
 
 interface ResultsListProps {
@@ -186,71 +186,83 @@ function ResultsListInner({
         <h2>{heading}</h2>
       </header>
 
-      <ul className="results-grid" aria-busy={loading}>
-        {loading
-          ? rows.map((venue) => (
-              <li key={venue.slug} className="skeleton-card" aria-hidden="true">
-                <span className="sk-thumb" />
-                <span className="sk-line" />
-                <span className="sk-line" />
-                <span className="sk-line" />
-              </li>
-            ))
-          : rows.map((venue) => {
-              const height = venueHeight(venue);
-              const isFavorite = favorites.has(venue.slug);
-              const routeCount = venue.routeSlugs.length + (routeCounts.get(venue.slug) ?? 0);
-
-              return (
-                <li
-                  key={venue.slug}
-                  className="result-item"
-                  onMouseEnter={() => onHover?.(venue.slug)}
-                  onMouseLeave={() => onHover?.(null)}
-                >
-                  {venue.notable && <span className="result-badge">Tall</span>}
-                  <button
-                    type="button"
-                    className={`result-favorite${isFavorite ? ' on' : ''}`}
-                    aria-label={isFavorite ? 'Remove favourite' : 'Add to favourites'}
-                    onClick={() => onToggleFavorite(venue.slug)}
-                  >
-                    <HeartIcon size={24} filled={isFavorite} />
-                  </button>
-                  <a className="result-card" data-slug={venue.slug} href={`#venue/${venue.slug}`}>
-                    <VenueThumb venue={venue} />
-                    <span className="result-card-name">{venue.name}</span>
-                    <span className="result-card-meta">
-                      {VENUE_TYPE_LABEL[venue.type]}
-                      {venue.storeys != null && ` · ${venue.storeys} floors`}
-                    </span>
-                    <span className="result-card-gain">
-                      {height ? (
-                        <>
-                          <strong>{units.height(height.value)}</strong>{' '}
-                          {height.kind === 'gain' ? 'to climb' : 'above sea level'}
-                        </>
-                      ) : (
-                        'Height not recorded'
-                      )}
-                      {routeCount > 0 && ` · ${routeCount} route${routeCount > 1 ? 's' : ''}`}
-                    </span>
-                  </a>
+      {total === 0 && !loading ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">
+            <SearchIcon size={28} />
+          </div>
+          <h3>No venues match</h3>
+          <p>Try widening the map area, clearing filters, or searching for a town or street name.</p>
+        </div>
+      ) : (
+        <ul className="results-grid" aria-busy={loading}>
+          {loading
+            ? rows.map((venue) => (
+                <li key={venue.slug} className="skeleton-card" aria-hidden="true">
+                  <span className="sk-thumb" />
+                  <span className="sk-line" />
+                  <span className="sk-line" />
+                  <span className="sk-line" />
                 </li>
-              );
-            })}
-      </ul>
+              ))
+            : rows.map((venue) => {
+                const height = venueHeight(venue);
+                const isFavorite = favorites.has(venue.slug);
+                const routeCount = venue.routeSlugs.length + (routeCounts.get(venue.slug) ?? 0);
 
-      <Pagination
-        current={currentPage + 1}
-        total={totalPages}
-        onPage={(nextPage) => {
-          setPage(nextPage - 1);
-          const pane = sectionRef.current?.closest('.list-pane');
-          if (pane instanceof HTMLElement) pane.scrollTo({ top: 0 });
-          else window.scrollTo({ top: 0 });
-        }}
-      />
+                return (
+                  <li
+                    key={venue.slug}
+                    className="result-item"
+                    onMouseEnter={() => onHover?.(venue.slug)}
+                    onMouseLeave={() => onHover?.(null)}
+                  >
+                    {venue.notable && <span className="result-badge">Tall</span>}
+                    <button
+                      type="button"
+                      className={`result-favorite${isFavorite ? ' on' : ''}`}
+                      aria-label={isFavorite ? 'Remove favourite' : 'Add to favourites'}
+                      onClick={() => onToggleFavorite(venue.slug)}
+                    >
+                      <HeartIcon size={24} filled={isFavorite} />
+                    </button>
+                    <a className="result-card" data-slug={venue.slug} href={`#venue/${venue.slug}`}>
+                      <VenueThumb venue={venue} />
+                      <span className="result-card-name">{venue.name}</span>
+                      <span className="result-card-meta">
+                        {VENUE_TYPE_LABEL[venue.type]}
+                        {venue.storeys != null && ` · ${venue.storeys} floors`}
+                      </span>
+                      <span className="result-card-gain">
+                        {height ? (
+                          <>
+                            <strong>{units.height(height.value)}</strong>{' '}
+                            {height.kind === 'gain' ? 'to climb' : 'above sea level'}
+                          </>
+                        ) : (
+                          'Height not recorded'
+                        )}
+                        {routeCount > 0 && ` · ${routeCount} route${routeCount > 1 ? 's' : ''}`}
+                      </span>
+                    </a>
+                  </li>
+                );
+              })}
+        </ul>
+      )}
+
+      {total > 0 && (
+        <Pagination
+          current={currentPage + 1}
+          total={totalPages}
+          onPage={(nextPage) => {
+            setPage(nextPage - 1);
+            const pane = sectionRef.current?.closest('.list-pane');
+            if (pane instanceof HTMLElement) pane.scrollTo({ top: 0 });
+            else window.scrollTo({ top: 0 });
+          }}
+        />
+      )}
     </section>
   );
 }

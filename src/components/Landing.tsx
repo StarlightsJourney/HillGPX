@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { GitHubIcon, Mark } from './icons';
+import { GitHubIcon, MapIcon, Mark, UploadIcon } from './icons';
 import { useUnits } from './UnitsContext';
 
 const REPO_URL = 'https://github.com/StarlightsJourney/HillGPX';
@@ -68,28 +68,53 @@ export function Landing({ onOpen }: LandingProps) {
       <main>
         <div className="shell">
           <section className="lp-hero">
-            <h1>Find your next climb</h1>
+            <h1>Train vertical in Singapore</h1>
             <p className="lp-lede">
-              Hills, stairs and HDB blocks in Singapore, ranked by elevation.
+              Every hill, staircase and tall block worth climbing — with honest elevation profiles
+              from your own GPX files.
             </p>
             <div className="lp-actions">
               <button className="cta" onClick={onOpen}>
-                Explore map
+                <MapIcon size={18} />
+                Open map
               </button>
-              <a className="cta-secondary" href={REPO_URL} target="_blank" rel="noreferrer">
-                Contribute on GitHub
+              <a className="cta-secondary" href="#how-it-works">
+                How it works
               </a>
+            </div>
+            <div className="lp-hero-stats" aria-label="What is on the map">
+              <Figure value={blocks != null ? formatCount(blocks) : '—'} label="HDB blocks" />
+              <Figure value={hills != null ? formatCount(hills) : '—'} label="Hills & summits" />
+              <Figure value={stats ? String(stats.routes) : '—'} label="Routes" />
             </div>
           </section>
         </div>
 
         <Transect stats={stats} />
 
-        <div className="shell">
-          <section className="lp-stats" aria-label="What is on the map">
-            <Figure value={blocks != null ? formatCount(blocks) : '—'} label="HDB blocks" />
-            <Figure value={hills != null ? formatCount(hills) : '—'} label="Hills & summits" />
-            <Figure value={stats ? String(stats.routes) : '—'} label="Routes" />
+        <div className="shell" id="how-it-works">
+          <section className="lp-how">
+            <h2>How it works</h2>
+            <div className="lp-steps">
+              <StepCard
+                number={1}
+                title="Find a climb"
+                body="Search hills, public staircases and HDB blocks near you. Heights are ranked by real elevation gain, not just summit altitude."
+                icon={<MapIcon size={22} />}
+              />
+              <StepCard
+                number={2}
+                title="Drop your GPX"
+                body="Import a route from your watch or Strava. We re-sample it against the terrain model so the profile is honest — no upload, no account."
+                icon={<UploadIcon size={22} />}
+              />
+              <StepCard
+                number={3}
+                title="Contribute back"
+                body="A wrong height is a one-line fix and a new route is one GPX file. Everything lives in the open repository."
+                icon={<GitHubIcon size={22} />}
+              />
+            </div>
           </section>
 
           <section className="lp-note">
@@ -130,6 +155,29 @@ function Figure({ value, label }: { value: string; label: string }) {
     <div className="lp-figure">
       <span className="lp-figure-value">{value}</span>
       <span className="lp-figure-label">{label}</span>
+    </div>
+  );
+}
+
+function StepCard({
+  number,
+  title,
+  body,
+  icon,
+}: {
+  number: number;
+  title: string;
+  body: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="lp-step">
+      <div className="lp-step-icon" aria-hidden="true">
+        {icon}
+      </div>
+      <span className="lp-step-number">Step {number}</span>
+      <h3>{title}</h3>
+      <p>{body}</p>
     </div>
   );
 }

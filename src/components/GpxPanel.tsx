@@ -8,6 +8,7 @@ import { ElevationProfile } from './ElevationProfile';
 import { TypeGlyph } from './TypeGlyph';
 import { useUnits } from './UnitsContext';
 import { downloadRoute } from './VenueCard';
+import { CheckIcon, DownloadIcon } from './icons';
 
 interface GpxPanelProps {
   loaded: LoadedGpx;
@@ -61,7 +62,7 @@ export function GpxPanel({
             title={loaded.venueSlugs.length === 0 ? 'Passes no mapped venue' : undefined}
           >
             {saved ? (
-              'Saved ✓'
+              <><CheckIcon size={14} />Saved</>
             ) : (
               <>
                 Save<span className="hide-narrow"> to this device</span>
@@ -69,7 +70,7 @@ export function GpxPanel({
             )}
           </button>
           <button type="button" className="gpx-download" onClick={() => downloadRoute(route)}>
-            Download GPX
+            <DownloadIcon size={14} />Download GPX
           </button>
           <button type="button" className="gpx-close" onClick={onClose} aria-label="Close GPX panel">
             ×

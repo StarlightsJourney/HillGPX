@@ -5,7 +5,7 @@ import { VENUE_TYPE_LABEL, tallestWithin, titleCaseStreet, townName, venueHeight
 import { useUnits } from './UnitsContext';
 import { ElevationProfile } from './ElevationProfile';
 import { PhotoCredit, VenueThumb } from './VenueThumb';
-import { ChevronLeftIcon, HeartIcon, Mark } from './icons';
+import { ChevronLeftIcon, DownloadIcon, HeartIcon, MapIcon, Mark, ShareIcon } from './icons';
 import { HeaderControls } from './HeaderControls';
 import { downloadRoute } from './VenueCard';
 
@@ -21,10 +21,6 @@ interface VenueDetailProps {
   isFavorite: boolean;
   onToggleFavorite: () => void;
   onRemoveLocalRoute: (slug: string) => void;
-}
-
-function ShareGlyph() {
-  return <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M8 10V1m0 0L4.5 4.5M8 1l3.5 3.5M3 7v7h10V7" /></svg>;
 }
 
 function FlagGlyph() {
@@ -149,7 +145,7 @@ function VenueDetailInner({
         <div className="venue-detail-title-row">
           <h1>{venue.name}</h1>
           <div className="venue-detail-title-actions">
-            <button type="button" aria-label="Share" onClick={() => void share()}><ShareGlyph /><span className="venue-action-label">{copied ? 'Link copied' : 'Share'}</span></button>
+            <button type="button" aria-label="Share" onClick={() => void share()}><ShareIcon size={16} /><span className="venue-action-label">{copied ? 'Link copied' : 'Share'}</span></button>
             <button type="button" aria-label="Save" onClick={onToggleFavorite}><HeartIcon size={16} filled={isFavorite} /><span className="venue-action-label">{isFavorite ? 'Saved' : 'Save'}</span></button>
           </div>
         </div>
@@ -202,7 +198,12 @@ function VenueDetailInner({
                     ))}
                   </div>
                 </>
-              ) : <p className="venue-no-routes">No routes recorded here yet — import a GPX that passes this venue and save it.</p>}
+              ) : (
+                <div className="empty-state venue-routes-empty">
+                  <h3>No routes yet</h3>
+                  <p>Import a GPX that passes this venue and save it, or add one to the repository on GitHub.</p>
+                </div>
+              )}
             </section>
 
             {nearby.length > 0 && (
@@ -230,9 +231,9 @@ function VenueDetailInner({
             <div className="venue-actions-card">
               <p className="venue-actions-height">{height ? <><strong>{units.height(height.value)}</strong> {height.kind === 'gain' ? 'to climb' : 'above sea level'}</> : 'Height not recorded'}</p>
               <p className="venue-actions-source">{sourceLine}</p>
-              <button type="button" className="venue-primary-action" onClick={() => onShowOnMap()}>Show on map</button>
-              {routes.length > 0 && <button type="button" className="venue-download-action" onClick={() => downloadRoute(routes[0])}>Download GPX{routes.length > 1 ? ` (${routes.length})` : ''}</button>}
-              <div className="venue-card-actions"><button type="button" onClick={onToggleFavorite}><HeartIcon size={16} filled={isFavorite} />{isFavorite ? 'Saved' : 'Save'}</button><button type="button" onClick={() => void share()}><ShareGlyph />Share</button></div>
+              <button type="button" className="venue-primary-action" onClick={() => onShowOnMap()}><MapIcon size={16} />Show on map</button>
+              {routes.length > 0 && <button type="button" className="venue-download-action" onClick={() => downloadRoute(routes[0])}><DownloadIcon size={16} />Download GPX{routes.length > 1 ? ` (${routes.length})` : ''}</button>}
+              <div className="venue-card-actions"><button type="button" onClick={onToggleFavorite}><HeartIcon size={16} filled={isFavorite} />{isFavorite ? 'Saved' : 'Save'}</button><button type="button" onClick={() => void share()}><ShareIcon size={16} />{copied ? 'Link copied' : 'Share'}</button></div>
             </div>
             <a className="venue-report" href={`${REPO_URL}/issues`} target="_blank" rel="noreferrer"><FlagGlyph />Report a problem with this venue</a>
             <div className="venue-plan-desktop"><PlannerCard venue={venue} /></div>
@@ -242,7 +243,7 @@ function VenueDetailInner({
 
       <div className="venue-mobile-bar">
         <p>{height ? <><strong>{units.height(height.value)}</strong> {height.kind === 'gain' ? 'to climb' : 'above sea level'}</> : 'Height not recorded'}</p>
-        <button type="button" onClick={() => onShowOnMap()}>Show on map</button>
+        <button type="button" onClick={() => onShowOnMap()}><MapIcon size={16} />Show on map</button>
       </div>
     </div>,
     document.body,

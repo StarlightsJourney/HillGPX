@@ -37,7 +37,7 @@ const MAX_AREAS = 3;
 export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(() => window.matchMedia('(min-width: 900px)').matches);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const enterTimerRef = useRef<number | null>(null);
@@ -149,12 +149,6 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
         clearIntentTimers();
         if (!window.matchMedia('(hover: hover)').matches) return;
         enterTimerRef.current = window.setTimeout(() => setExpanded(true), 120);
-      }}
-      onMouseLeave={() => {
-        if (enterTimerRef.current != null) window.clearTimeout(enterTimerRef.current);
-        enterTimerRef.current = null;
-        if (query || document.activeElement === inputRef.current) return;
-        leaveTimerRef.current = window.setTimeout(() => setExpanded(false), 160);
       }}
       onFocusCapture={() => {
         clearIntentTimers();

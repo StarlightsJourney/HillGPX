@@ -23,6 +23,7 @@ scripts/.cache/
 *.tiff
 
 # IDE / OS
+.claude/
 .idea/
 .vscode/
 .DS_Store

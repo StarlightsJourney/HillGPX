@@ -1,98 +1,69 @@
-# hillGPX
+# HillGPX
 
-**Find elevation gain to train on.** A map of every hill, staircase and tall HDB block in Singapore, with the routes that climb them — and a place to drop your own GPX and get an honest elevation profile back.
+Find elevation gain to train on. A map of hills, staircases and tall blocks in Singapore, with runnable routes and a client-side GPX profiler that never uploads your track.
 
-Built for people who train vertical: towerrunners, trail runners with a race in the mountains and no mountains at home, anyone chasing metres of climbing in a country whose highest natural point is about 163 m.
+## Stack
 
-> **Status: early.** The map, the venue data and the GPX profiler work. Routes are just getting started, and most venue elevations are unverified seed values. See [Contributing](#contributing) — correcting them is the most useful thing you can do right now.
+- Vite 5 + React 18 + TypeScript 5
+- MapLibre GL for the map
+- Python 3 data pipeline (`scripts/build_data.py`)
+- GitHub Pages for deployment
 
----
-
-## Run it
+## Development setup
 
 ```bash
 git clone https://github.com/StarlightsJourney/HillGPX.git
-cd hillGPX
+cd HillGPX
 npm install
 npm run dev
 ```
 
-That's it. No database, no API keys, no accounts, no `.env` file. The app is a static site that reads two JSON files, and both are committed to the repo.
+The app opens at [http://localhost:5180](http://localhost:5180). Port 5180 is strict; stop anything already using it.
 
-Basemap tiles come from [OpenFreeMap](https://openfreemap.org/), which is free and needs no key. Please keep it that way.
+## Validation commands
 
-## How it works
-
-Everything the app needs is a static file:
-
-```
-data/                       what humans edit
-├── venues/hills.json       curated hills, stairs and parks
-├── venues/hdb-blocks.json  generated — 10,796 HDB blocks
-└── routes/*.gpx            one GPX per route, plus an optional .json sidecar
-        │
-        │  scripts/build_data.py
-        ▼
-public/data/
-├── venues.json             what the app loads
-├── routes.json
-└── dem/sg-dem.{json,bin}   terrain model for Singapore
-```
-
-A route contribution is one GPX file and a pull request. A height correction is a one-line diff. There is no admin panel, no moderation queue and no server — the data *is* the repo, so every change is reviewable and revertable.
-
-### Rebuilding the data
+Run these before any handoff:
 
 ```bash
-pip install -r scripts/requirements.txt
-
-python scripts/fetch_dem.py     # terrain model, ~3.5 MB — run once
-python scripts/build_data.py    # merge venues + routes -> public/data/
+npm run typecheck
+npm run build
+python scripts/build_data.py
 ```
 
-`scripts/ingest_hdb.py` regenerates the 10,796 residential HDB blocks from data.gov.sg. It takes about an hour on a cold cache and only needs running when HDB publishes new data — roughly annually — so you almost certainly don't need to.
+## Quick vertical-slice workflow test
 
-## Why elevation is re-sampled, not read
+1. Add or edit a venue in `data/venues/hills.json` with a real `gainM` or `summitM`.
+2. Drop a `.gpx` into `data/routes/`.
+3. Run `python scripts/build_data.py`.
+4. Run `npm run dev` and open `/#map`.
+5. Search for the venue or route, open its detail card, and verify it renders with height/distance/gain.
+6. Click **Download GPX** and confirm the file round-trips.
 
-The `<ele>` values in a GPX file come from consumer GPS, and they are noisy enough that naively summing the deltas invents hundreds of phantom metres over a long route. So the app ignores them: elevations are re-sampled against a bundled terrain model, then gain is accumulated only across runs that exceed a 2 m threshold.
+For fixture-driven testing, see `.devin/skills/hillgpx-workflow/SKILL.md`.
 
-Singapore is small enough (~50 × 27 km) that the whole country at ~38 m resolution is about 2.8 MB as `int16` metres. That fits in the repo, which is why profiles are computed with no API call, no rate limit and no network — a GPX you drop in is parsed in your tab and never uploaded anywhere.
+## Data model
 
-**Known limitation:** the terrain tiles are derived from SRTM, which is a *surface* model — it measures the top of the tree canopy, not the ground. Over forest it reads high. Bukit Timah's summit samples at 172 m against a true figure nearer 163 m, and the error is larger under dense cover than over open ground. So the profiles are good for comparing routes and tracking gain, but a DEM figure is not a substitute for actually verifying a venue's elevation. This is precisely why `hills.json` wants human-sourced numbers.
+- `data/venues/hills.json` — curated hills, stairs, parks
+- `data/venues/hdb-blocks.json` — generated HDB blocks
+- `data/venues/peaks.json` — generated OSM summits
+- `data/routes/*.gpx` — route tracks
+- `public/data/venues.json` and `public/data/routes.json` — generated app datasets
 
-## The map
+Run `python scripts/build_data.py` after changing any of the source files.
 
-- **Hills, staircases and parks** carry an icon and are visible at every zoom. They're landmarks — you navigate by them.
-- **HDB blocks** are dots, and only appear once you've zoomed into a neighbourhood. There are 10,796 of them; shown at every zoom they'd bury everything else.
-- Colour is elevation gain, from blue (under 30 m) through to purple (120 m and up). One ramp for hills and blocks alike, so a 40-storey block and a small hill read as the same size of climb — because they are.
+## Known limitations
 
-## Roadmap
+- The bundled terrain model covers Singapore only. Routes in Malaysia keep the GPX altitudes.
+- The DEM is derived from SRTM, so forested summits read higher than ground truth.
+- Eight curated Singapore venues still lack verified heights and are invisible until someone measures them. See `CONTRIBUTING.md`.
+- `data/routes/` is the biggest content gap; the pipeline exists but the folder is still sparse.
 
-| | |
-|---|---|
-| **Now** | Map, venues, per-venue routes, GPX drop-in profiler |
-| **Next** | Session builder — pick venues and reps, get total vertical, export GPX with waypoints |
-| **Later** | Snap-to-path route drawing over the OSM pedestrian network |
-| **Later** | "Give me 500 m of gain within 3 km of here" — generate a session against a target |
-| **Someday** | Other countries. Nothing in the data model is Singapore-specific except the bundled terrain model and the HDB ingest |
+## Agent guidance
 
-## Contributing
+- Read `AGENTS.md` before starting work.
+- Use Mobbin only as a UX/flow reference within the existing design system: `.devin/skills/mobbin/SKILL.md`.
+- For end-to-end workflow testing, use `.devin/skills/hillgpx-workflow/SKILL.md`.
 
-The most valuable contributions right now need no code:
+## License
 
-- **Verify a venue's elevation.** Almost every entry in `data/venues/hills.json` is an unverified seed value, and several are missing entirely. Measure or source one, cite it, open a PR.
-- **Add a route.** Drop a `.gpx` into `data/routes/`, run `python scripts/build_data.py`, commit both. That's the whole process.
-- **Add a venue.** Any public staircase, hill, or multi-storey carpark that people actually train on.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the details.
-
-## Data sources and licensing
-
-- **HDB property data** — [data.gov.sg](https://data.gov.sg), under the Singapore Open Data Licence. Attribution required.
-- **Coordinates** — geocoded via [OneMap](https://www.onemap.gov.sg).
-- **Terrain** — [AWS Open Data terrain tiles](https://registry.opendata.aws/terrain-tiles/) (Terrarium encoding, derived from SRTM and other open sources).
-- **Basemap** — [OpenFreeMap](https://openfreemap.org/), data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors.
-
-> ⚠️ **Unresolved:** whether OneMap's terms permit redistributing bulk derived geocodes in a public repository. This needs checking before `data/venues/hdb-blocks.json` is published. Until then, treat that file as local-only.
-
-Code is [MIT](LICENSE). Contributed routes are published under the same terms — only upload GPX files that are yours to share.
+Code is MIT. Contributed GPX files are published under the same terms — only upload files that are yours to share. Data attributions are listed in `CONTRIBUTING.md`.

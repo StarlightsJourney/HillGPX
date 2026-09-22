@@ -12,6 +12,7 @@ All generated outputs are committed. The app does not run Python or need these c
 | `fetch_photos.py` | Fetch, resize and record the latest Mapillary image within 60 m of each venue | `public/data/venues.json`, Mapillary, existing `data/photos.json` | `public/photos/*.webp`, `data/photos.json` | Network; Pillow, python-dotenv and `MAPILLARY_TOKEN` in `.env.local` | As imagery is added |
 | `scrape_routes_playwright.py` | Scrape a GPX route from dynamic/SPA sites by intercepting network traffic | Site URL, optional saved browser state | `data/routes/<slug>.gpx`, `data/routes/<slug>.json` | Network; Playwright, gpxpy; optional saved login state | Per contributed route |
 | `api_route_import.py` | Import a route by calling the platform's backend API with copied headers/cookies/tokens | Site URL/API URL, headers/cookies JSON | `data/routes/<slug>.gpx`, `data/routes/<slug>.json` | Network; httpx, tenacity, gpxpy; user-supplied session | Per contributed route |
+| `scrape_trail_photos.py` | Extract trail photos from a detail page and attach the best one to a venue | Trail page URL, venue slug | `public/photos/<name>_<n>.webp`, `data/photos.json` | Network; Playwright, BeautifulSoup4, httpx, Pillow | Per trail with permission |
 
 For a full rebuild:
 
@@ -96,6 +97,25 @@ python3 scripts/api_route_import.py "https://example.com/api/route/123" \
 ```
 
 The script retries failed requests with exponential backoff (`tenacity`), writes the GPX + sidecar, and optionally runs `build_data.py`. It also checks existing `data/routes/*.gpx` and `public/data/routes.json` for duplicates and skips identical tracks unless you pass `--force`.
+
+### Scraping trail photos
+
+`scrape_trail_photos.py` opens a stealth Chromium browser on a trail detail page, scrolls through galleries, listens for photo JSON, extracts `src`/`data-src`/`srcset` URLs with BeautifulSoup4, downloads the highest-resolution candidates with `httpx`, resizes them to the site's 420 px WebP format, and registers the best one against a venue slug.
+
+```bash
+# Public page without login
+python3 scripts/scrape_trail_photos.py "https://www.alltrails.com/trail/..." \
+    --venue mount-faber-singapore --name "Mount Faber" --max 5 --credit "Photographer name" --build
+
+# Authenticated page: log in once, save state, then reuse it
+python3 scripts/scrape_trail_photos.py "https://www.wikiloc.com/trail-..." \
+    --venue my-hill --name "My Hill" --no-headless --save-state --state trail-state.json
+
+python3 scripts/scrape_trail_photos.py "https://www.wikiloc.com/trail-..." \
+    --venue my-hill --name "My Hill" --state trail-state.json --build
+```
+
+`--venue` must be an existing HillGPX venue slug so `build_data.py` knows which card/detail page to show the photo on. `--max N` downloads the best N images but only registers one; extras are kept in `public/photos/` for manual use.
 
 Keep `GAIN_THRESHOLD_M` and `SMOOTH_WINDOW` in `build_data.py` in sync with the `computeGain` defaults in `src/lib/elevation.ts`.
 

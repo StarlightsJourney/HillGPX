@@ -17,3 +17,6 @@ gpxpy>=1.6.0
 # api_route_import.py — backend API route importer
 httpx>=0.27.0
 tenacity>=8.0.0
+
+# scrape_trail_photos.py — trail page photo extraction
+beautifulsoup4>=4.12.0

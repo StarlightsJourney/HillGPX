@@ -9,3 +9,7 @@ requests>=2.31.0
 
 # ingest_hdb.py and fetch_photos.py — read credentials from .env.local
 python-dotenv>=1.0.0
+
+# scrape_routes_playwright.py — dynamic browser scraping and GPX generation
+playwright>=1.40.0
+gpxpy>=1.6.0

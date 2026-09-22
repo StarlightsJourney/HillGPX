@@ -64,6 +64,29 @@ Audit started: autonomously by Devin.
 
 ---
 
+## Iteration: mobile, icon and photos
+
+### 8. Mobile category bar truncated on narrow screens
+- **Severity**: medium
+- **Details**: The map category bar showed "Hills & summits" cut off and left no room for remaining chips on 390 px wide screens.
+- **Fix**: Added `shortLabel` variants for all category chips (Hills, Blocks, Stairs, Photos, etc.) and switched to them below 743 px. Enabled `scroll-snap-type` and reduced gaps so the bar is clearly scrollable.
+- **Status**: fixed
+- **Re-test**: Mobile Playwright screenshot + `npm run test:e2e`
+
+### 9. App icon looked generic
+- **Severity**: low
+- **Details**: The favicon/mark was a thin elevation trace over a gradient square; at small sizes it did not read as an app icon.
+- **Fix**: Redesigned `Mark` and `public/favicon.svg` to a rounded-square tile with a bolder mountain silhouette behind a white route trace and a summit dot, referencing Mobbin app-icon patterns (Google Maps, Fetch, Kitchen Stories).
+- **Status**: fixed
+- **Re-test**: Visual screenshot + `npm run build`
+
+### 10. Real photos hard to add from URLs
+- **Severity**: medium
+- **Details**: Users could only upload local files; scraping a photo found online required manual steps.
+- **Fix**: Added an "Or paste an image URL" field in the venue detail Photos section that fetches the image in-browser when CORS allows. Added `scripts/scrape_photo.py` to download, downscale and register a photo from a URL at build time.
+- **Status**: fixed
+- **Re-test**: `npm run typecheck` + `npm run lint`
+
 ## Commands to re-run the whole audit
 
 ```bash
@@ -76,4 +99,4 @@ npm run build
 python3 scripts/build_data.py
 ```
 
-Last verified: see final summary.
+Last verified: all commands above passed with zero errors/warnings.

@@ -10,6 +10,7 @@ All generated outputs are committed. The app does not run Python or need these c
 | `fetch_peaks.py` | Fetch named OpenStreetMap peaks with an `ele` tag, for one or more regions | Overpass and the existing peaks file unless replacing | `data/venues/peaks.json` | Network; standard library only; no key | When the source region or OSM data changes |
 | `import_gpx.py` | Import a route from a file, URL, OSM route relation or your own Strava route, with a provenance sidecar | GPX file/URL, Overpass, Strava API | `data/routes/<slug>.gpx`, `data/routes/<slug>.json` | Network only for URL/OSM/Strava; standard library only; Strava needs `STRAVA_ACCESS_TOKEN` | Per contributed route |
 | `fetch_photos.py` | Fetch, resize and record the latest Mapillary image within 60 m of each venue | `public/data/venues.json`, Mapillary, existing `data/photos.json` | `public/photos/*.webp`, `data/photos.json` | Network; Pillow, python-dotenv and `MAPILLARY_TOKEN` in `.env.local` | As imagery is added |
+| `scrape_routes_playwright.py` | Scrape a GPX route from dynamic/SPA sites by intercepting network traffic | Site URL, optional saved browser state | `data/routes/<slug>.gpx`, `data/routes/<slug>.json` | Network; Playwright, gpxpy; optional saved login state | Per contributed route |
 
 For a full rebuild:
 
@@ -42,6 +43,29 @@ python3 scripts/build_data.py
 ```
 
 The GPX must hold at least two `<trkpt>` or `<rtept>` points; route-only files are converted to a track. `--osm-relation` stitches the relation's ways by nearest endpoints (check the result; branching relations report gaps) and records licence `ODbL © OpenStreetMap contributors` and the relation URL. `--strava-route` calls only `GET /api/v3/routes/{id}/export_gpx` with `STRAVA_ACCESS_TOKEN` from the environment or `.env.local`; it works for routes your token can access and never scrapes strava.com, which Strava's terms forbid. `--dry-run` validates without writing; `--force` overwrites an existing slug. Route sidecars may carry `sourceUrl` and `licence`, which `build_data.py` passes into `routes.json`, and every route gets a coarse `country` from its start point.
+
+### Scraping routes from dynamic sites
+
+`scrape_routes_playwright.py` launches a stealth Chromium browser, loads a saved session if you provide one, then listens to background network traffic and converts intercepted coordinate payloads into GPX.
+
+```bash
+pip install -r scripts/requirements.txt
+python3 -m playwright install chromium
+
+# For sites that do not require login, or for public API endpoints:
+python3 scripts/scrape_routes_playwright.py "https://www.komoot.com/tour/12345678" \
+    --name "Komoot tour" --licence "Permission from author" --contributor @you --build
+
+# For sites that require authentication, open the browser, log in manually, save state:
+python3 scripts/scrape_routes_playwright.py "https://www.alltrails.com/trail/..." \
+    --name "AllTrails route" --no-headless --save-state --state alltrails-state.json
+
+# Then reuse the saved state for future runs:
+python3 scripts/scrape_routes_playwright.py "https://www.alltrails.com/trail/..." \
+    --name "AllTrails route" --state alltrails-state.json --build
+```
+
+**Important:** only scrape routes you have permission to republish. The script prefers official APIs (e.g. Strava with `STRAVA_ACCESS_TOKEN`) where possible. It does not bypass Cloudflare or CAPTCHAs; for authenticated sites you generally need to log in once with `--no-headless --save-state` and reuse that state.
 
 Keep `GAIN_THRESHOLD_M` and `SMOOTH_WINDOW` in `build_data.py` in sync with the `computeGain` defaults in `src/lib/elevation.ts`.
 

@@ -1,4 +1,5 @@
 import type { ExpressionSpecification, Map as MlMap, GeoJSONSource } from 'maplibre-gl';
+import type { FeatureCollection } from 'geojson';
 import type { Route, Venue } from '../types';
 
 /** MapLibre sources and layers that remain beneath the HTML venue markers. */
@@ -25,7 +26,7 @@ const HDB_DOT_MIN_ZOOM = 11;
 export const MARKER_COLS = 6;
 export const MARKER_ROWS = 4;
 
-export function venuesToGeoJson(venues: Venue[]): GeoJSON.FeatureCollection {
+export function venuesToGeoJson(venues: Venue[]): FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: venues.map((venue) => ({
@@ -36,7 +37,7 @@ export function venuesToGeoJson(venues: Venue[]): GeoJSON.FeatureCollection {
   };
 }
 
-export function addVenueLayers(map: MlMap, data: GeoJSON.FeatureCollection): void {
+export function addVenueLayers(map: MlMap, data: FeatureCollection): void {
   map.addSource('venues', {
     type: 'geojson',
     data,
@@ -73,7 +74,7 @@ const HOT: ExpressionSpecification = [
   ['boolean', ['feature-state', 'selected'], false],
 ];
 
-export function routesToGeoJson(routes: Route[]): GeoJSON.FeatureCollection {
+export function routesToGeoJson(routes: Route[]): FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: routes
@@ -90,7 +91,7 @@ export function routesToGeoJson(routes: Route[]): GeoJSON.FeatureCollection {
  * Every committed and saved route, always on the map. Hover and selection are
  * feature-state so moving the pointer never re-uploads geometry.
  */
-export function addAllRouteLayers(map: MlMap, data: GeoJSON.FeatureCollection): void {
+export function addAllRouteLayers(map: MlMap, data: FeatureCollection): void {
   map.addSource('routes', { type: 'geojson', data, promoteId: 'slug' });
   const hot = HOT;
   map.addLayer({
@@ -223,7 +224,7 @@ export function animateActiveRoute(
   return () => cancelAnimationFrame(frame);
 }
 
-function endsFeature(coordinates: [number, number, number][] | null): GeoJSON.FeatureCollection {
+function endsFeature(coordinates: [number, number, number][] | null): FeatureCollection {
   if (!coordinates || coordinates.length === 0) return { type: 'FeatureCollection', features: [] };
   const point = (c: [number, number, number], end: string) => ({
     type: 'Feature' as const,

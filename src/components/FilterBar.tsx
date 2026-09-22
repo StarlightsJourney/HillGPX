@@ -728,11 +728,14 @@ function HeightRange({ heights, minHeightM, maxHeightM, onChange }: HeightRangeP
 
   const onHandleKey = (which: 'min' | 'max') => (e: ReactKeyboardEvent<HTMLDivElement>) => {
     const current = which === 'min' ? minIndex : maxIndex;
-    let next = current;
-    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = current + 1;
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = current - 1;
-    else if (e.key === 'PageUp') next = current + 5;
-    else if (e.key === 'PageDown') next = current - 5;
+    const delta =
+      e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1
+      : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1
+      : e.key === 'PageUp' ? 5
+      : e.key === 'PageDown' ? -5
+      : 0;
+    let next: number;
+    if (delta) next = current + delta;
     else if (e.key === 'Home') next = which === 'min' ? 0 : minIndex;
     else if (e.key === 'End') next = which === 'min' ? maxIndex : lastIndex;
     else return;

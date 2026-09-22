@@ -1,8 +1,9 @@
-import maplibregl, { type Map as MlMap, type Marker } from 'maplibre-gl';
+import { Marker, type Map as MlMap } from 'maplibre-gl';
 import type { Route, Venue } from '../types';
 import { formatDistanceIn, formatHeight, type Units } from '../lib/units';
 import { rankingHeight, venueHeight } from '../lib/venues';
 import { glyphSvg } from '../lib/venueGlyphs';
+import { setSvgIcon } from '../lib/dom';
 
 export interface MarkerState {
   selected: string | null;
@@ -77,7 +78,7 @@ export class VenueMarkers {
 
       const glyph = document.createElement('span');
       glyph.className = 'pin-glyph';
-      glyph.innerHTML = glyphSvg(venue.type);
+      setSvgIcon(glyph, glyphSvg(venue.type));
       const label = document.createElement('span');
       label.className = 'pin-label';
       element.append(glyph, label);
@@ -90,7 +91,7 @@ export class VenueMarkers {
       element.addEventListener('mouseleave', () => this.handlers.onHover(null));
       anchor.appendChild(element);
 
-      const marker = new maplibregl.Marker({ element: anchor, anchor: 'center' })
+      const marker = new Marker({ element: anchor, anchor: 'center' })
         .setLngLat([venue.lng, venue.lat])
         .addTo(this.map);
       this.entries.set(venue.slug, { venue, marker, anchor, element, label });
@@ -212,7 +213,7 @@ export class RouteMarkers {
         element.className = 'pin route-pin';
         const glyph = document.createElement('span');
         glyph.className = 'pin-glyph';
-        glyph.innerHTML = ROUTE_GLYPH;
+        setSvgIcon(glyph, ROUTE_GLYPH);
         const label = document.createElement('span');
         label.className = 'pin-label';
         element.append(glyph, label);
@@ -224,7 +225,7 @@ export class RouteMarkers {
         element.addEventListener('mouseleave', () => this.handlers.onHover(null));
         anchor.appendChild(element);
         const [lng, lat] = route.coordinates[0];
-        const marker = new maplibregl.Marker({ element: anchor, anchor: 'center' }).setLngLat([lng, lat]).addTo(this.map);
+        const marker = new Marker({ element: anchor, anchor: 'center' }).setLngLat([lng, lat]).addTo(this.map);
         entry = { route, marker, element, label };
         this.entries.set(route.slug, entry);
       }

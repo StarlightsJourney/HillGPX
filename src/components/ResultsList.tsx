@@ -140,8 +140,11 @@ function ResultsListInner({
       : `${total.toLocaleString()} place${total === 1 ? '' : 's'}`;
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const currentPage = Math.max(0, Math.min(page, totalPages - 1));
-  const rows = inView.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
-  const pageKey = rows.map((row) => row.slug).join('|');
+  const rows = useMemo(
+    () => inView.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE),
+    [inView, currentPage],
+  );
+  const pageKey = useMemo(() => rows.map((row) => row.slug).join('|'), [rows]);
   const loading = pageKey !== shownKey;
 
   useEffect(() => {
@@ -190,7 +193,7 @@ function ResultsListInner({
       window.clearTimeout(earliest);
       window.clearTimeout(latest);
     };
-  }, [pageKey]);
+  }, [pageKey, rows]);
 
   return (
     <section className="results" ref={sectionRef}>

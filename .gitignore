@@ -34,3 +34,8 @@ desktop.ini
 # Logs
 *.log
 npm-debug.*
+
+# Test artifacts
+test-results/
+playwright-report/
+

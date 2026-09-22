@@ -284,9 +284,10 @@ export async function syncPending(): Promise<{ reviews: number; photos: number; 
  */
 export function combinedRating(venueSlug: string, published?: { average: number; count: number }): { average: number; count: number } | undefined {
   const local = reviewsForVenue(venueSlug).filter((review) => review.rating > 0);
-  if (!published && local.length === 0) return undefined;
+  const publishedCount = published && published.count > 0 ? published.count : 0;
+  if (publishedCount === 0 && local.length === 0) return undefined;
   const all = [
-    ...(published ? Array(published.count).fill(published.average) : []),
+    ...(publishedCount > 0 ? Array(publishedCount).fill(published!.average) : []),
     ...local.map((review) => review.rating),
   ];
   const sum = all.reduce((a, b) => a + b, 0);

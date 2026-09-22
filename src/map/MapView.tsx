@@ -1,6 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import maplibregl, { type GeoJSONSource, type Map as MlMap, type Offset } from 'maplibre-gl';
+import {
+  Map as MapLibreMap,
+  Popup,
+  NavigationControl,
+  GeolocateControl,
+  LngLatBounds,
+  type ErrorEvent,
+  type GeoJSONSource,
+  type GeolocateErrorEvent,
+  type LngLatLike,
+  type Map as MlMap,
+  type MapLayerMouseEvent,
+  type MapMouseEvent,
+  type MapMovementEvent,
+  type Offset,
+} from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Route, RoutePoint, Venue } from '../types';
 import { rankingHeight, type Bounds } from '../lib/venues';
@@ -22,6 +37,7 @@ import {
 } from './layers';
 import { RouteMarkers, VenueMarkers } from './markers';
 import { MAP_STYLE_URL } from './constants';
+import { parseSvg } from '../lib/dom';
 
 /**
  * Basemap tiles come from OpenFreeMap, which is free to use and needs no API
@@ -145,7 +161,7 @@ function boundsMeaningfullyChanged(
   );
 }
 
-function flyToVenue(map: MlMap, center: maplibregl.LngLatLike) {
+function flyToVenue(map: MlMap, center: LngLatLike) {
   map.flyTo({
     center,
     duration: 900,
@@ -190,9 +206,13 @@ class ExpandControl {
     this.button.setAttribute('aria-label', label);
     this.button.setAttribute('aria-pressed', String(expanded));
     this.button.title = label;
-    this.button.innerHTML = expanded
-      ? '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4l-5 5M11 5v4h4M4 16l5-5M9 15v-4H5"/></svg>'
-      : '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4h5v5M16 4l-6 6M9 16H4v-5M4 16l6-6"/></svg>';
+    this.button.replaceChildren(
+      parseSvg(
+        expanded
+          ? '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4l-5 5M11 5v4h4M4 16l5-5M9 15v-4H5"/></svg>'
+          : '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4h5v5M16 4l-6 6M9 16H4v-5M4 16l6-6"/></svg>',
+      ),
+    );
   }
 }
 
@@ -284,7 +304,7 @@ export function MapView({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const map = new maplibregl.Map({
+    const map = new MapLibreMap({
       container: containerRef.current,
       style: MAP_STYLE_URL,
       center: SINGAPORE_CENTRE,
@@ -306,8 +326,8 @@ export function MapView({
 
     if (import.meta.env.DEV) (window as unknown as { map: MlMap }).map = map;
 
-    map.on('error', (e) => {
-      const message = (e as unknown as { error?: Error }).error?.message ?? 'Unknown map error';
+    map.on('error', (e: ErrorEvent) => {
+      const message = e.error?.message ?? 'Unknown map error';
       console.error('[map]', message);
       onMapErrorRef.current?.(message);
     });
@@ -316,16 +336,15 @@ export function MapView({
       onToggleExpandRef.current(),
     );
     map.addControl(expandControlRef.current, 'top-right');
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
 
-    const geolocate = new maplibregl.GeolocateControl({
+    const geolocate = new GeolocateControl({
       positionOptions: { enableHighAccuracy: true },
       trackUserLocation: true,
     });
     geolocate.on('geolocate', () => onLocateHintRef.current?.(null));
-    geolocate.on('error', (e) => {
-      const err = (e as unknown as { error?: GeolocationPositionError }).error;
-      const code = err?.code;
+    geolocate.on('error', (e: GeolocateErrorEvent) => {
+      const code = e.code;
       onLocateHintRef.current?.(
         code === 1
           ? 'To improve accuracy, enable location sharing in your browser settings.'
@@ -358,7 +377,7 @@ export function MapView({
       refreshMarkersRef.current(true);
       setReady(true);
 
-      map.on('click', (event) => {
+      map.on('click', (event: MapMouseEvent) => {
         const hit = map.queryRenderedFeatures(event.point, { layers: ['routes-hit'] })[0];
         const slug = hit?.properties?.slug as string | undefined;
         if (slug) {
@@ -368,7 +387,7 @@ export function MapView({
         onSelectRef.current(null);
       });
       let hoveredRoute: string | null = null;
-      map.on('mousemove', 'routes-hit', (event) => {
+      map.on('mousemove', 'routes-hit', (event: MapLayerMouseEvent) => {
         const slug = (event.features?.[0]?.properties?.slug as string | undefined) ?? null;
         map.getCanvas().style.cursor = slug ? 'pointer' : '';
         if (slug !== hoveredRoute) {
@@ -376,12 +395,12 @@ export function MapView({
           onHoverRouteRef.current(slug);
         }
       });
-      map.on('mouseleave', 'routes-hit', () => {
+      map.on('mouseleave', 'routes-hit', (_event: MapLayerMouseEvent) => {
         map.getCanvas().style.cursor = '';
         hoveredRoute = null;
         onHoverRouteRef.current(null);
       });
-      map.on('mousemove', (event) => {
+      map.on('mousemove', (event: MapMouseEvent) => {
         cancelAnimationFrame(routeHoverFrame);
         routeHoverFrame = requestAnimationFrame(() => {
           const features = map.queryRenderedFeatures(
@@ -408,10 +427,10 @@ export function MapView({
           onRouteHoverRef.current(nearest);
         });
       });
-      map.on('mouseleave', () => onRouteHoverRef.current(null));
+      map.on('mouseout', () => onRouteHoverRef.current(null));
     });
 
-    const reportViewport = (e?: { originalEvent?: unknown }) => {
+    const reportViewport = (event?: MapMovementEvent) => {
       const b = map.getBounds();
       const next = {
         west: b.getWest(),
@@ -421,7 +440,7 @@ export function MapView({
       };
       if (!boundsMeaningfullyChanged(viewportBoundsRef.current, next)) return;
       viewportBoundsRef.current = next;
-      onViewportRef.current?.(next, Boolean(e?.originalEvent));
+      onViewportRef.current?.(next, Boolean(event?.originalEvent));
     };
 
     const refreshMarkers = (force = false) => {
@@ -495,11 +514,11 @@ export function MapView({
     refreshMarkersRef.current = refreshMarkers;
 
     const layoutMarkers = () => markersRef.current?.layout();
-    map.on('moveend', reportViewport);
-    map.on('moveend', refreshMarkers);
-    map.on('moveend', layoutMarkers);
-    map.on('zoomend', layoutMarkers);
-    map.on('resize', layoutMarkers);
+    map.on('moveend', () => reportViewport());
+    map.on('moveend', () => refreshMarkers());
+    map.on('moveend', () => layoutMarkers());
+    map.on('zoomend', () => layoutMarkers());
+    map.on('resize', () => layoutMarkers());
     map.once('load', () => {
       reportViewport();
       refreshMarkers();
@@ -630,7 +649,7 @@ export function MapView({
     if (activeRoute && activeRoute.length > 1) {
       const bounds = activeRoute.reduce(
         (b, [lng, lat]) => b.extend([lng, lat]),
-        new maplibregl.LngLatBounds(
+        new LngLatBounds(
           [activeRoute[0][0], activeRoute[0][1]],
           [activeRoute[0][0], activeRoute[0][1]],
         ),
@@ -705,10 +724,10 @@ function VenuePopup({
   onToggleFavorite: (slug: string) => void;
 }) {
   const [content] = useState(() => document.createElement('div'));
-  const popupRef = useRef<maplibregl.Popup | null>(null);
+  const popupRef = useRef<Popup | null>(null);
 
   useEffect(() => {
-    const popup = new maplibregl.Popup({
+    const popup = new Popup({
       closeButton: false,
       closeOnClick: false,
       focusAfterOpen: false,
@@ -754,11 +773,7 @@ function VenuePopup({
       popup.remove();
       popupRef.current = null;
     };
-  }, [map, content]);
-
-  useEffect(() => {
-    popupRef.current?.setLngLat([venue.lng, venue.lat]);
-  }, [venue.lng, venue.lat]);
+  }, [map, content, venue.lng, venue.lat]);
 
   return createPortal(
     <div

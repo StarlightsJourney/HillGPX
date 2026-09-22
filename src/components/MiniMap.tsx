@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
-import maplibregl from 'maplibre-gl';
+import { Map, Marker } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Venue } from '../types';
 import { formatHeight } from '../lib/units';
 import { venueHeight } from '../lib/venues';
 import { glyphSvg } from '../lib/venueGlyphs';
+import { parseSvg, textSpan } from '../lib/dom';
 import { MAP_STYLE_URL } from '../map/constants';
 import { useUnits } from './UnitsContext';
 
@@ -14,7 +15,7 @@ export function MiniMap({ venue }: { venue: Venue }) {
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const map = new maplibregl.Map({
+    const map = new Map({
       container: containerRef.current,
       style: MAP_STYLE_URL,
       center: [venue.lng, venue.lat],
@@ -36,9 +37,13 @@ export function MiniMap({ venue }: { venue: Venue }) {
     const marker = document.createElement('div');
     marker.className = 'pin is-selected';
     marker.setAttribute('aria-label', `${venue.name}, ${label}`);
-    marker.innerHTML = `<span class="pin-glyph">${glyphSvg(venue.type)}</span><span class="pin-label">${label}</span>`;
+    const glyph = document.createElement('span');
+    glyph.className = 'pin-glyph';
+    glyph.appendChild(parseSvg(glyphSvg(venue.type)));
+    marker.appendChild(glyph);
+    marker.appendChild(textSpan(label, 'pin-label'));
     anchor.appendChild(marker);
-    const venueMarker = new maplibregl.Marker({ element: anchor, anchor: 'center' })
+    const venueMarker = new Marker({ element: anchor, anchor: 'center' })
       .setLngLat([venue.lng, venue.lat])
       .addTo(map);
     return () => {

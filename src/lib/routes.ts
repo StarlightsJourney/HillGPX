@@ -25,6 +25,10 @@ export interface RouteFilters {
 
 export const NO_ROUTE_FILTERS: RouteFilters = { category: 'all', minGainM: null, maxDistanceM: null };
 
+export function routeHasElevation(route: Route): boolean {
+  return route.elevationAvailable !== false;
+}
+
 export function filterRoutes(routes: Route[], filters: RouteFilters): Route[] {
   return routes.filter((route) => {
     if (filters.minGainM != null && route.gainM < filters.minGainM) return false;

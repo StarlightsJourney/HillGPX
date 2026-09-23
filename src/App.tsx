@@ -37,6 +37,24 @@ import { UnitsProvider } from './components/UnitsContext';
 
 /** One shared empty list, so "no dataset yet" is a stable reference to memo on. */
 const NO_VENUES: Venue[] = [];
+const FAVORITES_KEY = 'hillgpx:favorites';
+
+function loadFavorites(): Set<string> {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
+    return new Set(Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveFavorites(favorites: Set<string>): void {
+  try {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]));
+  } catch {
+    return;
+  }
+}
 
 // MapLibre is by far the largest dependency here. Code-splitting it keeps the
 // landing page down to a small bundle that paints immediately; the map is only
@@ -132,9 +150,7 @@ function MapApp() {
   const [detailSlug, setDetailSlug] = useState(detailSlugFromHash);
   const cameFromMapRef = useRef(false);
   const [hoveredSlug, setHoveredSlug] = useState<string | null>(null);
-  const [favorites, setFavorites] = useState<Set<string>>(
-    () => new Set(JSON.parse(localStorage.getItem('hillgpx:favorites') || '[]') as string[]),
-  );
+  const [favorites, setFavorites] = useState<Set<string>>(loadFavorites);
   const [localRoutes, setLocalRoutes] = useState<Route[]>(loadLocalRoutes);
   const [droppedGpx, setDroppedGpx] = useState<LoadedGpx | null>(null);
   const [gpxHoverIndex, setGpxHoverIndex] = useState<number | null>(null);
@@ -180,7 +196,7 @@ function MapApp() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('hillgpx:favorites', JSON.stringify([...favorites]));
+    saveFavorites(favorites);
   }, [favorites]);
 
   useEffect(() => {

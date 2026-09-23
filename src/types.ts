@@ -103,6 +103,7 @@ export interface Route {
   distanceM: number;
   gainM: number;
   lossM: number;
+  elevationAvailable?: boolean;
   loop: boolean;
 
   surface?: RouteSurface;

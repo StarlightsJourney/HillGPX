@@ -16,4 +16,14 @@ test('map category bar scrolls and detail opens on mobile', async ({ page }) => 
   await page.click('.result-card, .venue-card');
   await expect(page.getByRole('heading', { name: 'The EG' }).first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Photos' }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: /Report a problem/i })).toBeVisible();
+});
+
+test('landing route opens a downloadable map panel on mobile', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Routes' }).first().click();
+  await page.locator('.tile').first().click();
+
+  await expect(page.locator('.route-panel')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Download GPX/i })).toBeVisible();
 });

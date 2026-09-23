@@ -3,20 +3,10 @@ import { VENUE_TYPE_LABEL, townName, venueHeight } from '../lib/venues';
 import { PhotoCredit, VenueThumb } from './VenueThumb';
 import { useUnits } from './UnitsContext';
 import { CloseIcon, HeartIcon } from './icons';
+import { toGpx } from '../lib/gpx';
 
 export function downloadRoute(route: Route) {
-  const points = route.coordinates
-    .map(([lng, lat, ele]) => `        <trkpt lat="${lat}" lon="${lng}"><ele>${ele}</ele></trkpt>`)
-    .join('\n');
-  const gpx = `<?xml version="1.0" encoding="UTF-8"?>
-<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="hillGPX">
-  <trk>
-    <name>${route.name}</name>
-    <trkseg>
-${points}
-    </trkseg>
-  </trk>
-</gpx>`;
+  const gpx = toGpx(route.name, route.coordinates, [], route.elevationAvailable !== false);
   const blob = new Blob([gpx], { type: 'application/gpx+xml' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

@@ -128,7 +128,12 @@ function sqSegmentDistance(p: RoutePoint, a: RoutePoint, b: RoutePoint): number 
 }
 
 /** Serialise points back out as a GPX route, for the session builder. */
-export function toGpx(name: string, points: RoutePoint[], waypoints: ParsedGpx['waypoints'] = []): string {
+export function toGpx(
+  name: string,
+  points: RoutePoint[],
+  waypoints: ParsedGpx['waypoints'] = [],
+  includeElevation = true,
+): string {
   const esc = (s: string) => s.replace(/[<>&'"]/g, (c) => `&#${c.charCodeAt(0)};`);
   const wpts = waypoints
     .map(
@@ -141,7 +146,7 @@ export function toGpx(name: string, points: RoutePoint[], waypoints: ParsedGpx['
   const trkpts = points
     .map(
       ([lng, lat, ele]) =>
-        `      <trkpt lat="${lat.toFixed(6)}" lon="${lng.toFixed(6)}"><ele>${ele.toFixed(1)}</ele></trkpt>`,
+        `      <trkpt lat="${lat.toFixed(6)}" lon="${lng.toFixed(6)}">${includeElevation ? `<ele>${ele.toFixed(1)}</ele>` : ''}</trkpt>`,
     )
     .join('\n');
 

@@ -159,15 +159,15 @@ Neither is considered authoritative for the public dataset. To publish a route, 
 
 1. The landing page shows three representative places per geographic or training category instead of an exhaustive wall of cards.
 2. The user opens a place directly or chooses **See all** to frame that region on the map.
-3. Map pills distinguish hills, buildings, stairs, parks, and routes with visible glyphs; route pills show distance.
+3. Map pills distinguish the venue types present in the dataset with visible glyphs; route pills show distance. The current generated data contains hills and HDB blocks, while the schema is ready for stairs, parks, carparks, and bridges as those datasets are curated.
 4. Selecting a pill opens a concise summary. Opening the detail page reveals access notes, linked routes, photos, attribution, nearby venues, and the location map.
 5. The primary next actions are **Show on map**, **Download GPX** when available, save, share, or report incorrect data.
 
 ### Find and use a route
 
 1. The user switches to **Routes** from the landing page or map category bar.
-2. Route cards and map pills expose distance and EG before selection.
-3. Selecting a route frames its complete line and elevation profile.
+2. Route cards and map pills expose distance and EG before selection; routes without source or terrain elevation say that elevation is unavailable instead of claiming zero EG.
+3. Selecting a route frames its complete line and shows an elevation profile when elevation data exists.
 4. The user downloads the GPX, or imports their own GPX to compare its profile and nearby venues locally.
 
 ### Contribute data

@@ -24,6 +24,7 @@ import {
   submitReview,
 } from '../lib/api';
 import { regionOf } from '../lib/regions';
+import { routeHasElevation } from '../lib/routes';
 
 const MiniMap = lazy(() => import('./MiniMap').then((module) => ({ default: module.MiniMap })));
 
@@ -185,8 +186,8 @@ function PhotoCard({ venue }: { venue: Venue }) {
   const onSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const selected = event.target.files?.[0];
     if (!selected) return;
-    if (selected.size > 5 * 1024 * 1024) {
-      setError('Photo is too large. Please choose one under 5 MB.');
+    if (selected.size > 650 * 1024) {
+      setError('Photo is too large for local storage. Please choose one under 650 KB.');
       return;
     }
     setFile(selected);
@@ -228,7 +229,7 @@ function PhotoCard({ venue }: { venue: Venue }) {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const blob = await response.blob();
       if (!blob.type.startsWith('image/')) throw new Error('URL did not return an image');
-      if (blob.size > 5 * 1024 * 1024) throw new Error('Image is too large. Please choose one under 5 MB.');
+      if (blob.size > 650 * 1024) throw new Error('Image is too large for local storage. Please choose one under 650 KB.');
       const filename = url.split('/').pop()?.split('?')[0] || 'photo.jpg';
       const fetchedFile = new File([blob], filename, { type: blob.type });
       setFile(fetchedFile);
@@ -478,9 +479,9 @@ function VenueDetailInner({
                     {routes.map((route) => (
                       <article className="venue-route-card" key={route.slug}>
                         <RouteThumb route={route} />
-                        <div className="venue-route-profile"><ElevationProfile points={route.coordinates} height={64} /></div>
+                        {routeHasElevation(route) && <div className="venue-route-profile"><ElevationProfile points={route.coordinates} height={64} /></div>}
                         <h3>{route.name}</h3>
-                        <p>{units.distance(route.distanceM)} · {units.height(route.gainM)} EG{route.loop ? ' · loop' : ''}</p>
+                        <p>{units.distance(route.distanceM)} · {routeHasElevation(route) ? `${units.height(route.gainM)} EG` : 'Elevation unavailable'}{route.loop ? ' · loop' : ''}</p>
                         {route.source === 'local' && <span className="local-route-tag">Saved on this device</span>}
                         <div className="venue-route-actions">
                           <button type="button" onClick={() => onShowOnMap(route.slug)}>Show on map</button>
@@ -532,6 +533,10 @@ function VenueDetailInner({
             </div>
             <a className="venue-report" href={`${REPO_URL}/issues/new?title=${encodeURIComponent(`Problem: ${venue.name} (${venue.slug})`)}`} target="_blank" rel="noreferrer"><FlagGlyph />Report a problem with this venue</a>
           </aside>
+        </div>
+        <div className="venue-mobile-secondary-actions">
+          {routes.length > 0 && <button type="button" onClick={() => downloadRoute(routes[0])}><DownloadIcon size={16} />Download GPX{routes.length > 1 ? ` (${routes.length})` : ''}</button>}
+          <a href={`${REPO_URL}/issues/new?title=${encodeURIComponent(`Problem: ${venue.name} (${venue.slug})`)}`} target="_blank" rel="noreferrer"><FlagGlyph />Report a problem</a>
         </div>
       </main>
 

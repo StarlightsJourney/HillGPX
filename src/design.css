@@ -418,6 +418,16 @@
   padding-top: 32px;
   padding-bottom: 48px;
 }
+.home-load-error {
+  max-width: 620px;
+  margin: 24px auto 48px;
+  padding: 28px;
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  text-align: center;
+}
+.home-load-error h2 { margin: 0 0 8px; }
+.home-load-error p { margin: 0 0 20px; color: var(--muted); }
 
 .home-row + .home-row {
   margin-top: 36px;
@@ -1132,6 +1142,15 @@
 }
 .route-credit a {
   color: var(--ink);
+}
+.route-elevation-unavailable {
+  margin: 12px 0 0;
+  padding: 18px;
+  border-radius: 10px;
+  background: var(--bg-raised);
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
 }
 .gpx-stat strong {
   font-size: 17px;

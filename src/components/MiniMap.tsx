@@ -52,5 +52,5 @@ export function MiniMap({ venue }: { venue: Venue }) {
     };
   }, [venue, units]);
 
-  return <div ref={containerRef} className="mini-map" aria-label={`Map showing ${venue.name}`} />;
+  return <div ref={containerRef} className="mini-map" role="img" aria-label={`Map showing ${venue.name}`} />;
 }

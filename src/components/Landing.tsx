@@ -3,7 +3,7 @@ import type { Route, Venue } from '../types';
 import { loadDataset, rankingHeight, venueHeight, VENUE_TYPE_LABEL, type Dataset } from '../lib/venues';
 import { DESTINATIONS, boundsToHash, regionOf, type Destination } from '../lib/regions';
 import { addPlaceUrl, addRouteUrl, REPO_URL } from '../lib/contribute';
-import { routeDifficulty } from '../lib/routes';
+import { routeDifficulty, routeHasElevation } from '../lib/routes';
 import { ChevronLeftIcon, ChevronRightIcon, GitHubIcon, Mark, SearchIcon } from './icons';
 import { HeaderControls } from './HeaderControls';
 import { RatingLabel } from './ResultsList';
@@ -30,10 +30,11 @@ function openMap(mode: Mode, hash = '#map') {
 export function Landing({ onOpen }: LandingProps) {
   const [mode, setMode] = useState<Mode>('climbs');
   const [dataset, setDataset] = useState<Dataset | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    loadDataset().then(setDataset).catch(() => undefined);
+    loadDataset().then(setDataset).catch((error: Error) => setLoadError(error.message));
     const onScroll = () => setScrolled(window.scrollY > 8);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -86,7 +87,14 @@ export function Landing({ onOpen }: LandingProps) {
       <HeroBlock dataset={dataset} mode={mode} />
 
       <main className="home-shell home-main">
-        {mode === 'routes' ? (
+        {loadError && (
+          <section className="home-load-error" role="alert">
+            <h2>Places and routes could not be loaded</h2>
+            <p>{loadError}</p>
+            <button type="button" className="btn btn-light" onClick={() => window.location.reload()}>Try again</button>
+          </section>
+        )}
+        {!loadError && (mode === 'routes' ? (
           <>
             <Row title="Routes worth running" action={() => openMap('routes', '#routes')} loading={!routes}>
               {routes?.map((route, i) => <RouteTile key={route.slug} route={route} index={i} />)}
@@ -112,7 +120,7 @@ export function Landing({ onOpen }: LandingProps) {
             ))}
             <ContributeBanner />
           </>
-        )}
+        ))}
       </main>
 
       <footer className="home-foot">
@@ -161,7 +169,7 @@ function HeroBlock({ dataset, mode }: { dataset: Dataset | null; mode: Mode }) {
           <div className="home-hero-copy">
             <h1 className="home-hero-title">Find your next vertical, anywhere.</h1>
             <p className="home-hero-lead">
-              Hills, staircases, tall blocks and real GPX routes. Compare honest elevation gain, drop a route to see its profile, and train with a plan.
+              Hills, staircases, tall blocks and real GPX routes. Compare honest elevation gain, inspect route profiles, and train with real data.
             </p>
             <div className="home-hero-stats">
               <div>
@@ -320,7 +328,8 @@ interface RowSpec {
 }
 
 const PLACEHOLDER_ROWS: RowSpec[] = [
-  { title: 'Tallest climbs in Singapore', venues: [] },
+  { title: 'Hills and summits in Singapore', venues: [] },
+  { title: 'Stair training in Singapore', venues: [] },
   { title: 'Summits across Malaysia', venues: [] },
 ];
 
@@ -449,7 +458,7 @@ function RouteTile({ route, index }: { route: Route; index: number }) {
       </span>
       <span className="tile-meta">{[region, route.loop ? 'Loop' : 'Point to point'].filter(Boolean).join(' · ')}</span>
       <span className="tile-meta">
-        <strong>{units.distance(route.distanceM)}</strong> · <strong>{units.height(route.gainM)}</strong> EG
+        <strong>{units.distance(route.distanceM)}</strong> · <strong>{routeHasElevation(route) ? `${units.height(route.gainM)} EG` : 'Elevation unavailable'}</strong>
       </span>
     </button>
   );

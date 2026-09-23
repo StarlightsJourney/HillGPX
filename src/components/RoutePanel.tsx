@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { Route, Venue } from '../types';
 import { computeGain } from '../lib/elevation';
-import { climbRate, routeDifficulty } from '../lib/routes';
+import { climbRate, routeDifficulty, routeHasElevation } from '../lib/routes';
 import { regionOf } from '../lib/regions';
 import { ElevationProfile } from './ElevationProfile';
 import { TypeGlyph } from './TypeGlyph';
@@ -21,6 +21,7 @@ interface RoutePanelProps {
 export function RoutePanel({ route, venuesBySlug, hoverIndex, onHoverIndex, onClose }: RoutePanelProps) {
   const units = useUnits();
   const { minM, maxM } = useMemo(() => computeGain(route.coordinates), [route.coordinates]);
+  const hasElevation = routeHasElevation(route);
   const region = route.country ?? regionOf(route.coordinates[0][0], route.coordinates[0][1]);
   const touches = route.venueSlugs
     .map((slug) => venuesBySlug.get(slug))
@@ -38,7 +39,7 @@ export function RoutePanel({ route, venuesBySlug, hoverIndex, onHoverIndex, onCl
         <div className="gpx-panel-actions">
           <button type="button" className="gpx-download" onClick={() => downloadRoute(route)}>
             <DownloadIcon size={14} />
-            GPX
+            Download GPX
           </button>
           <button type="button" className="gpx-close" onClick={onClose} aria-label="Close route">
             <CloseIcon size={12} />
@@ -49,11 +50,11 @@ export function RoutePanel({ route, venuesBySlug, hoverIndex, onHoverIndex, onCl
       <div className="gpx-stats">
         {[
           ['Distance', units.distance(route.distanceM)],
-          ['EG', units.height(route.gainM)],
-          ['Descent', units.height(route.lossM)],
-          ['Highest', units.height(maxM)],
-          ['Lowest', units.height(minM)],
-          ['EG / km', `${units.height(climbRate(route))}`],
+          ['EG', hasElevation ? units.height(route.gainM) : 'Unavailable'],
+          ['Descent', hasElevation ? units.height(route.lossM) : 'Unavailable'],
+          ['Highest', hasElevation ? units.height(maxM) : 'Unavailable'],
+          ['Lowest', hasElevation ? units.height(minM) : 'Unavailable'],
+          ['EG / km', hasElevation ? units.height(climbRate(route)) : 'Unavailable'],
         ].map(([label, value]) => (
           <div className="gpx-stat" key={label}>
             <strong>{value}</strong>
@@ -74,7 +75,11 @@ export function RoutePanel({ route, venuesBySlug, hoverIndex, onHoverIndex, onCl
         </div>
       )}
 
-      <ElevationProfile points={route.coordinates} height={92} hoverIndex={hoverIndex} onHoverIndex={onHoverIndex} />
+      {hasElevation ? (
+        <ElevationProfile points={route.coordinates} height={92} hoverIndex={hoverIndex} onHoverIndex={onHoverIndex} />
+      ) : (
+        <p className="route-elevation-unavailable">Elevation is unavailable for this route.</p>
+      )}
 
       {(route.contributor || route.licence || route.sourceUrl) && (
         <p className="route-credit">

@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import type { Route } from '../types';
-import { routeDifficulty, routeIntersects } from '../lib/routes';
+import { routeDifficulty, routeHasElevation, routeIntersects } from '../lib/routes';
 import type { Bounds } from '../lib/venues';
 import { regionOf } from '../lib/regions';
 import { RouteThumb } from './RouteThumb';
@@ -90,7 +90,7 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
                       .join(' · ')}
                   </span>
                   <span className="result-card-gain">
-                    <strong>{units.distance(route.distanceM)}</strong> · <strong>{units.height(route.gainM)}</strong> EG
+                    <strong>{units.distance(route.distanceM)}</strong> · <strong>{routeHasElevation(route) ? `${units.height(route.gainM)} EG` : 'Elevation unavailable'}</strong>
                   </span>
                 </button>
               </li>

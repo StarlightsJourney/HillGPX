@@ -2971,7 +2971,8 @@ button {
 .venue-download-action:hover { background: var(--bg-raised); }
 .venue-card-actions { justify-content: space-around; margin-top: 10px; }
 .venue-report { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 20px 0 24px; color: var(--ink); font-size: 13px; text-decoration: underline; }
-.venue-mobile-bar { display: none; }
+.venue-mobile-bar,
+.venue-mobile-secondary-actions { display: none; }
 
 @media (max-width: 899px) {
   .venue-detail-topbar { padding: 0 16px; }
@@ -2993,6 +2994,27 @@ button {
   .venue-detail-empty-photo { aspect-ratio: 4 / 3; }
   .venue-detail-layout { display: block; }
   .venue-detail-side { display: none; }
+  .venue-mobile-secondary-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 24px;
+  }
+  .venue-mobile-secondary-actions button,
+  .venue-mobile-secondary-actions a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--ink);
+    font: 600 13px/1 var(--font-sans);
+    text-decoration: none;
+  }
   .venue-route-grid { grid-template-columns: minmax(0, 1fr); }
   .nearby-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .venue-mobile-bar {

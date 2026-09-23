@@ -506,7 +506,8 @@ def build_routes(venues: list[dict], dem: Dem | None) -> list[dict]:
             haversine_m(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1])
             for i in range(1, len(points))
         )
-        gain, loss = compute_gain([p[2] for p in points])
+        elevation_available = resampled or any(p[2] != 0 for p in points)
+        gain, loss = compute_gain([p[2] for p in points]) if elevation_available else (0.0, 0.0)
 
         slug = meta.get("slug") or slugify(os.path.splitext(filename)[0])
         name = meta.get("name") or gpx_name or slug.replace("-", " ").title()
@@ -529,6 +530,7 @@ def build_routes(venues: list[dict], dem: Dem | None) -> list[dict]:
             "source": meta.get("source", "community"),
             "contributor": meta.get("contributor"),
             "description": meta.get("description"),
+            "elevationAvailable": elevation_available,
         }
         # Optional provenance, passed through only when the sidecar has it.
         for key in ("sourceUrl", "licence"):
@@ -540,7 +542,13 @@ def build_routes(venues: list[dict], dem: Dem | None) -> list[dict]:
             route["country"] = country
         routes.append(route)
 
-        flag = "" if resampled else "  (no terrain model — gain from GPX altitude)"
+        flag = (
+            ""
+            if resampled
+            else "  (gain from GPX altitude)"
+            if elevation_available
+            else "  (elevation unavailable)"
+        )
         print(
             f"  {filename}: {len(points)} pts, {distance / 1000:.2f} km, "
             f"{gain:.0f} m up, venues={venue_slugs or '[]'}{flag}"

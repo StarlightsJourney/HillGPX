@@ -14,6 +14,6 @@ test('map category bar scrolls and detail opens on mobile', async ({ page }) => 
 
   // Open the first venue card and verify the bottom sheet/detail renders.
   await page.click('.result-card, .venue-card');
-  await expect(page.getByRole('heading', { name: 'Plan a session' }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'The EG' }).first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Photos' }).first()).toBeVisible();
 });

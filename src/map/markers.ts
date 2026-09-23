@@ -179,7 +179,7 @@ export class VenueMarkers {
 }
 
 const ROUTE_GLYPH =
-  '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="3.5" cy="12.5" r="1.8"/><circle cx="12.5" cy="3.5" r="1.8"/><path d="M5 11.5c3-1 1.5-4 4-5.2 1-.5 1.8-.9 2-1.5"/></svg>';
+  '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8h12M4.5 5.5 2 8l2.5 2.5M11.5 5.5 14 8l-2.5 2.5"/><path d="M5.5 6.5v3M8 6.5v2M10.5 6.5v3"/></svg>';
 
 /**
  * One pill per route, at its start, labelled with its distance — the route

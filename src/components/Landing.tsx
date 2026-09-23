@@ -325,7 +325,7 @@ const PLACEHOLDER_ROWS: RowSpec[] = [
 ];
 
 /** Photo first, then height: an empty grey tile in a row of photos reads as broken. */
-function showcase(venues: Venue[], limit = 14): Venue[] {
+function showcase(venues: Venue[], limit = 3): Venue[] {
   return [...venues]
     .sort((a, b) => Number(Boolean(b.photo)) - Number(Boolean(a.photo)) || rankingHeight(b) - rankingHeight(a))
     .slice(0, limit);
@@ -341,8 +341,8 @@ function buildRows(venues: Venue[]): RowSpec[] {
   }
   const sg = byRegion.get('Singapore') ?? [];
   const rows: RowSpec[] = [
-    { title: 'Tallest EG in Singapore', venues: showcase(sg.filter((v) => v.type !== 'hdb_block' || v.notable)), bounds: DESTINATIONS[0].bounds },
-    { title: 'HDB blocks for stair repeats', venues: showcase(sg.filter((v) => v.type === 'hdb_block' && v.photo)), bounds: DESTINATIONS[0].bounds },
+    { title: 'Hills and summits in Singapore', venues: showcase(sg.filter((v) => v.type === 'hill' || v.type === 'park')), bounds: DESTINATIONS[0].bounds },
+    { title: 'Stair training in Singapore', venues: showcase(sg.filter((v) => v.type === 'stairs' || v.type === 'hdb_block')), bounds: DESTINATIONS[0].bounds },
     { title: 'Summits across Malaysia', venues: showcase(byRegion.get('Malaysia') ?? []), bounds: DESTINATIONS[5].bounds },
   ];
   for (const [region, list] of byRegion) {
@@ -374,6 +374,7 @@ function Row({ title, action, loading, children }: { title: string; action: () =
       <header className="home-row-head">
         <button type="button" className="home-row-title" onClick={action}>
           {title}
+          <span className="home-row-see-all">See all</span>
           <ChevronRightIcon size={14} />
         </button>
         <div className="home-row-nav">
@@ -408,7 +409,6 @@ function VenueTile({ venue, index }: { venue: Venue; index: number }) {
     <a className="tile" href={`#venue/${venue.slug}`} style={{ '--i': index } as React.CSSProperties}>
       <span className="tile-media">
         <VenueThumb venue={venue} />
-        {venue.notable && <span className="tile-badge">Top EG</span>}
       </span>
       <span className="tile-top">
         <span className="tile-name">{venue.name}</span>

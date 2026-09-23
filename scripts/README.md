@@ -25,14 +25,14 @@ python3 scripts/fetch_open_photos.py --venue bukit-timah-hill --limit 3 --overwr
 # Search a location without registering it to a venue
 python3 scripts/fetch_open_photos.py --lat 1.3546 --lon 103.7764 --radius 1000 --dry-run
 
-# Search the tallest missing hill venues first
-python3 scripts/fetch_open_photos.py --batch --type hill --max-venues 50 --build
+# Search the tallest missing hill venues first; download up to three photos per hill
+python3 scripts/fetch_open_photos.py --batch --type hill --max-venues 50 --per-venue 3 --build
 
-# Use full-resolution Commons downloads instead of the default 1600px thumbnails
+# Use full-resolution Commons downloads instead of the default 1280px thumbnails
 python3 scripts/fetch_open_photos.py --venue bukit-timah-hill --original --dry-run
 ```
 
-Batch mode defaults to missing venues only; use `--include-existing` to revisit them or `--overwrite` to replace existing photos. `--dry-run` prints ranked candidates without downloading or writing. Commons name-search fallback is enabled by default when geosearch finds no eligible result; geotagged fallback results must still be within the search radius, and unlocated results with no informative caption are rejected. Pass `--no-name-search` to disable fallback. Obvious signs, boards, markers, plaques, maps, space imagery, numbered image series, botanical/faunal close-ups, and summit/peak Panoramio marker images are filtered out. Candidates must match the venue name/romanised slug or describe a landscape feature; Commons taxonomy, flora/fauna, people, books, scanned images and unrelated-category files are rejected. Open-source attribution is displayed below the photo on venue cards and detail pages. Full metadata (including source, licence, creator, dates, coordinates, and original-download path) is retained in `open_trail_media/metadata.json`; only `public/photos/open/*.webp` derivatives are served by the app. Use `--list-open` to review registered open photos or `--unregister-open <slug> ...` to remove open-photo entries without changing Mapillary records.
+Batch mode fills each venue to `--per-venue` (1–3, default 3) and defaults to venues below that open-photo count; use `--include-existing` to revisit venues or `--overwrite` to replace the existing open gallery. `--max-venues 0` means no limit. Metadata, photo registrations, and `scripts/.cache/open_photos_searched.json` are checkpointed every 25 venues; the search log skips underfilled searches for 30 days unless `--research` is passed. `--dry-run` prints ranked candidates without downloading or writing. Commons name-search fallback is enabled by default when geosearch finds no eligible result; geotagged fallback results must still be within the search radius, and unlocated results with no informative caption are rejected. Pass `--no-name-search` to disable fallback. Obvious signs, boards, markers, plaques, maps, space imagery, numbered image series, botanical/faunal close-ups, and summit/peak Panoramio marker images are filtered out. Candidates must match the venue name/romanised slug or describe a landscape feature; Commons taxonomy, flora/fauna, people, books, scanned images and unrelated-category files are rejected. Open-source attribution is displayed below the photo on venue cards and detail pages. Full metadata (including source, licence, creator, dates, coordinates, and original-download path) is retained in `open_trail_media/metadata.json`; only `public/photos/open/*.webp` derivatives are served by the app. Use `--list-open` to review registered open photos or `--unregister-open <slug> ...` to remove open-photo entries without changing Mapillary records.
 
 For a full rebuild:
 

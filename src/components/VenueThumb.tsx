@@ -1,4 +1,4 @@
-import type { Venue } from '../types';
+import type { Venue, VenuePhoto } from '../types';
 
 /**
  * A venue's image.
@@ -66,9 +66,9 @@ export function VenueThumb({ venue, rounded = true }: { venue: Venue; rounded?: 
 }
 
 /** Attribution line required wherever a published photo is shown. */
-export function PhotoCredit({ venue }: { venue: Venue }) {
-  if (!venue.photo?.file) return null;
-  const { credit, license, licenseUrl, source, sourceUrl } = venue.photo;
+export function PhotoCredit({ photo }: { photo: VenuePhoto }) {
+  if (!photo.file) return null;
+  const { credit, license, licenseUrl, source, sourceUrl } = photo;
 
   if (source) {
     return (

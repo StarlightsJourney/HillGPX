@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from scripts.build_data import venue_photo_records
 from scripts.fetch_open_photos import (
     FLICKR_OPEN_LICENSE_IDS,
     PhotoRecord,
@@ -12,8 +13,12 @@ from scripts.fetch_open_photos import (
     commons_license_ok,
     commons_name_search_eligible,
     commons_query_props,
+    merge_open_photo_entry,
+    open_photo_count,
     parse_commons_pages,
+    photos_needed,
     registered_photo,
+    select_unique_candidates,
     unregister_open_photos,
 )
 
@@ -254,9 +259,11 @@ class CommonsRelevanceTests(unittest.TestCase):
         plant_photo = photo_record("Bukit Timah summit view.jpg", categories=["Plants in Taiwan"])
         wildlife_photo = photo_record("Bukitlawang.jpg", categories=["Orangutans in Sumatra"])
         portrait_photo = photo_record("Silberhorn.jpg", categories=["Portraits of climbers"])
+        torii_photo = photo_record("Mt Fuji - panoramio (7).jpg", categories=["Wooden torii in Japan"])
         self.assertTrue(candidate_is_rejected(plant_photo))
         self.assertTrue(candidate_is_rejected(wildlife_photo))
         self.assertTrue(candidate_is_rejected(portrait_photo))
+        self.assertTrue(candidate_is_rejected(torii_photo))
 
         self.assertTrue(candidate_is_relevant(photo_record("Yushan Summit 2024.jpg"), "Yushan", "yushan-123"))
         self.assertTrue(
@@ -350,6 +357,73 @@ class PhotosJsonRegistrationTests(unittest.TestCase):
         self.assertTrue(registered["file"].startswith("photos/open/"))
         self.assertEqual(registered["source"], "Wikimedia Commons")
         self.assertEqual(registered["license"], "CC BY-SA 4.0")
+
+
+class MultiPhotoTests(unittest.TestCase):
+    def test_per_venue_cap_and_original_url_uniqueness(self):
+        first = photo_record("Mount Murud Summit 01.jpg", original_url="https://example.org/1.jpg")
+        duplicate = photo_record("Another title.jpg", original_url="https://example.org/1.jpg")
+        second = photo_record("Mount Murud Summit 02.jpg", original_url="https://example.org/2.jpg")
+        third = photo_record("Mount Murud Summit 03.jpg", original_url="https://example.org/3.jpg")
+
+        selected = select_unique_candidates([first, duplicate, second, third], 2)
+
+        self.assertEqual(selected, [first, second])
+        self.assertEqual(select_unique_candidates([first, second, third], 2, {first.original_url}), [second, third])
+
+    def test_missing_count_and_build_style_more_merge(self):
+        primary_record = photo_record("Mount Murud Summit 01.jpg", original_url="https://example.org/1.jpg")
+        primary_record.site_file = "photos/open/murud-1.webp"
+        more_records = [
+            photo_record(f"Mount Murud Summit 0{index}.jpg", original_url=f"https://example.org/{index}.jpg")
+            for index in (2, 3)
+        ]
+        for index, record in enumerate(more_records, start=2):
+            record.site_file = f"photos/open/murud-{index}.webp"
+        primary = registered_photo(primary_record)
+        additions = [registered_photo(record) for record in more_records]
+
+        self.assertEqual(photos_needed(primary, 3), 2)
+        merged = merge_open_photo_entry(primary, additions, 3)
+
+        self.assertEqual(open_photo_count(merged), 3)
+        self.assertEqual(merged["file"], "photos/open/murud-1.webp")
+        self.assertEqual([photo["file"] for photo in merged["more"]], [
+            "photos/open/murud-2.webp",
+            "photos/open/murud-3.webp",
+        ])
+
+    def test_build_data_emits_primary_and_optional_gallery(self):
+        entry = {
+            "file": "photos/open/primary.webp",
+            "creator": "Primary Author",
+            "license": "CC BY 4.0",
+            "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+            "sourceUrl": "https://commons.wikimedia.org/primary",
+            "source": "Wikimedia Commons",
+            "more": [
+                {
+                    "file": "photos/open/second.webp",
+                    "creator": "Second Author",
+                    "license": "CC BY-SA 4.0",
+                    "source": "Wikimedia Commons",
+                },
+                {"file": "photos/open/third.webp", "creator": "Third Author"},
+                {"file": "photos/open/ignored-fourth.webp", "creator": "Not kept"},
+            ],
+        }
+
+        primary, gallery = venue_photo_records(entry)
+
+        self.assertEqual(primary["file"], "photos/open/primary.webp")
+        self.assertIsNotNone(gallery)
+        self.assertEqual(
+            [photo["file"] for photo in gallery or []],
+            ["photos/open/primary.webp", "photos/open/second.webp", "photos/open/third.webp"],
+        )
+        single_primary, no_gallery = venue_photo_records({"file": "photos/open/only.webp"})
+        self.assertEqual(single_primary["file"], "photos/open/only.webp")
+        self.assertIsNone(no_gallery)
 
 
 class PhotosJsonCleanupTests(unittest.TestCase):

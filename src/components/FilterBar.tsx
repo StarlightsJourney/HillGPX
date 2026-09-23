@@ -46,13 +46,12 @@ interface CategoryBarProps extends FilterBarProps {
   onRouteFiltersChange: (filters: RouteFilters) => void;
 }
 
-type ClimbCategory = 'all' | VenueType | 'top' | 'photo';
+type ClimbCategory = 'all' | VenueType | 'photo';
 
 function climbCategoryOf(filters: VenueFilters): ClimbCategory | null {
   const { types, notableOnly, withPhoto } = filters;
   if (types.length === 0 && !notableOnly && !withPhoto) return 'all';
   if (types.length === 1 && !notableOnly && !withPhoto) return types[0];
-  if (types.length === 0 && notableOnly && !withPhoto) return 'top';
   if (types.length === 0 && !notableOnly && withPhoto) return 'photo';
   return null;
 }
@@ -69,7 +68,6 @@ function CategoryIcon({ id }: { id: string }) {
   }
   const paths: Record<string, ReactNode> = {
     all: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>,
-    top: <path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7L12 3z" />,
     photo: <><path d="M3 8h3.5L8 6h8l1.5 2H21v11H3V8z" /><circle cx="12" cy="13" r="3.5" /></>,
     climb: <path d="M2 20l6-9 4 5 3-4 7 8H2zM15 4l2 3 2-3" />,
     loop: <><path d="M17 7a7 7 0 1 0 2 5" /><path d="M20 3v5h-5" /></>,
@@ -327,8 +325,8 @@ function ClimbCategories({ types, visibleVenues, filters, onChange }: FilterBarP
   const pick = (category: ClimbCategory) =>
     onChange({
       ...filters,
-      types: category === 'all' || category === 'top' || category === 'photo' ? [] : [category],
-      notableOnly: category === 'top',
+      types: category === 'all' || category === 'photo' ? [] : [category],
+      notableOnly: false,
       withPhoto: category === 'photo',
     });
 
@@ -339,7 +337,6 @@ function ClimbCategories({ types, visibleVenues, filters, onChange }: FilterBarP
       label: type === 'hill' ? 'Hills & summits' : `${VENUE_TYPE_LABEL[type]}s`,
       shortLabel: type === 'hill' ? 'Hills' : type === 'hdb_block' ? 'Blocks' : type === 'stairs' ? 'Stairs' : `${VENUE_TYPE_LABEL[type]}s`,
     })),
-    { id: 'top', label: 'Top EG', shortLabel: 'Top' },
     { id: 'photo', label: 'With photos', shortLabel: 'Photos' },
   ];
 

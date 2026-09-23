@@ -261,12 +261,33 @@ def mark_notable(venues: list[dict]) -> None:
 
 
 def load_photos() -> dict[str, dict]:
-    """Mapillary photo records, if scripts/fetch_photos.py has been run."""
+    """Photo records keyed by venue slug, when a photo ingest script has run."""
     path = os.path.join(REPO_ROOT, "data", "photos.json")
     if not os.path.exists(path):
         return {}
     with open(path, encoding="utf-8") as fh:
         return json.load(fh).get("photos", {})
+
+
+def venue_photo_record(photo: dict) -> dict:
+    record = {"file": photo["file"], "credit": photo.get("creator")}
+    record.update({
+        key: photo[key]
+        for key in ("license", "licenseUrl", "sourceUrl", "source")
+        if photo.get(key) is not None
+    })
+    return record
+
+
+def venue_photo_records(photo: dict) -> tuple[dict, list[dict] | None]:
+    primary = venue_photo_record(photo)
+    more = photo.get("more")
+    additional = [
+        venue_photo_record(item)
+        for item in more[:2]
+        if isinstance(item, dict) and item.get("file")
+    ] if isinstance(more, list) else []
+    return primary, [primary, *additional] if additional else None
 
 
 def load_reviews(known_slugs: set[str]) -> dict[str, dict]:
@@ -617,15 +638,10 @@ def main() -> None:
             if photo and photo.get("file"):
                 # A path under public/, not Mapillary's signed CDN URL, which
                 # expires about a month after it is issued.
-                v["photo"] = {
-                    "file": photo["file"],
-                    "credit": photo.get("creator"),
-                    **{
-                        key: photo[key]
-                        for key in ("license", "licenseUrl", "sourceUrl", "source")
-                        if photo.get(key) is not None
-                    },
-                }
+                primary, gallery = venue_photo_records(photo)
+                v["photo"] = primary
+                if gallery:
+                    v["photos"] = gallery
                 attached += 1
         print(f"  {attached:,} venues have a photo")
     else:

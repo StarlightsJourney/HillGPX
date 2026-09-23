@@ -423,8 +423,23 @@ button {
 }
 .pin-glyph {
   display: inline-flex;
-  width: 16px;
-  height: 16px;
+  flex: 0 0 18px;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+}
+.pin-glyph svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+.pin.is-selected .pin-glyph,
+.pin.is-hover .pin-glyph,
+.pin:hover .pin-glyph {
+  color: #fff;
 }
 
 /* ─── Venue card ──────────────────────────────────────────────────────── */
@@ -1908,6 +1923,26 @@ button {
 .maplibregl-ctrl-group button:hover {
   background: var(--bg-raised) !important;
 }
+.maplibregl-ctrl-zoom-in,
+.maplibregl-ctrl-zoom-out {
+  position: relative;
+}
+.maplibregl-ctrl-zoom-in::after,
+.maplibregl-ctrl-zoom-out::after {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  font: 400 25px/1 var(--font-sans);
+  pointer-events: none;
+}
+.maplibregl-ctrl-zoom-in::after { content: '+'; }
+.maplibregl-ctrl-zoom-out::after { content: '−'; }
+.maplibregl-ctrl-zoom-in > .maplibregl-ctrl-icon,
+.maplibregl-ctrl-zoom-out > .maplibregl-ctrl-icon {
+  background-image: none !important;
+}
 
 /* The expand button draws an inline SVG rather than MapLibre's background-image
    icon, so it needs centring of its own: as inline content the glyph would sit
@@ -2905,8 +2940,7 @@ button {
 .venue-open-map { padding-left: 0; }
 
 .venue-detail-side { position: sticky; top: 24px; padding-top: 32px; }
-.venue-actions-card,
-.venue-plan-card {
+.venue-actions-card {
   padding: 24px;
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -2937,13 +2971,6 @@ button {
 .venue-download-action:hover { background: var(--bg-raised); }
 .venue-card-actions { justify-content: space-around; margin-top: 10px; }
 .venue-report { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 20px 0 24px; color: var(--ink); font-size: 13px; text-decoration: underline; }
-.venue-plan-card h2 { margin: 0 0 16px; font-size: 16px; font-weight: 600; }
-.venue-plan-stepper { display: flex; align-items: center; justify-content: space-between; }
-.venue-plan-stepper > div { display: flex; align-items: center; gap: 14px; }
-.venue-plan-stepper button { width: 32px; height: 32px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: #fff; font-size: 20px; cursor: pointer; }
-.venue-plan-result { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
-.venue-plan-result p { margin: 0 0 5px; }
-.venue-plan-mobile,
 .venue-mobile-bar { display: none; }
 
 @media (max-width: 899px) {
@@ -2966,7 +2993,6 @@ button {
   .venue-detail-empty-photo { aspect-ratio: 4 / 3; }
   .venue-detail-layout { display: block; }
   .venue-detail-side { display: none; }
-  .venue-plan-mobile { display: block; padding-top: 32px; }
   .venue-route-grid { grid-template-columns: minmax(0, 1fr); }
   .nearby-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .venue-mobile-bar {

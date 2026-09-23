@@ -153,6 +153,30 @@ The sibling `.bin` file is a row-major `Int16Array` of size `width * height`. Va
 
 Neither is considered authoritative for the public dataset. To publish a route, add the GPX to `data/routes/` and rebuild.
 
+## User flows
+
+### Find a place to train
+
+1. The landing page shows three representative places per geographic or training category instead of an exhaustive wall of cards.
+2. The user opens a place directly or chooses **See all** to frame that region on the map.
+3. Map pills distinguish hills, buildings, stairs, parks, and routes with visible glyphs; route pills show distance.
+4. Selecting a pill opens a concise summary. Opening the detail page reveals access notes, linked routes, photos, attribution, nearby venues, and the location map.
+5. The primary next actions are **Show on map**, **Download GPX** when available, save, share, or report incorrect data.
+
+### Find and use a route
+
+1. The user switches to **Routes** from the landing page or map category bar.
+2. Route cards and map pills expose distance and EG before selection.
+3. Selecting a route frames its complete line and elevation profile.
+4. The user downloads the GPX, or imports their own GPX to compare its profile and nearby venues locally.
+
+### Contribute data
+
+1. A user can submit a place, photo, rating, or route from the contribution actions.
+2. Local ratings/photos remain in browser storage until a backend is configured.
+3. Publishable routes enter through `scripts/import_gpx.py` or a reviewed GPX contribution, retain source/licence provenance, and are rebuilt into the static dataset.
+4. OpenStreetMap route relations are the preferred scalable source because they are public, attributable, and reproducible. Official export APIs and author-provided files are also accepted. Login bypasses, private activities, and files without redistribution permission are not imported.
+
 ## Deployment
 
 `.github/workflows/deploy.yml` runs on every push to `main`:

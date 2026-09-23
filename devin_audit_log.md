@@ -127,4 +127,11 @@ python3 scripts/build_data.py
 - **Status**: verified
 - **Re-test**: `python3 -m py_compile scripts/fetch_open_photos.py`; `python3 -m unittest scripts/test_fetch_open_photos.py` (5 passed); `python3 scripts/build_data.py`; `npm run typecheck`; `npm run lint`; `npm test` (12 passed); `npm run build`; `npm run test:e2e` (3 passed); live Commons dry-run, single-venue, and batch runs succeeded.
 
-Last verified: all commands above passed with zero errors/warnings.
+### 15. Mobile discovery and map controls obscured core actions
+- **Severity**: medium
+- **Details**: The mobile landing tabs overlapped the search control, landing rows rendered too many compact cards, redundant Top EG labels competed with useful categories, and map glyphs/zoom controls depended on inherited or third-party icon styling.
+- **Fix**: Separated the mobile header rows, limited landing discovery sections to three spacious cards with a See all path, removed Top EG labels and the building repetition calculator, strengthened venue glyph styling, added explicit zoom symbols, and changed route pills to a distance glyph. Added three attributed Hong Kong Trail GPX relations and documented the end-to-end user flows.
+- **Status**: verified
+- **Re-test**: `python3 -m unittest scripts/test_fetch_open_photos.py` (13 passed); `python3 scripts/build_data.py`; `npm run typecheck`; `npm run lint`; `npm test` (12 passed); `npm run build`; `npm run test:e2e` (3 passed); Playwright DOM checks confirmed non-overlapping mobile controls and visible marker/zoom glyphs.
+
+Last verified: 2026-09-23; all commands above passed with zero errors/warnings.

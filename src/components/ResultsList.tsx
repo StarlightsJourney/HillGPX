@@ -234,7 +234,6 @@ function ResultsListInner({
                     onMouseEnter={() => onHover?.(venue.slug)}
                     onMouseLeave={() => onHover?.(null)}
                   >
-                    {venue.notable && <span className="result-badge">Top EG</span>}
                     <button
                       type="button"
                       className={`result-favorite${isFavorite ? ' on' : ''}`}

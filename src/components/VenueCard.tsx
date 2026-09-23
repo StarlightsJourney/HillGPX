@@ -97,7 +97,7 @@ export function VenueCard({
           <p className="card-height muted">No height recorded{routeLabel}</p>
         )}
       </a>
-      <PhotoCredit venue={venue} />
+      {venue.photo && <PhotoCredit photo={venue.photo} />}
     </aside>
   );
 }

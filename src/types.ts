@@ -25,6 +25,15 @@ export type VenueType =
  */
 export type ElevationSource = 'estimated' | 'dem' | 'community' | 'verified';
 
+export interface VenuePhoto {
+  file: string;
+  credit?: string | null;
+  license?: string;
+  licenseUrl?: string;
+  sourceUrl?: string;
+  source?: string;
+}
+
 export interface Venue {
   slug: string;
   name: string;
@@ -61,17 +70,12 @@ export interface Venue {
   notes?: string;
 
   /**
-   * Photo attached at build time from Mapillary (CC-BY-SA) or open-licence
-   * Commons/Flickr sources. Credit and licence attribution must be shown.
+   * Primary Mapillary or open-licence photo used on cards. Attribution must be shown.
    */
-  photo?: {
-    file: string;
-    credit?: string | null;
-    license?: string;
-    licenseUrl?: string;
-    sourceUrl?: string;
-    source?: string;
-  };
+  photo?: VenuePhoto;
+
+  /** Full 2–3 photo gallery when additional open-licence photos are available. */
+  photos?: VenuePhoto[];
 
   /**
    * In the tallest few percent of everything mapped. Relative rather than a

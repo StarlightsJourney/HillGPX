@@ -215,7 +215,8 @@ function PhotoCard({ venue }: { venue: Venue }) {
     }
   };
 
-  const hasPhoto = Boolean(venue.photo?.file) || localPhotos.length > 0;
+  const publishedPhotos = venue.photos ?? (venue.photo ? [venue.photo] : []);
+  const hasPhoto = publishedPhotos.length > 0 || localPhotos.length > 0;
 
   const fetchFromUrl = async () => {
     const url = photoUrl.trim();
@@ -248,12 +249,16 @@ function PhotoCard({ venue }: { venue: Venue }) {
     <section className="venue-detail-section photo-section">
       <div className="venue-section-heading"><h2>Photos</h2></div>
       <div className="photo-grid">
-        {venue.photo?.file && (
-          <div className="photo-item published-photo">
-            <img src={venue.photo.file} alt={venue.name} />
-            <PhotoCredit venue={venue} />
+        {publishedPhotos.map((photo, index) => (
+          <div key={photo.file} className="photo-item published-photo">
+            <img
+              src={`${import.meta.env.BASE_URL}${photo.file}`}
+              alt={`${venue.name} photo ${index + 1}`}
+              loading={index > 0 ? 'lazy' : undefined}
+            />
+            <PhotoCredit photo={photo} />
           </div>
-        )}
+        ))}
         {localPhotos.map((photo) => (
           <div key={photo.id} className="photo-item local-photo">
             <img src={photo.dataUrl} alt={`Photo by ${photo.author || 'a contributor'}`} />
@@ -334,36 +339,6 @@ function PhotoCard({ venue }: { venue: Venue }) {
       ) : (
         <p className="review-thanks">Thanks — your photo is saved{backendConfigured() ? '' : ' on this device'}.</p>
       )}
-    </section>
-  );
-}
-
-function PlannerCard({ venue }: { venue: Venue }) {
-  const [reps, setReps] = useState(3);
-  const height = venueHeight(venue);
-  const units = useUnits();
-  const total = (height?.value ?? 0) * reps;
-  return (
-    <section className="venue-plan-card">
-      <h2>Plan a session</h2>
-      <div className="venue-plan-stepper">
-        <span>Reps</span>
-        <div>
-          <button type="button" onClick={() => setReps((value) => Math.max(1, value - 1))} aria-label="Fewer reps">−</button>
-          <strong>{reps}</strong>
-          <button type="button" onClick={() => setReps((value) => Math.min(20, value + 1))} aria-label="More reps">+</button>
-        </div>
-      </div>
-      {height ? (
-        <div className="venue-plan-result">
-          <p>{reps} × {units.height(height.value)} = {units.height(total)} EG</p>
-          {height.kind === 'gain' ? (
-            <p>≈ {Math.round(total / 2.5)} floors</p>
-          ) : (
-            <p className="muted">Summit height, not the climb from the base.</p>
-          )}
-        </div>
-      ) : <p className="muted">Add a height before planning repetitions.</p>}
     </section>
   );
 }
@@ -467,7 +442,7 @@ function VenueDetailInner({
         {venue.photo?.file ? (
           <div className="venue-detail-gallery">
             <div className="venue-detail-hero"><VenueThumb venue={venue} rounded={false} /></div>
-            <PhotoCredit venue={venue} />
+            {venue.photo && <PhotoCredit photo={venue.photo} />}
           </div>
         ) : (
           <div className="venue-detail-empty-photo">
@@ -545,7 +520,6 @@ function VenueDetailInner({
               <p className="venue-location-line">{[area, street].filter(Boolean).join(' · ')}</p>
               <button type="button" className="venue-open-map" onClick={() => onShowOnMap()}>Open in the map</button>
             </section>
-            <div className="venue-plan-mobile"><PlannerCard venue={venue} /></div>
           </div>
 
           <aside className="venue-detail-side">
@@ -557,7 +531,6 @@ function VenueDetailInner({
               <div className="venue-card-actions"><button type="button" onClick={onToggleFavorite}><HeartIcon size={16} filled={isFavorite} />{isFavorite ? 'Saved' : 'Save'}</button><button type="button" onClick={() => void share()}><ShareIcon size={16} />{copied ? 'Link copied' : 'Share'}</button></div>
             </div>
             <a className="venue-report" href={`${REPO_URL}/issues/new?title=${encodeURIComponent(`Problem: ${venue.name} (${venue.slug})`)}`} target="_blank" rel="noreferrer"><FlagGlyph />Report a problem with this venue</a>
-            <div className="venue-plan-desktop"><PlannerCard venue={venue} /></div>
           </aside>
         </div>
       </main>

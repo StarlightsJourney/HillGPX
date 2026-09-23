@@ -4,7 +4,7 @@
 Examples:
     python3 scripts/fetch_open_photos.py --venue mount-faber-singapore --limit 3 --build
     python3 scripts/fetch_open_photos.py --lat 1.273 --lon 103.817 --radius 500 --dry-run
-    python3 scripts/fetch_open_photos.py --batch --type hill --max-venues 50 --build
+    python3 scripts/fetch_open_photos.py --batch --type hill --max-venues 50 --per-venue 3 --build
 
 Original downloads and complete attribution metadata are kept in the ignored
 open_trail_media/ directory. Only resized WebP derivatives are registered with
@@ -28,7 +28,7 @@ import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import urlparse
@@ -43,6 +43,7 @@ REPO_ROOT = SCRIPT_DIR.parent
 PHOTO_DIR = REPO_ROOT / "public" / "photos" / "open"
 ORIGINAL_DIR = REPO_ROOT / "open_trail_media"
 METADATA_PATH = ORIGINAL_DIR / "metadata.json"
+SEARCH_LOG_PATH = SCRIPT_DIR / ".cache" / "open_photos_searched.json"
 PHOTOS_JSON = REPO_ROOT / "data" / "photos.json"
 VENUES_JSON = REPO_ROOT / "public" / "data" / "venues.json"
 
@@ -92,7 +93,8 @@ TAXON_CLOSEUP_TITLE = re.compile(
 CATEGORY_REJECT = re.compile(
     r"(?i)(taxon|flora of|fauna of|plants|insects|birds|animals|fungi|iNaturalist|"
     r"photographs by ISS|ISS expedition|ships|people|portraits|books|scanned|archaeolog|"
-    r"bridges|historic sites|cultural heritage|mammals|primates|orangutans?|wildlife)"
+    r"bridges|historic sites|cultural heritage|mammals|primates|orangutans?|wildlife|"
+    r"torii|shrines?|shinto|sengen-taisha)"
 )
 PERSON_TITLE = re.compile(
     r"^(?:(?:19|20)\d{2}\s+[A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+\d+)?|"
@@ -429,7 +431,7 @@ def commons_query_props(limit: int) -> dict[str, Any]:
         "cllimit": "max",
         "clshow": "!hidden",
         "iiprop": "url|extmetadata|size|mime|commonmetadata",
-        "iiurlwidth": 1600,
+        "iiurlwidth": 1280,
         "format": "json",
         "generator": "search",
         "gsrnamespace": 6,
@@ -704,10 +706,9 @@ async def sync_metadata_registration() -> None:
     metadata = await load_metadata()
     registered_files = {
         photo.get("file")
-        for photo in load_photos_json().values()
-        if isinstance(photo, Mapping)
-        and photo.get("source") in {"Wikimedia Commons", "Flickr"}
-        and isinstance(photo.get("file"), str)
+        for entry in load_photos_json().values()
+        for photo in venue_photo_items(entry)
+        if is_open_photo(photo) and isinstance(photo.get("file"), str)
     }
     for record in metadata:
         record["registered"] = record.get("site_file") in registered_files
@@ -753,6 +754,89 @@ def is_open_photo(photo: Any) -> bool:
     )
 
 
+def venue_photo_items(entry: Any) -> list[Mapping[str, Any]]:
+    if not isinstance(entry, Mapping):
+        return []
+    items: list[Mapping[str, Any]] = []
+    if entry.get("file"):
+        items.append(entry)
+    more = entry.get("more")
+    if isinstance(more, list):
+        items.extend(item for item in more if isinstance(item, Mapping) and item.get("file"))
+    return items
+
+
+def open_photo_count(entry: Any) -> int:
+    return sum(1 for photo in venue_photo_items(entry) if is_open_photo(photo))
+
+
+def photos_needed(entry: Any, per_venue: int) -> int:
+    return max(0, per_venue - open_photo_count(entry))
+
+
+def registered_photo_urls(
+    slug: str,
+    entry: Any,
+    metadata: list[dict[str, Any]],
+) -> set[str]:
+    page_urls = {
+        str(photo["sourceUrl"])
+        for photo in venue_photo_items(entry)
+        if is_open_photo(photo) and photo.get("sourceUrl")
+    }
+    urls = set(page_urls)
+    urls.update(
+        str(record["original_url"])
+        for record in metadata
+        if record.get("venue_slug") == slug and record.get("page_url") in page_urls and record.get("original_url")
+    )
+    return urls
+
+
+def merge_open_photo_entry(
+    existing: Any,
+    additions: list[dict[str, str]],
+    per_venue: int,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    entry = dict(existing) if isinstance(existing, Mapping) else {}
+    primary_is_open = is_open_photo(entry) and entry.get("file")
+    if overwrite and primary_is_open:
+        entry = {}
+        primary_is_open = False
+    existing_more = entry.get("more", [])
+    more = list(existing_more) if isinstance(existing_more, list) else []
+    if primary_is_open:
+        primary = {key: value for key, value in entry.items() if key != "more"}
+        kept_more = [photo for photo in more if isinstance(photo, Mapping) and photo.get("file")]
+        open_count = open_photo_count({"file": primary.get("file"), "source": primary.get("source"), "more": kept_more})
+        for photo in additions:
+            if open_count >= per_venue or len(kept_more) >= 2:
+                break
+            kept_more.append(photo)
+            open_count += 1
+    elif entry.get("file"):
+        primary = {key: value for key, value in entry.items() if key != "more"}
+        kept_more = [photo for photo in more if isinstance(photo, Mapping) and photo.get("file")]
+        open_count = sum(1 for photo in kept_more if is_open_photo(photo))
+        for photo in additions:
+            if open_count >= per_venue or len(kept_more) >= 2:
+                break
+            kept_more.append(photo)
+            open_count += 1
+    else:
+        additions = additions[:per_venue]
+        if not additions:
+            return entry
+        primary = additions[0]
+        kept_more = additions[1:3]
+    if kept_more:
+        primary["more"] = kept_more[:2]
+    else:
+        primary.pop("more", None)
+    return primary
+
+
 def list_open_photos() -> list[tuple[str, str, str]]:
     return sorted(
         (
@@ -760,8 +844,9 @@ def list_open_photos() -> list[tuple[str, str, str]]:
             str(photo.get("title", "")),
             str(photo.get("license", "")),
         )
-        for slug, photo in load_photos_json().items()
-        if is_open_photo(photo) and photo.get("file")
+        for slug, entry in load_photos_json().items()
+        for photo in venue_photo_items(entry)
+        if is_open_photo(photo)
     )
 
 
@@ -781,10 +866,19 @@ def unregister_open_photos(slugs: list[str]) -> list[str]:
         if is_open_photo(entry):
             del photos[slug]
             removed.append(slug)
+        elif isinstance(entry, Mapping):
+            more = entry.get("more", [])
+            kept_more = [photo for photo in more if not is_open_photo(photo)] if isinstance(more, list) else []
+            if isinstance(more, list) and len(kept_more) < len(more):
+                if kept_more:
+                    entry["more"] = kept_more
+                else:
+                    entry.pop("more", None)
+                removed.append(slug)
+            else:
+                print(f"Kept {slug}: its registered photo is not an open-source photo")
         elif entry is None:
             print(f"No open photo entry found for {slug}")
-        else:
-            print(f"Kept {slug}: its registered photo is not an open-source photo")
     if removed:
         document["photos"] = photos
         write_photos_document(document)
@@ -794,7 +888,8 @@ def unregister_open_photos(slugs: list[str]) -> list[str]:
 def prune_unregistered_site_files() -> int:
     referenced = {
         str(photo.get("file"))
-        for photo in load_photos_json().values()
+        for entry in load_photos_json().values()
+        for photo in venue_photo_items(entry)
         if is_open_photo(photo) and photo.get("file")
     }
     if not PHOTO_DIR.exists():
@@ -891,13 +986,31 @@ def ranked_candidates(records: list[PhotoRecord], venue_name: str, radius: int) 
     return sorted(unique.values(), key=lambda record: candidate_score(record, venue_name, radius), reverse=True)
 
 
+def select_unique_candidates(
+    records: list[PhotoRecord], limit: int, reserved_original_urls: set[str] | None = None,
+) -> list[PhotoRecord]:
+    if limit <= 0:
+        return []
+    selected: list[PhotoRecord] = []
+    used = set(reserved_original_urls or ())
+    for record in records:
+        if record.original_url in used:
+            continue
+        used.add(record.original_url)
+        selected.append(record)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
 def existing_photo_owners(
     photos: Mapping[str, Any], metadata: list[dict[str, Any]],
 ) -> dict[str, str | None]:
     owners: dict[str, str | None] = {}
-    for slug, photo in photos.items():
-        if isinstance(photo, Mapping) and photo.get("sourceUrl"):
-            owners[str(photo["sourceUrl"])] = str(slug)
+    for slug, entry in photos.items():
+        for photo in venue_photo_items(entry):
+            if is_open_photo(photo) and photo.get("sourceUrl"):
+                owners[str(photo["sourceUrl"])] = str(slug)
     for record in metadata:
         original_url = record.get("original_url")
         if original_url:
@@ -995,17 +1108,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     group.add_argument("--unregister-open", nargs="+", metavar="SLUG", help="Remove open photos for venue slugs")
     parser.add_argument("--lon", type=float, help="Longitude (required with --lat)")
     parser.add_argument("--radius", type=int, help="Search radius in metres")
-    parser.add_argument("--limit", type=int, default=5, help="Maximum candidates to download (default 5)")
+    parser.add_argument("--limit", type=int, default=5, help="Maximum single-location candidates to download (default 5)")
+    parser.add_argument("--per-venue", type=int, choices=(1, 2, 3), default=3, help="Batch photo target per venue (1–3, default 3)")
     parser.add_argument("--sources", default="commons,flickr", help="Comma-separated sources: commons,flickr")
     parser.add_argument("--type", choices=("hill", "hdb_block", "any"), default="hill", help="Batch venue type")
-    parser.add_argument("--max-venues", type=int, default=50, help="Maximum venues in batch mode (default 50)")
+    parser.add_argument("--max-venues", type=int, default=50, help="Maximum venues in batch mode; 0 means no limit (default 50)")
+    parser.add_argument("--research", action="store_true", help="Ignore recent underfilled batch-search entries")
     existing_group = parser.add_mutually_exclusive_group()
     existing_group.add_argument("--missing-only", dest="missing_only", action="store_true")
     existing_group.add_argument("--include-existing", dest="missing_only", action="store_false")
     parser.set_defaults(missing_only=True)
-    parser.add_argument("--overwrite", action="store_true", help="Replace an existing venue photo")
+    parser.add_argument("--overwrite", action="store_true", help="Replace existing open photos for a venue")
     parser.add_argument("--no-name-search", action="store_true", help="Disable Commons title-search fallback")
-    parser.add_argument("--original", action="store_true", help="Download full-res Commons originals, not 1600px thumbs")
+    parser.add_argument("--original", action="store_true", help="Download full-res Commons originals, not 1280px thumbs")
     parser.add_argument("--dry-run", action="store_true", help="Search and rank candidates without writes")
     parser.add_argument("--build", action="store_true", help="Run scripts/build_data.py after saving")
     return parser.parse_args(argv)
@@ -1016,8 +1131,8 @@ def validate(args: argparse.Namespace) -> None:
         raise SystemExit("--lon is required with --lat")
     if args.limit < 1:
         raise SystemExit("--limit must be at least 1")
-    if args.batch and args.max_venues < 1:
-        raise SystemExit("--max-venues must be at least 1")
+    if args.batch and args.max_venues < 0:
+        raise SystemExit("--max-venues must be 0 (unlimited) or positive")
     if args.radius is not None and args.radius < 1:
         raise SystemExit("--radius must be at least 1 metre")
     sources = {source.strip().lower() for source in args.sources.split(",") if source.strip()}
@@ -1035,6 +1150,47 @@ def venue_coords(venue: Mapping[str, Any]) -> tuple[float, float]:
 def venue_sort_key(venue: Mapping[str, Any]) -> tuple[int, float]:
     summit = venue.get("summitM")
     return (-int(bool(venue.get("notable"))), -float(summit) if summit is not None else math.inf)
+
+
+def load_search_log() -> dict[str, dict[str, Any]]:
+    if not SEARCH_LOG_PATH.exists():
+        return {}
+    try:
+        with open(SEARCH_LOG_PATH, encoding="utf-8") as handle:
+            payload = json.load(handle)
+        return payload if isinstance(payload, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def save_search_log(search_log: Mapping[str, Any]) -> None:
+    SEARCH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    temporary = SEARCH_LOG_PATH.with_suffix(".tmp")
+    with open(temporary, "w", encoding="utf-8") as handle:
+        json.dump(search_log, handle, separators=(",", ":"), ensure_ascii=False)
+    os.replace(temporary, SEARCH_LOG_PATH)
+
+
+def recent_unproductive_search(
+    entry: Any,
+    per_venue: int,
+    now: datetime,
+) -> bool:
+    if not isinstance(entry, Mapping):
+        return False
+    searched_at = entry.get("searched_at")
+    try:
+        searched = datetime.fromisoformat(str(searched_at))
+    except (TypeError, ValueError):
+        return False
+    if searched.tzinfo is None:
+        searched = searched.replace(tzinfo=timezone.utc)
+    age = now - searched.astimezone(timezone.utc)
+    try:
+        found = int(entry.get("found", 0))
+    except (TypeError, ValueError):
+        return False
+    return timedelta(0) <= age < timedelta(days=30) and found < per_venue
 
 
 def run_build() -> None:
@@ -1128,33 +1284,56 @@ async def run_batch(args: argparse.Namespace, session: aiohttp.ClientSession, fl
     photos = load_photos_json()
     metadata = await load_metadata()
     owners = existing_photo_owners(photos, metadata)
+    search_log = load_search_log()
     selected_type = args.type
     venues = [
         venue for venue in load_venues()
         if selected_type == "any" or venue.get("type") == selected_type
     ]
     venues.sort(key=venue_sort_key)
-    venues = venues[: args.max_venues]
-    skip_existing = args.missing_only and not args.overwrite
-    skipped = 0
+    if args.max_venues > 0:
+        venues = venues[: args.max_venues]
+
+    skipped_existing = 0
+    skipped_recent = 0
     to_search: list[dict[str, Any]] = []
+    needed_by_slug: dict[str, int] = {}
+    now = datetime.now(timezone.utc)
     for venue in venues:
-        entry = photos.get(str(venue.get("slug", "")), {})
-        if skip_existing and isinstance(entry, Mapping) and entry.get("file"):
-            skipped += 1
-        else:
-            to_search.append(venue)
+        slug = str(venue["slug"])
+        entry = photos.get(slug, {})
+        needed = args.per_venue if args.overwrite else photos_needed(entry, args.per_venue)
+        if needed <= 0:
+            skipped_existing += 1
+            continue
+        if not args.research and recent_unproductive_search(
+            search_log.get(slug), args.per_venue, now
+        ):
+            skipped_recent += 1
+            continue
+        needed_by_slug[slug] = needed
+        to_search.append(venue)
 
     radius = args.radius if args.radius is not None else (1500 if selected_type == "hill" else 1000)
     sources = [source.strip().lower() for source in args.sources.split(",") if source.strip()]
     semaphore = asyncio.Semaphore(VENUE_CONCURRENCY)
     assignment_lock = asyncio.Lock()
     reserved_urls = dict(owners)
+    completed_outcomes: dict[str, tuple[list[PhotoRecord], bool, int | None]] = {}
+    searched = 0
+    photos_added = 0
+    errors = 0
+    elapsed_start = time.monotonic()
 
-    async def process(venue: dict[str, Any], index: int) -> tuple[str, PhotoRecord | None, bool]:
+    async def process(
+        venue: dict[str, Any], index: int,
+    ) -> tuple[str, list[PhotoRecord], bool, int | None]:
         slug = str(venue["slug"])
         name = str(venue.get("name") or slug)
         lat, lon = venue_coords(venue)
+        entry = photos.get(slug, {})
+        needed = needed_by_slug[slug]
+        current_urls = registered_photo_urls(slug, entry, metadata)
         async with semaphore:
             try:
                 candidates = await search_candidates(
@@ -1162,7 +1341,7 @@ async def run_batch(args: argparse.Namespace, session: aiohttp.ClientSession, fl
                     lat,
                     lon,
                     radius,
-                    args.limit,
+                    args.per_venue,
                     name,
                     sources,
                     flickr_key,
@@ -1170,13 +1349,28 @@ async def run_batch(args: argparse.Namespace, session: aiohttp.ClientSession, fl
                     not args.no_name_search,
                     slug,
                 )
+                available = [
+                    record for record in candidates
+                    if record.original_url not in current_urls and record.page_url not in current_urls
+                    and all(
+                        url not in owners or owners[url] == slug
+                        for url in (record.original_url, record.page_url)
+                    )
+                ]
+                available = select_unique_candidates(available, len(available))
+                found = len(available)
                 if args.dry_run:
                     print(f"{slug} — {name}")
-                    print_candidates(candidates, name, radius)
-                    return slug, None, False
-                print(f"{slug} — {name}: {len(candidates)} candidate(s)")
-                download_attempted = False
-                for candidate_index, candidate in enumerate(candidates, 1):
+                    print_candidates(available, name, radius)
+                    result = (slug, [], False, found)
+                    completed_outcomes[slug] = (result[1], result[2], result[3])
+                    return result
+
+                print(f"{slug} — {name}: {found} available candidate(s), filling {needed}")
+                chosen = select_unique_candidates(available, needed)
+                downloaded: list[PhotoRecord] = []
+                attempted = 0
+                for candidate_index, candidate in enumerate(chosen, 1):
                     async with assignment_lock:
                         candidate_urls = (candidate.original_url, candidate.page_url)
                         if any(
@@ -1187,37 +1381,107 @@ async def run_batch(args: argparse.Namespace, session: aiohttp.ClientSession, fl
                         newly_reserved = [url for url in candidate_urls if url not in reserved_urls]
                         for url in candidate_urls:
                             reserved_urls[url] = slug
-                    download_attempted = True
-                    downloaded = await download_photo(session, candidate, index * 10 + candidate_index, slug)
-                    if downloaded:
-                        return slug, downloaded, False
-                    async with assignment_lock:
-                        for url in newly_reserved:
-                            if reserved_urls.get(url) == slug:
-                                reserved_urls.pop(url)
-                return slug, None, download_attempted
+                    attempted += 1
+                    record = await download_photo(
+                        session, candidate, index * 10 + candidate_index, slug
+                    )
+                    if record:
+                        downloaded.append(record)
+                    else:
+                        async with assignment_lock:
+                            for url in newly_reserved:
+                                if reserved_urls.get(url) == slug:
+                                    reserved_urls.pop(url)
+                failed = attempted > len(downloaded)
+                result = (slug, downloaded, failed, found)
+                completed_outcomes[slug] = (downloaded, failed, found)
+                return result
             except Exception as exc:
                 print(f"  venue {slug} failed: {exc}")
-                return slug, None, True
+                result = (slug, [], True, None)
+                completed_outcomes[slug] = (result[1], result[2], result[3])
+                return result
 
-    results = await asyncio.gather(*(process(venue, index) for index, venue in enumerate(to_search, 1)))
-    downloaded = [record for _, record, _ in results if record]
-    errors = sum(1 for _, _, failed in results if failed)
+    async def persist_outcomes(
+        outcomes: list[tuple[str, list[PhotoRecord], bool, int | None]],
+    ) -> None:
+        nonlocal photos_added, errors
+        downloaded_records: list[PhotoRecord] = []
+        photo_updates: dict[str, dict[str, Any]] = {}
+        search_timestamp = datetime.now(timezone.utc).isoformat()
+        for slug, downloaded, failed, found in outcomes:
+            if found is not None:
+                search_log[slug] = {"searched_at": search_timestamp, "found": found}
+            if failed:
+                errors += 1
+            if downloaded:
+                current = photos.get(slug, {})
+                updated = merge_open_photo_entry(
+                    current,
+                    [registered_photo(record) for record in downloaded],
+                    args.per_venue,
+                    args.overwrite,
+                )
+                photos[slug] = updated
+                photo_updates[slug] = updated
+                downloaded_records.extend(downloaded)
+                photos_added += len(downloaded)
+        if downloaded_records:
+            await save_metadata(downloaded_records)
+        if photo_updates:
+            save_photos_json(photo_updates)
+        await sync_metadata_registration()
+        save_search_log(search_log)
+
+    def log_progress(processed: int, total: int) -> None:
+        venues_with_photos = sum(
+            1 for venue in venues if open_photo_count(photos.get(str(venue["slug"]), {})) > 0
+        )
+        print(
+            f"Progress: {processed}/{total} venues; {venues_with_photos} with photos; "
+            f"{photos_added} photos added; {errors} errors; "
+            f"{time.monotonic() - elapsed_start:.1f}s elapsed",
+            flush=True,
+        )
+
+    total = len(venues)
+    searched_venues = 0
+    completed_processed = skipped_existing + skipped_recent
+    chunk_size = 25
+    try:
+        for offset in range(0, len(to_search), chunk_size):
+            chunk = to_search[offset : offset + chunk_size]
+            completed_outcomes.clear()
+            results = await asyncio.gather(
+                *(process(venue, offset + index + 1) for index, venue in enumerate(chunk))
+            )
+            await persist_outcomes(results)
+            completed_outcomes.clear()
+            searched_venues += len(chunk)
+            searched += len(chunk)
+            completed_processed = skipped_existing + skipped_recent + searched_venues
+            log_progress(completed_processed, total)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        completed = [
+            (slug, downloaded, failed, found)
+            for slug, (downloaded, failed, found) in completed_outcomes.items()
+        ]
+        if completed and not args.dry_run:
+            await persist_outcomes(completed)
+        raise
+
     if not args.dry_run:
-        if downloaded:
-            await save_metadata(downloaded)
-            save_photos_json({
-                record.venue_slug: registered_photo(record)
-                for record in downloaded
-                if record.venue_slug
-            })
         await sync_metadata_registration()
         pruned = prune_unregistered_site_files()
         if pruned:
             print(f"Removed {pruned} unregistered WebP file(s).")
+    venues_with_photos = sum(
+        1 for venue in venues if open_photo_count(photos.get(str(venue["slug"]), {})) > 0
+    )
+    skipped = skipped_existing + skipped_recent
     print(
-        f"Batch summary: venues searched {len(to_search)} / with photos {len(downloaded)} "
-        f"/ skipped {skipped} / errors {errors}"
+        f"Batch summary: venues searched {searched} / with photos {venues_with_photos} "
+        f"/ skipped {skipped} / photos added {photos_added} / errors {errors}"
     )
     if args.build and not args.dry_run:
         run_build()

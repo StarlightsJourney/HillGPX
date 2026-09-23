@@ -14,6 +14,26 @@ All generated outputs are committed. The app does not run Python or need these c
 | `api_route_import.py` | Import a route by calling the platform's backend API with copied headers/cookies/tokens | Site URL/API URL, headers/cookies JSON | `data/routes/<slug>.gpx`, `data/routes/<slug>.json` | Network; httpx, tenacity, gpxpy; user-supplied session | Per contributed route |
 | `scrape_trail_photos.py` | Extract trail photos from a detail page and attach the best one to a venue | Trail page URL, venue slug | `public/photos/<name>_<n>.webp`, `data/photos.json` | Network; Playwright, BeautifulSoup4, httpx, Pillow | Per trail with permission |
 
+### Open-licence mountain and trail photos
+
+`fetch_open_photos.py` searches Wikimedia Commons without a key and optionally Flickr. Install the Python script dependencies with `pip install -r scripts/requirements.txt`. Flickr is optional: add `FLICKR_API_KEY=...` to `.env.local` or the environment to enable it. The script only accepts CC BY, CC BY-SA, CC0, and public-domain images; CC BY-NC and CC BY-ND are excluded. Attribution metadata is merged into the ignored `open_trail_media/metadata.json`, while resized WebP derivatives and their attribution are registered for the site.
+
+```bash
+# Search one venue and download up to three candidates
+python3 scripts/fetch_open_photos.py --venue bukit-timah-hill --limit 3 --overwrite --build
+
+# Search a location without registering it to a venue
+python3 scripts/fetch_open_photos.py --lat 1.3546 --lon 103.7764 --radius 1000 --dry-run
+
+# Search the tallest missing hill venues first
+python3 scripts/fetch_open_photos.py --batch --type hill --max-venues 50 --build
+
+# Use full-resolution Commons downloads instead of the default 1600px thumbnails
+python3 scripts/fetch_open_photos.py --venue bukit-timah-hill --original --dry-run
+```
+
+Batch mode defaults to missing venues only; use `--include-existing` to revisit them or `--overwrite` to replace existing photos. `--dry-run` prints ranked candidates without downloading or writing. Commons name-search fallback is enabled by default when geosearch finds no eligible result; geotagged fallback results must still be within the search radius, and unlocated results with no informative caption are rejected. Pass `--no-name-search` to disable fallback. Obvious signs, boards, markers, plaques, maps, space imagery, numbered image series, botanical/faunal close-ups, and summit/peak Panoramio marker images are filtered out. Candidates must match the venue name/romanised slug or describe a landscape feature; Commons taxonomy, flora/fauna, people, books, scanned images and unrelated-category files are rejected. Open-source attribution is displayed below the photo on venue cards and detail pages. Full metadata (including source, licence, creator, dates, coordinates, and original-download path) is retained in `open_trail_media/metadata.json`; only `public/photos/open/*.webp` derivatives are served by the app. Use `--list-open` to review registered open photos or `--unregister-open <slug> ...` to remove open-photo entries without changing Mapillary records.
+
 For a full rebuild:
 
 ```bash

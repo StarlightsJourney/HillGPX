@@ -20,3 +20,8 @@ tenacity>=8.0.0
 
 # scrape_trail_photos.py — trail page photo extraction
 beautifulsoup4>=4.12.0
+
+# fetch_open_photos.py — open-license mountain/trail photos from Wikimedia Commons / Flickr
+aiohttp>=3.9.0
+aiofiles>=24.0.0
+certifi>=2024.0.0

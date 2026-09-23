@@ -19,6 +19,7 @@ venv/
 # Large intermediate data — the *outputs* under public/data are committed,
 # these raw downloads are not (see scripts/README.md)
 scripts/.cache/
+open_trail_media/
 *.tif
 *.tiff
 

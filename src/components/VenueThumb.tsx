@@ -3,10 +3,10 @@ import type { Venue } from '../types';
 /**
  * A venue's image.
  *
- * Real street-level photography from Mapillary where it exists — attached at
- * build time by scripts/fetch_photos.py, CC-BY-SA, credited below the image.
- * Mapillary's coverage depends on someone having walked or driven the street
- * with a camera, so plenty of venues have none.
+ * Real photography from Mapillary or open-licence Wikimedia Commons/Flickr —
+ * attached at build time and credited below the image. Coverage depends on
+ * someone having photographed the venue or its surroundings, so many venues
+ * still have none.
  *
  * Those get an invitation rather than an apology. "No photo yet" was accurate
  * but inert — it told you about a gap and gave you nowhere to go with that.
@@ -65,12 +65,42 @@ export function VenueThumb({ venue, rounded = true }: { venue: Venue; rounded?: 
   );
 }
 
-/** Attribution line. Required by CC-BY-SA wherever the photo is shown. */
+/** Attribution line required wherever a published photo is shown. */
 export function PhotoCredit({ venue }: { venue: Venue }) {
   if (!venue.photo?.file) return null;
+  const { credit, license, licenseUrl, source, sourceUrl } = venue.photo;
+
+  if (source) {
+    return (
+      <p className="photo-credit small muted">
+        {credit ? `Photo by ${credit}` : 'Photo'}
+        {source && (
+          <>
+            {' · '}
+            {sourceUrl ? (
+              <a href={sourceUrl} target="_blank" rel="noreferrer">
+                {source}
+              </a>
+            ) : source}
+          </>
+        )}
+        {license && (
+          <>
+            {' · '}
+            {licenseUrl ? (
+              <a href={licenseUrl} target="_blank" rel="noreferrer">
+                {license}
+              </a>
+            ) : license}
+          </>
+        )}
+      </p>
+    );
+  }
+
   return (
     <p className="photo-credit small muted">
-      Photo{venue.photo.credit ? ` by ${venue.photo.credit}` : ''} ·{' '}
+      Photo{credit ? ` by ${credit}` : ''} ·{' '}
       <a href="https://www.mapillary.com" target="_blank" rel="noreferrer">
         Mapillary
       </a>

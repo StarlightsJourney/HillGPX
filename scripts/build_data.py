@@ -617,11 +617,19 @@ def main() -> None:
             if photo and photo.get("file"):
                 # A path under public/, not Mapillary's signed CDN URL, which
                 # expires about a month after it is issued.
-                v["photo"] = {"file": photo["file"], "credit": photo.get("creator")}
+                v["photo"] = {
+                    "file": photo["file"],
+                    "credit": photo.get("creator"),
+                    **{
+                        key: photo[key]
+                        for key in ("license", "licenseUrl", "sourceUrl", "source")
+                        if photo.get(key) is not None
+                    },
+                }
                 attached += 1
-        print(f"  {attached:,} venues have a Mapillary photo")
+        print(f"  {attached:,} venues have a photo")
     else:
-        print("  No photos yet — run scripts/fetch_photos.py for real imagery")
+        print("  No photos yet — run scripts/fetch_photos.py or scripts/fetch_open_photos.py for real imagery")
 
     # A venue whose height nobody has recorded cannot answer the one question
     # this map exists to answer, so it is not carried into the dataset.

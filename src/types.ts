@@ -61,10 +61,17 @@ export interface Venue {
   notes?: string;
 
   /**
-   * Street-level photo from Mapillary, attached at build time. CC-BY-SA, so the
-   * credit must be shown wherever the image is.
+   * Photo attached at build time from Mapillary (CC-BY-SA) or open-licence
+   * Commons/Flickr sources. Credit and licence attribution must be shown.
    */
-  photo?: { file: string; credit?: string | null };
+  photo?: {
+    file: string;
+    credit?: string | null;
+    license?: string;
+    licenseUrl?: string;
+    sourceUrl?: string;
+    source?: string;
+  };
 
   /**
    * In the tallest few percent of everything mapped. Relative rather than a

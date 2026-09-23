@@ -113,4 +113,18 @@ python3 scripts/build_data.py
 - **Status**: fixed
 - **Re-test**: Local JSON API test succeeded; duplicate import was correctly skipped.
 
+### 13. Trail photo scraper for venue pages
+- **Severity**: medium
+- **Details**: User wanted a production-ready way to extract high-resolution trail photos from dynamic detail pages and attach them to the site.
+- **Fix**: Added `scripts/scrape_trail_photos.py` using Playwright (stealth), BeautifulSoup4, and `httpx`. It scrolls/click galleries, intercepts photo JSON, parses `src`/`data-src`/`srcset`, scores URLs to avoid thumbnails, downloads asynchronously with randomized delays and concurrency limits, resizes to 420 px WebP, and registers the best photo in `data/photos.json` under a venue slug. Pass `--build` to update `public/data/venues.json` so the photo appears on cards and detail pages.
+- **Status**: fixed
+- **Re-test**: Local mock trail page produced three WebP downloads and a correct `data/photos.json` entry; full build/test suite passed.
+
+### 14. Open-photo pipeline rejected valid licences and omitted usable attribution
+- **Severity**: medium
+- **Details**: Commons licence matching rejected space-separated CC labels and used an overly broad `pd` substring; Flickr allowed CC BY-ND; HTTP retries were attached to SSL context creation; registered photo paths included `public/`; Commons coordinates were replaced with venue coordinates; photo storage, search filtering, batch assignment and site attribution were incomplete.
+- **Fix**: Corrected strict licence handling and retry scope, added Commons geosearch/name fallback and Flickr geo metadata, actual photo coordinates/distances, ranked/batch search, ignored originals with merged attribution metadata, public-relative WebP registration, and linked source/licence attribution. Live image inspection also led to filtering marker/plaque/notice-board titles, numbered image series, unlocated fallback matches with duplicate titles, and name-search results outside the requested radius.
+- **Status**: verified
+- **Re-test**: `python3 -m py_compile scripts/fetch_open_photos.py`; `python3 -m unittest scripts/test_fetch_open_photos.py` (5 passed); `python3 scripts/build_data.py`; `npm run typecheck`; `npm run lint`; `npm test` (12 passed); `npm run build`; `npm run test:e2e` (3 passed); live Commons dry-run, single-venue, and batch runs succeeded.
+
 Last verified: all commands above passed with zero errors/warnings.

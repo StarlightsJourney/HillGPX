@@ -125,8 +125,9 @@ export function Landing({ onOpen }: LandingProps) {
           </span>
           <span className="home-foot-credits">
             Data from <a href="https://data.gov.sg" target="_blank" rel="noreferrer">data.gov.sg</a>,{' '}
-            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> and{' '}
-            <a href="https://www.mapillary.com" target="_blank" rel="noreferrer">Mapillary</a>
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>,{' '}
+            <a href="https://www.mapillary.com" target="_blank" rel="noreferrer">Mapillary</a> and{' '}
+            <a href="https://commons.wikimedia.org" target="_blank" rel="noreferrer">Wikimedia Commons</a>
           </span>
         </div>
       </footer>

@@ -2,6 +2,8 @@
 
 All generated outputs are committed. The app does not run Python or need these credentials.
 
+The ingestion priority is worldwide hills, mountains, summits, and their routes. Existing HDB support is maintained, but generic park, carpark, bridge, and unrelated venue expansion is out of scope. A volunteer-maintained open-source GPX and photo source is planned as the preferred bulk source once its repository or API is provided. Its importer must preserve stable source identifiers, contributor names, licences, attribution, original URLs, and venue/route relationships; do not import it under assumed licensing.
+
 | Script | Purpose | Reads | Writes | Network and credentials | How often |
 |---|---|---|---|---|---|
 | `build_data.py` | Merge venues, photos, ratings and routes; simplify and profile routes; tag route country; build landing statistics | `data/venues/*.json`, `data/photos.json`, `data/reviews.json`, `data/routes/*.gpx` and sidecars, `public/data/dem/` when present | `public/data/venues.json`, `public/data/routes.json`, `public/data/stats.json` | None; standard library only | After any source-data change |
@@ -55,6 +57,8 @@ On python.org macOS builds without "Install Certificates.command", HTTPS fails w
 `data/reviews.json` holds `{"reviews": [{"venue": "<slug>", "rating": 1-5, "comment": "...", "author": "@handle", "date": "YYYY-MM-DD"}]}`, copied from "Rate a venue" issues. `build_data.py` averages them into each venue as `"rating": {"average": 4.33, "count": 3}` and omits the key for unrated venues. Unknown slugs and out-of-range ratings are skipped with a warning.
 
 ### Importing routes
+
+Until the volunteer dataset is connected, prefer openly licensed OSM relations, contributor-owned GPX files, and official exports. When the volunteer source is available, add a reproducible importer rather than manually copying its records, and map its attribution fields into route sidecars and `data/photos.json`.
 
 ```bash
 python3 scripts/import_gpx.py ~/Downloads/run.gpx --name "Kent Ridge repeats" --contributor @you --licence "CC BY 4.0"

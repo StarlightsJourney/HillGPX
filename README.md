@@ -1,6 +1,12 @@
 # HillGPX
 
-Find elevation gain to train on. A map of hills, staircases and tall blocks in Singapore, with runnable routes and a client-side GPX profiler that never uploads your track.
+Discover hills, mountains, and summits worldwide, inspect their routes and elevation profiles, and download or privately analyse GPX tracks. HillGPX prioritizes accurate mountain locations, useful route coverage, and clear source attribution.
+
+## Product scope
+
+HillGPX is primarily a worldwide hill and mountain discovery product. Current Singapore HDB and stair-training data remains available, but expanding generic parks, carparks, bridges, and unrelated venue categories is not a project priority.
+
+The next data expansion will integrate the volunteer-maintained open-source GPX and photo dataset selected for the project. Once its repository or API is available, imports must preserve source, contributor, licence, and attribution metadata; the existing public OSM and contributed-GPX workflows remain valid in the meantime.
 
 ## Stack
 
@@ -43,20 +49,21 @@ For fixture-driven testing, see `.devin/skills/hillgpx-workflow/SKILL.md`.
 
 ## Data model
 
-- `data/venues/hills.json` — curated hills, stairs, parks
-- `data/venues/hdb-blocks.json` — generated HDB blocks
-- `data/venues/peaks.json` — generated OSM summits
-- `data/routes/*.gpx` — route tracks
+- `data/venues/hills.json` — curated hills and mountains
+- `data/venues/peaks.json` — generated worldwide OSM summits
+- `data/venues/hdb-blocks.json` — existing Singapore HDB training data
+- `data/routes/*.gpx` — route tracks with optional provenance sidecars
+- `data/photos.json` — photo attribution and source metadata
 - `public/data/venues.json` and `public/data/routes.json` — generated app datasets
 
 Run `python scripts/build_data.py` after changing any of the source files.
 
 ## Known limitations
 
-- The bundled terrain model covers Singapore only. Routes in Malaysia keep the GPX altitudes.
-- The DEM is derived from SRTM, so forested summits read higher than ground truth.
-- Eight curated Singapore venues still lack verified heights and are invisible until someone measures them. See `CONTRIBUTING.md`.
-- `data/routes/` is the biggest content gap; the pipeline exists but the folder is still sparse.
+- The bundled terrain model covers Singapore only. Routes elsewhere use trustworthy GPX elevation when present and otherwise report elevation as unavailable.
+- The DEM is derived from SRTM, so forested summits can read higher than ground truth.
+- Worldwide coverage is uneven and route coverage remains the largest content gap.
+- The volunteer GPX/photo source is not integrated until its repository, API, or export format is supplied and its licence can be recorded.
 
 ## Agent guidance
 
@@ -66,4 +73,4 @@ Run `python scripts/build_data.py` after changing any of the source files.
 
 ## License
 
-Code is MIT. Contributed GPX files are published under the same terms — only upload files that are yours to share. Data attributions are listed in `CONTRIBUTING.md`.
+Code is MIT. Venue, GPX, and photo records retain the licence and attribution of their original source; only contribute material that permits redistribution. Data attributions and contribution rules are listed in `CONTRIBUTING.md`.

@@ -38,6 +38,7 @@ import {
   MARKER_ROWS,
 } from './layers';
 import { RouteMarkers, VenueMarkers } from './markers';
+import './worker';
 import { MAP_STYLE_URL } from './constants';
 import { parseSvg, textSpan } from '../lib/dom';
 import { glyphSvg } from '../lib/venueGlyphs';
@@ -294,6 +295,22 @@ class TerrainControl {
     map.easeTo({ pitch: this.on ? 55 : 0, duration: 700 });
     this.sync();
   }
+}
+
+/**
+ * Bottom padding that keeps a framed route above the docked route panel. It
+ * is measured, not fixed: a fixed 320 px was taller than the whole map on a
+ * short window, so MapLibre could not fit the route and it ended up under the
+ * panel. Capped so the visible strip is never squeezed to nothing.
+ */
+function panelClearance(map: MlMap, fallback: number): number {
+  const container = map.getContainer();
+  const panel = container.parentElement?.querySelector<HTMLElement>('.gpx-panel');
+  if (!panel) return fallback;
+  // offsetHeight, not the bounding box: the panel is mid slide-in animation
+  // when a route is first framed. Its gap to the map edge is the CSS `bottom`.
+  const below = panel.offsetHeight + (parseFloat(getComputedStyle(panel).bottom) || 16);
+  return Math.max(fallback, Math.min(below + 16, container.clientHeight * 0.6));
 }
 
 export function MapView({
@@ -756,7 +773,7 @@ export function MapView({
         ),
       );
       map.fitBounds(bounds, {
-        padding: { top: 80, bottom: routePanelOpenRef.current ? 320 : 80, left: 80, right: 80 },
+        padding: { top: 80, bottom: routePanelOpenRef.current ? panelClearance(map, 80) : 80, left: 80, right: 80 },
         maxZoom: 15,
         // Before load, resize() during start-up calls stop() and would cancel
         // an animation half-way; jump instead.
@@ -786,7 +803,7 @@ export function MapView({
     const map = mapRef.current;
     const marker = photoFocus ? photoMarkersRef.current.get(photoFocus.id) : undefined;
     if (!map || !marker) return;
-    map.flyTo({ center: marker.getLngLat(), zoom: Math.max(map.getZoom(), 14), duration: 800, padding: { top: 120, bottom: routePanelOpenRef.current ? 320 : 64, left: 40, right: 40 } });
+    map.flyTo({ center: marker.getLngLat(), zoom: Math.max(map.getZoom(), 14), duration: 800, padding: { top: 120, bottom: routePanelOpenRef.current ? panelClearance(map, 64) : 64, left: 40, right: 40 } });
     if (!marker.getPopup()?.isOpen()) marker.togglePopup();
   }, [photoFocus]);
 
@@ -808,7 +825,7 @@ export function MapView({
       duration: 900,
       essential: true,
       // Keep the pin clear of the route panel docked over the bottom of the map.
-      padding: { top: 64, bottom: routePanelOpenRef.current ? 320 : 64, left: 64, right: 64 },
+      padding: { top: 64, bottom: routePanelOpenRef.current ? panelClearance(map, 64) : 64, left: 64, right: 64 },
     });
     return () => {
       marker.remove();

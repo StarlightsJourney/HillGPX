@@ -2,6 +2,8 @@
 
 A free, open-source, community-built map of every hill, mountain, staircase and tall block worth climbing — and an open archive of the GPX routes up them, with honest elevation for every file.
 
+**Live site:** https://starlightsjourney.github.io/HillGPX/ · **Open source (MIT)**, built by volunteers. [Help build it →](CONTRIBUTING.md)
+
 HillGPX is not a finished product handed down to users. It is a shared map that runners, hikers and stair climbers build together: every place, photo, rating and route on it was added by someone who trains there. If you know a climb that is missing, the map is waiting for you.
 
 ## Why this exists
@@ -19,9 +21,12 @@ Good vertical training spots are local knowledge. The stairwell that goes to the
 ## What you can do today
 
 - Browse **917,000+ hills and mountains in 232 countries** (OpenStreetMap + GeoNames), plus Singapore's stairwells and tall HDB blocks, on a phone-first map. Switch between a flat map and 3D mountain terrain.
-- See the community's progress on every page in the milestone bar under the header: plain facts, one at a time ("924,255 hills on the map. 3 have a GPX."), and a drop-down with the full ladder, from *First tracks* at 10 routes to *Every hill* at 5,000. *Add a GPX* sits at the top right of every header. On the home page, search sits in the header, a banner scrolls through every country, and country rows load four at a time as you scroll, with real Wikimedia photos of the highest peaks.
+- See the community's progress on every page in the milestone bar under the header: plain facts, one at a time ("924,255 hills on the map. 3 have a GPX.", "hillGPX is free and open source."), and a drop-down with the full ladder, from *First tracks* at 10 routes to *Every hill* at 5,000, and a link to the code. *Add a GPX* sits at the top right of every header. The home page and the map share one header: logo, the same search pill in the centre (on its own full-width row on phones), then *Add a GPX* and the m/ft switch. On the home page a banner scrolls through every country, and country rows load four at a time as you scroll, with real Wikimedia photos of the highest peaks.
+- On a first visit a small pill at the bottom says *hillGPX is free and open source* (like Airbnb's "Prices include all fees"); tapping it explains what that means and how to help. It shows once per browser session.
+- Summits with a stored Wikimedia photo show it on map cards too, so the *With photos* filter finds them.
+- The map page footer sits at the end of the results list, as on Airbnb, so the map runs to the bottom of the window until you scroll the list to the end.
 - Every route is tagged **Road run**, **Trail** or **Cycling** (from moving speed and climbing per km, editable on upload); filter by it in the category bar, and see it on cards and as the coloured badge (runner, mountain, bike) on route pins. Minimum EG and distance are in *Filters*.
-- Open a route for its trace over real terrain, EG/EL profile, the places it passes (tap one to see it on the map) and other routes it shares ground with. Recording date and where the elevation came from sit behind the (i).
+- Open a route for its trace over real terrain, EG/EL profile, the places it passes (tap one to see it on the map) and other routes it shares ground with. The panel takes at most about half the map and folds down to its title (chevron button), and the map frames the route above it. Download is a round icon with a hover label. Recording date, where the elevation came from, and who added the route and under what licence sit behind the (i), which opens on hover or tap.
 - Venue pages: swipeable photo carousel with a full-screen viewer, live summit conditions (temperature adjusted for altitude, rain chance, sunrise/sunset), directions, Wikipedia context and Airbnb-style reviews.
 - **Upload a GPX** with no account — files up to 60 MB (a 200 km ultra or a multi-day trek). It is checked for duplicates, keeps the elevation your device recorded (terrain data only fills in when the file has none), is classified, gets a terrain card image, and is published for everyone under CC BY 4.0. Heart-rate, cadence and other device data are stripped before the file is stored.
 - Pin **photos and hazards along a route** (landslips, fallen trees, water points). You see yours on the map straight away; everyone else does once a volunteer approves it. No account needed.
@@ -66,14 +71,13 @@ The long-term aim is for HillGPX to be to climbing routes what community subtitl
 
 ## How to contribute
 
-You do not need to write code to help.
+You do not need to write code to help. **[CONTRIBUTING.md](CONTRIBUTING.md)** is the plain-language guide; in order of what the project needs most:
 
-- **Upload a GPX** — *Add a GPX* on the map or any venue page. No account; published immediately under CC BY 4.0 with your credit.
-- **Rate and review** a place from its page — the practical details (gates, water, shade, best time) help most.
-- **Add photos** from a venue page, even if it already has some. Photos appear after a quick volunteer check.
-- **Add a missing place** — *Add a place* in the menu (GitHub issue form).
-- **Correct an elevation** — see [Verify a venue's elevation](CONTRIBUTING.md#verify-a-venues-elevation).
-- **Improve the app** — issues and pull requests are welcome; start with the development setup below.
+1. **Data.** Upload a GPX (*Add a GPX*, no account, published under CC BY 4.0 with your credit), add a missing place (*Add a missing place* in the footer, a GitHub issue form), add photos, rate places, report hazards and mistakes. Correcting an elevation in the data files is described in [docs/DEVELOPING.md](docs/DEVELOPING.md#verify-a-venues-elevation).
+2. **User flow and design.** Tell us what was confusing with the [feedback form](https://github.com/StarlightsJourney/HillGPX/issues/new?template=feedback.yml), or suggest a clearer layout.
+3. **Budget and reach.** Help cover hosting as it grows, share the community milestones with your club, and tell your running or hiking group.
+
+Developers and classmates: fork the repository and open a pull request; the full workflow is in [CONTRIBUTING.md](CONTRIBUTING.md#working-on-the-code-together); setup, data formats and code rules are in [docs/DEVELOPING.md](docs/DEVELOPING.md).
 
 How the project is governed, moderated, kept running and funded is in **[docs/COMMUNITY.md](docs/COMMUNITY.md)**.
 
@@ -111,12 +115,28 @@ npm run dev
 
 The app opens at [http://localhost:5180](http://localhost:5180). Port 5180 is strict; stop anything already using it.
 
+`npm install` also points git at `.githooks/`, whose `commit-msg` hook removes AI/bot `Co-authored-by:` trailers (GitHub lists every co-author as a contributor). Human co-authors are kept.
+
+### Deploying to GitHub Pages
+
+Pushing to `main` runs `.github/workflows/deploy.yml`, which builds with `VITE_BASE=/HillGPX/` and publishes `dist/`. To check a production build locally under the same sub-path:
+
+```bash
+VITE_BASE=/HillGPX/ npm run build
+npx vite preview --base /HillGPX/
+```
+
+MapLibre 6 looks for its web worker next to its own module. Vite does not copy that file into `dist/`, so `src/map/worker.ts` bundles it with `?worker&url` and registers it with `setWorkerUrl()`. Every module that creates a map imports it first. Without it the map stays blank on GitHub Pages while working fine in `npm run dev`.
+
 ## Validation commands
 
 Run these before any handoff:
 
 ```bash
 npm run typecheck
+npm run lint
+npm test               # Vitest unit tests
+npm run test:e2e       # Playwright, against the dev server
 npm run build
 python3 scripts/build_data.py
 ```
@@ -193,4 +213,4 @@ Run `python3 scripts/build_data.py` after changing any of the source files.
 
 ## License
 
-Code is MIT. Venue, GPX, and photo records retain the licence and attribution of their original source; only contribute material that permits redistribution. Data attributions and contribution rules are listed in `CONTRIBUTING.md`.
+Code is MIT. Venue, GPX, and photo records retain the licence and attribution of their original source; only contribute material that permits redistribution. Data attributions are listed above; contribution rules are in `CONTRIBUTING.md` and `docs/DEVELOPING.md`.

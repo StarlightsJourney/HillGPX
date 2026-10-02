@@ -5,8 +5,9 @@ import type { RouteActivity } from '../types';
  * route cards and the route pins on the map so the three always agree.
  */
 export const ACTIVITY_PATHS: Record<RouteActivity, string> = {
-  // A runner mid-stride: reads at 14 px where a shoe outline did not.
-  run: 'M15.5 5.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z M13.5 8 10 11l3 3-1.5 6.5 M13.5 8l3 3.5H20 M10 11 7 9.5 4.5 12 M11.5 14 8 17H4',
+  // A runner mid-stride, leaning forward from one shoulder point: reads at
+  // 14 px where a shoe outline did not, and no longer tips backwards.
+  run: 'M14.5 5.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z M13 8l-2.5 6 M13 8l3 3h3 M13 8 9 8.5 6.5 11 M10.5 14l3.5 2.5-1 4.5 M10.5 14 8 17.5H4.5',
   // A summit with a path up it.
   trail: 'M2 19 9 7l3.5 5.5L15 9l7 10Z M9 7l1.6 2.8M6.5 15.5l2-1.5 1.5 1 2-2',
   // A bicycle.

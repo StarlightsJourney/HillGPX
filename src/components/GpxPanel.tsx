@@ -101,9 +101,8 @@ export function GpxPanel({
           </InfoTip>
         </div>
         <div className="gpx-panel-actions">
-          <button type="button" className="gpx-download" onClick={() => downloadRoute(published ?? route)}>
-            <DownloadIcon size={14} />
-            <span className="hide-narrow">Download</span>
+          <button type="button" className="gpx-icon-btn" onClick={() => downloadRoute(published ?? route)} aria-label="Download GPX" data-tip="Download GPX">
+            <DownloadIcon size={15} />
           </button>
           <button type="button" className="gpx-close" onClick={onClose} aria-label="Close GPX panel">
             <CloseIcon size={12} />

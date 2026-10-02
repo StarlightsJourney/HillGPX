@@ -1,6 +1,7 @@
 import { Map as MapLibreMap } from 'maplibre-gl';
 import type { Route } from '../types';
 import { THUMB_H, THUMB_W, thumbView } from '../lib/thumbView';
+import './worker';
 import { MAP_STYLE_URL } from './constants';
 
 const TERRAIN_TILES = 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png';

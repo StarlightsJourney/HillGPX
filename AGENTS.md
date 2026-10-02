@@ -101,7 +101,7 @@ For route or venue changes, also run the workflow skill in `.devin/skills/hillgp
 - **Placeholders**: every place without a photo uses `PlaceArt` (`VenueThumb.tsx`): a ridge for terrain, a plain grey tile with the type icon for built climbs (the drawn skyline was removed as too decorative). Do not add another placeholder style.
 - **Descriptions format** is enforced in `describe_venues.py` (two sentences, ≤34 words, no em dashes/semicolons); keep the validator in sync with the prompt.
 - **Route activity** icons (runner, mountain, bike) live in `src/lib/activityGlyphs.ts`; climb category icons use the same stroke style (`CLIMB_PATHS` in `FilterBar.tsx`). There is no "Big climbs" category; minimum EG lives in Filters. They feed the category bar, `ActivityTag` and route pins. Category slots are fixed-width so Climbs/Routes do not shift.
-- **Landing**: the country marquee and infinite "Highest peaks in …" rows (4 per batch); the country marquee and infinite "Highest peaks in …" rows come from `byCountry` / `top` in `public/data/peaks/index.json` (rebuild with `fetch_world_peaks.py`).
+- **Landing**: the country marquee and infinite "Highest peaks in …" rows (4 per batch) come from `byCountry` / `top` in `public/data/peaks/index.json` (rebuild with `fetch_world_peaks.py`).
 - **Community route thumbnails** are rendered in the uploader's browser at publish (`src/map/renderThumb.ts`) into the `route-thumbs` bucket; committed routes still use `scripts/render_route_thumbs.ts`.
 - **GPX uploads** keep the file's own elevation; DEM/terrain only fill files without any. Up to 60 MB raw; simplified to ≤4,000 points; the original is gzipped before upload (`.gpx.gz`).
 - **Moderation queues** (Supabase dashboard → Table Editor): `photos`, `route_photos`, `reports` (status `pending` → `approved`/`rejected`).
@@ -117,6 +117,14 @@ For route or venue changes, also run the workflow skill in `.devin/skills/hillgp
 - **Static SVG strings need no `xmlns`**: `parseSvg()` in `src/lib/dom.ts` adds it. Without it the XML parser returns un-rendered elements and map pins lose their icons.
 - **Landing sticky header must not change size on scroll** — resizing it moves `scrollY` back across the threshold and flickers.
 - **macOS file quarantines / extended attributes** (`@` in `ls -la`) can appear on downloaded files; they do not affect the build.
+- **MapLibre worker on GitHub Pages:** MapLibre 6 resolves its worker from `import.meta.url`, and Vite does not emit that file, so a Pages build showed a blank map while dev worked. `src/map/worker.ts` bundles it (`?worker&url`) and calls `setWorkerUrl()`; import it first in any module that creates a map. Check production with `VITE_BASE=/HillGPX/ npm run build && npx vite preview --base /HillGPX/`.
+- **Header search:** landing and map both use the `.home-search` pill in `SiteHeader`'s centre (the map's `SearchBar` is a one-field version). Side columns are equal so it stays centred; below 744 px it moves to its own full-width row. Do not reintroduce the old collapsing circle.
+- **Map page footer** is the full `SiteFooter`, rendered as the last child of `.list-pane`, so it only appears after scrolling the list (Airbnb pattern). There is no compact footer.
+- **Route panel** is capped at ~45% of the map, folds to its title, and `panelClearance()` in `MapView.tsx` frames the route above its measured height. Panel actions are round icon buttons with `data-tip` hover labels (`.gpx-icon-btn`); route credits live inside the (i) `InfoTip`, which opens on hover for mouse and on tap for touch.
+- **World-summit photos:** `public/data/peaks/photos.json` is attached to world-peak venues as `venue.photo` with a full Commons URL in `file`. Always build image URLs with `photoSrc()` from `src/lib/venues.ts`, never `BASE_URL + file`.
+- **Open-source notice:** `OpenSourceNotice.tsx` shows a first-visit pill once per session (`sessionStorage` key `hillgpx:openSourceNoticeSeen`).
+- **Contributor docs:** `CONTRIBUTING.md` is for the public (data first, then UX feedback, then budget). The technical reference that used to live there is `docs/DEVELOPING.md`.
+- **Git hooks:** `npm install` runs `prepare`, setting `core.hooksPath` to `.githooks/`. The `commit-msg` hook strips AI/bot `Co-authored-by:` and "Generated with …" lines. Commit `9f800f7` predates it and still carries a Devin trailer; removing that needs a history rewrite and force-push, which only the coordinator may decide.
 - **No special browser permissions** are required. Geolocation is optional and handled defensively.
 
 If a permission or credential is missing, report the exact dialog/denial and mark the task **environment-blocked**. Do not silently disable the feature.
@@ -136,6 +144,7 @@ After two materially different unsuccessful attempts at the same technical block
 - **Feature branch naming:** `feature/<short-description>` or `data/<venue-or-route>`.
 - **Commit style:** concise, describing *why* more than *what*.
 - **No force-push** to `main`.
+- **`main` is protected** (GitHub ruleset "Protect main"): changes land only through a pull request with 1 approval; force pushes and deletion are blocked. Collaborators (maintainers) may approve and merge others' PRs; the repo admin can bypass. Classmates contribute from forks (see `CONTRIBUTING.md`).
 - **No bot/AI co-author trailers.** Use a normal commit message.
 - **Push only when explicitly asked.** The coordinator decides when the branch is ready for the remote.
 

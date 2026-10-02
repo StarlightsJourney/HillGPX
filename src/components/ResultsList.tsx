@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Venue } from '../types';
-import { HEIGHT_LABEL, nearest, rankingHeight, venueHeight, venuesInBounds, venueKindLabel } from '../lib/venues';
+import { HEIGHT_LABEL, nearest, photoSrc, rankingHeight, venueHeight, venuesInBounds, venueKindLabel } from '../lib/venues';
 import { haversineM } from '../lib/elevation';
 import { VenueThumb } from './VenueThumb';
 import { HeartIcon, SearchIcon, StarIcon } from './icons';
@@ -198,7 +198,7 @@ function ResultsListInner({
             const image = new Image();
             image.onload = () => resolve();
             image.onerror = () => resolve();
-            image.src = `${import.meta.env.BASE_URL}${venue.photo.file}`;
+            image.src = photoSrc(venue.photo);
           }),
       ),
     ).then(() => {

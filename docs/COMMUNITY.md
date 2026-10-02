@@ -25,8 +25,9 @@ Rules that keep this true:
 | Upload a GPX | "Add a GPX" on the map, or a venue page | No | Immediately |
 | Rate and review a place | Venue page | No | Immediately |
 | Add photos | Venue page → "Add photos" | No | After a quick volunteer check |
-| Add a missing place | Menu → "Add a place" (GitHub issue form) | GitHub | When merged |
-| Correct an elevation | `CONTRIBUTING.md` | GitHub | When merged |
+| Add a missing place | Footer → "Add a missing place" (GitHub issue form) | GitHub | When merged |
+| Correct an elevation | `docs/DEVELOPING.md` | GitHub | When merged |
+| Feedback on usability | Feedback issue form (`CONTRIBUTING.md` §2) | GitHub | Discussed in the open |
 | Improve the code | Pull request | GitHub | When merged |
 
 Design principles for contribution flows:
@@ -116,7 +117,7 @@ Options, roughly in the order they make sense:
 
 | Stage | Source | Notes |
 |---|---|---|
-| Now | **Open Collective / GitHub Sponsors** donations | Transparent ledger; a "Support HillGPX" link in the menu and footer. Covers hosting early. |
+| Now | **Open Collective / GitHub Sponsors** donations | Transparent ledger; a "Support HillGPX" link in the footer. Covers hosting early. |
 | Now | **Grants** | OpenStreetMap-adjacent and open-data funds, outdoor-industry community funds, local sports councils, university research partnerships on activity data. |
 | Growing | **Trail event listings** | Race organisers pay a small fee to pin an event on the map with dates and a registration link; free for community and charity runs. |
 | Growing | **Partner gear showcases** | Trail-running and hiking brands sponsor a labelled card on region pages ("Gear for Hong Kong trails"). Flat fee, not per-click; no tracking pixels. |

@@ -37,6 +37,7 @@ import { UnitsProvider } from './components/UnitsContext';
 import { Modal } from './components/Modal';
 import { CoveragePill } from './components/Coverage';
 import { SiteFooter, SiteHeader } from './components/SiteChrome';
+import { OpenSourceNotice } from './components/OpenSourceNotice';
 import { fetchCommunityRoutes, fetchRoutePhotos, type RoutePhoto } from './lib/api';
 import { findOverlaps } from './lib/routeAnalysis';
 import { isWorldPeakSlug, peaksInView, worldPeakBySlug } from './lib/worldPeaks';
@@ -86,6 +87,7 @@ export default function App() {
       ) : (
         <MapApp />
       )}
+      {view !== 'training' && <OpenSourceNotice raised={view === 'map'} />}
     </UnitsProvider>
   );
 }
@@ -591,6 +593,9 @@ function MapApp() {
               onShowAll={frameRoutes}
             />
           )}
+          {/* As on Airbnb: the footer waits at the end of the list instead of
+              taking a strip off the bottom of the map. */}
+          {dataset && <SiteFooter />}
         </div>
 
         {loadError ? (
@@ -774,8 +779,6 @@ function MapApp() {
         )}
 
       </main>
-      {/* Full width under the list and the map, not only under the list. */}
-      <SiteFooter compact />
     </div>
   );
 }

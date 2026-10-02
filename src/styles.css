@@ -31,7 +31,6 @@
   --s4: 40px;
   --s5: 64px;
 
-
   color-scheme: light;
 }
 
@@ -39,7 +38,6 @@
    interface, and the map's own basemap and pills are light — following the
    system into dark mode gave a dark chrome wrapped around a light map, which
    looked like two designs stapled together. */
-
 
 * {
   box-sizing: border-box;
@@ -1370,99 +1368,6 @@ button {
   }
 }
 
-/* ─── Search ──────────────────────────────────────────────────────────── */
-
-.searchbar {
-  position: relative;
-  justify-self: center;
-  flex: 0 1 auto;
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  z-index: 5;
-  transition: width .22s ease;
-}
-
-.searchbar.expanded {
-  width: min(480px, calc(100vw - 300px));
-}
-
-@media (min-width: 900px) {
-  .searchbar.expanded {
-    width: min(480px, calc(100vw - 620px));
-  }
-}
-
-@media (max-width: 599px) {
-  .searchbar.expanded {
-    position: absolute;
-    left: 12px;
-    right: 12px;
-    top: 10px;
-    width: auto;
-    max-width: none;
-    z-index: 7;
-  }
-}
-
-.searchbar-toggle {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  z-index: 3;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-  cursor: pointer;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 8%), 0 4px 12px rgb(0 0 0 / 5%);
-  transition: all .22s ease;
-}
-
-.searchbar.expanded .searchbar-toggle {
-  top: 6px;
-  right: 6px;
-  left: auto;
-  width: 32px;
-  height: 32px;
-  box-shadow: none;
-}
-
-.searchbar input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 44px;
-  font: inherit;
-  font-size: var(--t2);
-  color: var(--ink);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 10px 48px 10px 20px;
-  opacity: 0;
-  pointer-events: none;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 8%);
-  transition: opacity .22s ease;
-}
-
-.searchbar.expanded input {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.searchbar input:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
-}
-
 .searchbar-results {
   position: absolute;
   top: calc(100% + 6px);
@@ -1597,10 +1502,6 @@ button {
 .locate-hint-close:hover {
   background: var(--bg-raised);
   color: var(--ink);
-}
-
-@media (min-width: 861px) {
-  
 }
 
 .empty {
@@ -1844,7 +1745,6 @@ button {
     justify-content: flex-start;
   }
 }
-
 
 /* ─── Map loading capsule and zoom controls ───────────────────────────── */
 

@@ -1,160 +1,211 @@
-# Contributing
+# Help build HillGPX
 
-Most of what this project needs isn't code. It's local knowledge — which staircases are open, how much a hill actually climbs, where the good repeat venues are. If you train vertical in Singapore, you already know things this map doesn't.
+HillGPX is free and open source. It is built by volunteers: runners, hikers
+and stair climbers who share what they know. Anyone can help, and **you do not
+need to write code**.
 
-## Setup
+There are three ways to help. They are listed in order of how much the project
+needs them.
+
+1. [Add data](#1-add-data-most-needed): routes, places, photos and corrections
+2. [Help make it easier to use](#2-help-make-it-easier-to-use)
+3. [Help with costs and spread the word](#3-help-with-costs-and-spread-the-word)
+
+If you write code, see [Working on the code together](#working-on-the-code-together)
+at the end.
+
+---
+
+## 1. Add data (most needed)
+
+The map is only as good as what people add to it. This is the most useful help
+of all.
+
+### Share a GPX route
+
+A GPX file is the track your watch or phone app records. To share one:
+
+1. Open [the map](https://starlightsjourney.github.io/HillGPX/#map).
+2. Press **Add a GPX** at the top right.
+3. Choose the file and check the details. Press publish.
+
+You do not need an account. Your route goes on the map straight away, with your
+name on it, for anyone to download (licence: CC BY 4.0).
+
+Please:
+
+- **Only share routes you recorded yourself.** Do not re-upload someone else's.
+- **Check where it starts.** If the track begins at your front door, trim the
+  start and end in your watch app first.
+- Duplicates are fine to try. The site tells you if the route is already there.
+
+### Add a missing place
+
+Know a hill, staircase or tall block that is not on the map? Use the
+[Add a place form](https://github.com/StarlightsJourney/HillGPX/issues/new?template=add-place.yml).
+It needs a free GitHub account. Tell us the name, where it is, and how you know
+its height. Leave the height empty if you are not sure: an empty box is better
+than a wrong number.
+
+Only add public places. Do not add anywhere people are not allowed to go.
+
+### Add a photo
+
+Open a place's page and press **Add photos**. A volunteer checks each photo
+before it appears, usually within a day. Only send photos you took yourself.
+
+### Fix something that is wrong
+
+Wrong height, closed staircase, hazard on a trail? Press **Report an issue** on
+the place or route page. You can also pin a hazard (a landslip, a fallen tree)
+at the right spot along a route.
+
+If you measured a height yourself and want to correct the data directly, the
+steps are in [docs/DEVELOPING.md](docs/DEVELOPING.md#verify-a-venues-elevation).
+
+### Rate and review a place
+
+On a place's page, leave a rating and a few practical notes: gates and opening
+times, water, shade, the best time to go. These help the next person most.
+
+---
+
+## 2. Help make it easier to use
+
+HillGPX is for everyone, of every age, so it has to be simple. If something
+confused you, that is useful to us, not your fault.
+
+- **Tell us what was hard.** Use the
+  [feedback form](https://github.com/StarlightsJourney/HillGPX/issues/new?template=feedback.yml).
+  Say what you were trying to do and what happened. A screenshot helps.
+- **Suggest a better layout.** A sketch on paper, or a link to another app that
+  does it well, is welcome. We follow patterns people already know from apps
+  like Airbnb, and we prefer clear over clever.
+- **Try it on your own phone.** Most people use HillGPX outdoors on a phone. If
+  something is too small to tap or hard to read in sunlight, tell us.
+
+---
+
+## 3. Help with costs and spread the word
+
+Today the site runs on free services: GitHub Pages for the website, Supabase
+for shared routes and photos, OpenFreeMap for the map. As more people add
+photos, storage will start to cost money (about US$25 a month for the next
+Supabase plan).
+
+- **Donate.** A donation page is being set up. Until then, open an issue titled
+  "Support" and the maintainer will reply. Every cent and every expense will be
+  published.
+- **Share the milestones.** The bar under the header shows the community's
+  progress, from *First tracks* at 10 routes to *Every hill* at 5,000. When we
+  reach one, share it with your running club or hiking group. New people bring
+  new routes.
+- **Tell your group about it.** One message in a club chat can bring more
+  routes than anything else.
+
+How the project is run and funded, and the promises that come with it (no
+paid rankings, no selling data, sponsored items always labelled), are in
+[docs/COMMUNITY.md](docs/COMMUNITY.md).
+
+---
+
+## Working on the code together
+
+Everyone, classmates included, works the same way: in your own copy (a
+**fork**), then a **pull request** back to this repository. You do not need to
+be invited to start.
+
+### 1. Make your copy
+
+1. Press **Fork** at the top of the
+   [repository page](https://github.com/StarlightsJourney/HillGPX). This makes
+   your own copy under your GitHub account.
+2. Clone your fork and install:
+
+   ```bash
+   git clone https://github.com/<your-username>/HillGPX.git
+   cd HillGPX
+   git remote add upstream https://github.com/StarlightsJourney/HillGPX.git
+   npm install
+   npm run dev
+   ```
+
+### 2. Make a change
+
+1. Get the latest version first:
+
+   ```bash
+   git checkout main
+   git pull upstream main
+   ```
+
+2. Make a branch for each piece of work: `feature/<short-name>` or
+   `data/<place-or-route>`.
+
+   ```bash
+   git checkout -b feature/route-panel-labels
+   ```
+
+3. Commit your work and push the branch **to your fork**:
+
+   ```bash
+   git push origin feature/route-panel-labels
+   ```
+
+### 3. Open a pull request
+
+GitHub shows a **Compare & pull request** button after you push. Open the pull
+request against `main` of `StarlightsJourney/HillGPX`. In the description, say
+what changed and why, and add a screenshot for anything visible.
+
+Keep pull requests small: one feature or fix each. Small ones get reviewed
+and merged much faster.
+
+### 4. Review and merge
+
+`main` is protected, because every merge to it updates the live site:
+
+- Nobody can push to `main` directly. Every change goes through a pull request.
+- A pull request needs **one approval** from a maintainer before it can be
+  merged.
+- **Maintainers** are the people the project owner has added as collaborators.
+  Any maintainer can approve and merge, but not their own pull request. A
+  second person always looks at a change before it goes live.
+
+If a reviewer asks for changes, push more commits to the same branch. The pull
+request updates by itself.
+
+### Checks to run before opening a pull request
 
 ```bash
-npm install
-npm run dev
+npm run typecheck
+npm run lint
+npm test
+npm run build
 ```
 
-The browser opens at [http://localhost:5180](http://localhost:5180). Port 5180 is strict, so stop whatever is using it rather than expecting Vite to choose another one.
+Setup details, the data formats and the rules the code relies on are in
+[docs/DEVELOPING.md](docs/DEVELOPING.md). The architecture is in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-The web app needs no database, keys or `.env` file. If that isn't true for you, it's a bug — please open an issue. `scripts/build_data.py` also needs nothing beyond the Python standard library.
-
-For the other data scripts, install their dependencies:
-
-```bash
-pip install -r scripts/requirements.txt
-```
-
-`scripts/fetch_dem.py` and `scripts/fetch_photos.py` need Pillow. Only `scripts/ingest_hdb.py` and `scripts/fetch_photos.py` need `.env.local`: copy `.env.example`, then add OneMap credentials or a Mapillary token as appropriate. See [`scripts/README.md`](scripts/README.md) before regenerating data.
+AI tools are fine to use, but commit under your own name. `npm install` turns
+on a git hook that removes bot "Co-authored-by" lines, so tools do not show up
+as contributors.
 
 ---
 
-## Add a route
+## Licences
 
-The one that helps most.
+By contributing you agree to share your work under these licences:
 
-1. Get a GPX. Export from your watch, Strava, or draw one anywhere that exports GPX.
-2. Drop it into `data/routes/` with a descriptive kebab-case filename:
-   `bukit-timah-summit-loop.gpx`, `marang-trail-repeats.gpx`
-3. Rebuild and commit:
+| What | Licence |
+|---|---|
+| Code | MIT |
+| GPX routes | CC BY 4.0 |
+| Photos | CC BY-SA 4.0, CC BY 4.0 or CC0 (your choice) |
+| Reviews | CC BY 4.0 |
 
-```bash
-python scripts/build_data.py
-git add data/routes/ public/data/
-git commit -m "Add Bukit Timah summit loop"
-```
+## Be kind
 
-Or let the importer name, validate and write the sidecar for you:
-
-```bash
-python3 scripts/import_gpx.py ~/Downloads/run.gpx --name "Bukit Timah summit loop" --contributor @you --licence "CC BY 4.0"
-python3 scripts/import_gpx.py --osm-relation 5993965   # an OpenStreetMap hiking relation (ODbL)
-```
-
-It also accepts a GPX URL and, via the official Strava API with your own `STRAVA_ACCESS_TOKEN`, your own Strava routes (`--strava-route ID`). It never scrapes Strava. Not comfortable with git? Use the **Add a route** issue form and attach the GPX.
-
-The build script works out the distance, the gain, whether it's a loop, and which venues it passes. You don't need to supply any of that.
-
-**Optional sidecar.** If you want to add detail or override the automatic venue linking, put a `.json` next to the GPX with the same basename:
-
-```json
-{
-  "name": "Bukit Timah summit loop",
-  "description": "Steepest line up from Hindhede. Concrete the whole way, brutal in the afternoon.",
-  "surface": "road",
-  "difficulty": "hard",
-  "venues": ["bukit-timah-hill", "hindhede-nature-park"],
-  "contributor": "@your-github-handle",
-  "licence": "CC BY 4.0",
-  "sourceUrl": "https://example.org/where-it-came-from"
-}
-```
-
-**Only upload GPX files that are yours.** Don't re-upload someone else's Strava activity. And check the track doesn't start at your front door — trim the first and last few hundred metres if it does.
-
----
-
-## Verify a venue's elevation
-
-Nearly every entry in `data/venues/hills.json` is marked `"elevationSource": "estimated"`, which means it's a seed value I wrote down and you should not trust. Several are `null`.
-
-Two numbers matter, and they're different:
-
-- **`summitM`** — height above sea level at the top.
-- **`gainM`** — what you actually climb from the normal starting point. This is the one people train by, and it's usually much smaller. Bukit Timah's summit is around 163 m, but nobody starts at sea level.
-
-A venue with both numbers `null` is dropped at build time and does not appear. Mount Faber, Marang Trail, Telok Blangah Hill Park, Kent Ridge Park, Bukit Gombak, Fort Canning Hill, Pearl's Hill City Park and Mount Emily Park are all invisible today. Verifying either number puts one on the map.
-
-**Note:** until this is fixed in `build_data.py`, a curated entry with no height can also hide the OSM record for the same hill — Mount Faber is the current example.
-
-To fix a curated venue:
-
-1. Find a real source, or measure it — a barometric watch on a still day, averaged over a few ascents, is good enough.
-2. Update the value, set `"elevationSource"` to `"verified"`, and say where the number came from in `notes`.
-3. `python scripts/build_data.py`, then commit.
-
-Cite the source. An unsourced number is the thing we already have.
-
-OpenStreetMap summits live in generated `data/venues/peaks.json`; do not hand-edit it. Correct the `ele` tag in OpenStreetMap and run `python3 scripts/fetch_peaks.py --region sg-my` (regions combine, e.g. `--region sg-my,hk,tw`, and merge without dropping existing entries), or use a bounding box. If you measured the *climb*, add or extend a curated entry in `data/venues/hills.json` with `gainM`; curated entries load first and win the deduplication.
-
----
-
-## Add a venue
-
-Anywhere public that people actually train on: hills, park staircases, multi-storey carparks, long overhead bridges. Add an entry to `data/venues/hills.json`:
-
-```json
-{
-  "slug": "some-hill",
-  "name": "Some Hill",
-  "type": "hill",
-  "lat": 1.3456,
-  "lng": 103.7890,
-  "summitM": null,
-  "gainM": null,
-  "elevationSource": "estimated",
-  "notes": "Access from the north car park. Gate closes at 7pm."
-}
-```
-
-`type` is one of `hill`, `stairs`, `park`, `carpark`, `bridge`. (`hdb_block` is generated — don't add those by hand.)
-
-Leave a number `null` rather than guessing. A null is an honest gap someone can fill; a wrong number looks authoritative and can sit there for years. This records the venue, but it will not appear in the app until either `gainM` or `summitM` is filled in.
-
-**Access matters.** If it's private, gated, or somewhere you technically shouldn't be, say so in `notes` — or don't add it. This should not become a list of places to trespass.
-
----
-
-## Rate a venue
-
-Open the **Rate a venue** issue form (the app can link to it prefilled: `https://github.com/StarlightsJourney/HillGPX/issues/new?template=rate-venue.yml&venue=<slug>&rating=5`). A maintainer appends it to `data/reviews.json`:
-
-```json
-{"venue": "bukit-timah-hill", "rating": 5, "comment": "Shady, steep, busy after 7am", "author": "@you", "date": "2025-01-31"}
-```
-
-`python3 scripts/build_data.py` averages ratings per venue. Ratings with an unknown slug or outside 1–5 are skipped with a warning.
-
-The **Add a place** and **Add a photo** issue forms cover the same ground for people who would rather not edit JSON.
-
----
-
-## Photos
-
-Photos are not added to the repository by hand. Upload useful street-level imagery to [Mapillary](https://www.mapillary.com/), or put a Mapillary token in `.env.local` and run `python scripts/fetch_photos.py`. The script downloads and resizes the latest nearby image, and records its creator and image ID in `data/photos.json`; run `python scripts/build_data.py` afterwards to attach it to the venue.
-
-Mapillary imagery is CC-BY-SA 4.0. Keep the creator credit and image ID intact — the app displays that attribution with every photo.
-
----
-
-## Code
-
-Normal stuff: fork, branch, PR. `npm run typecheck` and `npm run build` are the CI gates. There's no linter or test framework yet; match the surrounding style.
-
-A few things worth preserving, because they're the point of the project rather than incidental:
-
-- **No backend.** The app is static files. If a feature seems to need a server, say so in an issue first — there's usually a way to keep it static, and the zero-setup clone is what makes this contributable.
-- **No API keys.** A fresh clone must run with no accounts and no config.
-- **Dropped GPX files never leave the browser.** People upload their training history here. It stays in their tab — or, if they choose to save it, in their own browser's `localStorage`.
-- **Never trust GPX altitude.** Re-sample against the terrain model wherever it has coverage. If you change `GAIN_THRESHOLD_M` or `SMOOTH_WINDOW` in `scripts/build_data.py`, change the defaults in `src/lib/elevation.ts` too — otherwise the app and the baked route data will quietly disagree.
-- **Never present `summitM` as a climb.** Go through `venueHeight()` for display and use `rankingHeight()` only for sorting.
-- **Build URLs from `import.meta.env.BASE_URL`.** Follow `DATA_BASE`; root-absolute paths break the GitHub Pages build under `/HillGPX/`.
-- **Map pins are HTML markers, not symbol layers.** `src/map/markers.ts` renders them as DOM elements so they share the app's font and CSS. If you ever add a MapLibre `symbol` layer, use exactly one font in `text-font`: a fallback list makes OpenFreeMap request a glyph stack that 404s, and labels silently disappear.
-
-## Reporting things
-
-Issues are fine for anything: a wrong height, a staircase that's been closed, a route that's mislinked, a bug. Local knowledge is the scarce resource here — if you know something the map gets wrong, that's worth an issue even if you don't want to open a PR.
+Be patient and polite with everyone, especially people who are new to this.
+Report anything unkind to the maintainer.

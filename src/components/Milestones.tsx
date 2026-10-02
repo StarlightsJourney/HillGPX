@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { compactCount, formatShare } from '../lib/coverage';
 import { useCoverage } from './Coverage';
+import { REPO_URL } from '../lib/contribute';
 
 /**
  * Community GPX milestones. Each tier is a shared achievement: the whole
@@ -63,6 +64,7 @@ export function MilestoneBar() {
     next ? <><strong>{remaining}</strong> more {remaining === 1 ? 'route' : 'routes'} to reach <em>{next.name}</em>.</> : <>All milestones reached.</>,
     <><strong>{coverage.routes}</strong> routes shared in <strong>{coverage.countries}</strong> countries.</>,
     <><strong>{coverage.placesWithPhotos.toLocaleString()}</strong> places have a photo.</>,
+    <>hillGPX is free and <strong>open source</strong>.</>,
   ];
   // The headline fact comes round every other slide.
   const current = slide % 2 === 0 ? 0 : 1 + (Math.floor(slide / 2) % (messages.length - 1));
@@ -108,6 +110,10 @@ export function MilestoneBar() {
                 </li>
               ))}
             </ol>
+            <p className="mile-bar-oss">
+              hillGPX is free and open source. Anyone can add data or improve it on{' '}
+              <a href={REPO_URL} target="_blank" rel="noreferrer">GitHub</a>.
+            </p>
           </div>
         </div>
       )}

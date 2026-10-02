@@ -9,7 +9,7 @@ import { ElevationProfile } from './ElevationProfile';
 import { TypeGlyph } from './TypeGlyph';
 import { useUnits } from './UnitsContext';
 import { downloadRoute } from './VenueCard';
-import { CloseIcon, DownloadIcon } from './icons';
+import { ChevronRightIcon, CloseIcon, DownloadIcon } from './icons';
 import type { RoutePhoto } from '../lib/api';
 import { RoutePhotoModal } from './RoutePhotoModal';
 import { ReportModal } from './ReportModal';
@@ -59,12 +59,35 @@ export function InfoTip({ children, label = 'About these numbers' }: { children:
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [open]);
+  // Hover shows it on a mouse; a tap toggles it on touch screens.
+  const hoverable = () => window.matchMedia('(hover: hover)').matches;
   return (
-    <span className="info-tip" ref={ref}>
+    <span
+      className="info-tip"
+      ref={ref}
+      onMouseEnter={() => hoverable() && setOpen(true)}
+      onMouseLeave={() => hoverable() && setOpen(false)}
+    >
       <button type="button" className="info-tip-btn" aria-label={label} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         i
       </button>
       {open && <span className="info-tip-pop" role="tooltip">{children}</span>}
+    </span>
+  );
+}
+
+/** Who added a route and under what licence, shown inside the (i) rather than under the panel. */
+function RouteCredit({ route }: { route: Route }) {
+  if (!route.contributor && !route.licence && !route.sourceUrl) return null;
+  return (
+    <span className="route-meta muted">
+      {route.contributor && <>Added by {route.contributor}. </>}
+      {route.licence && <>{route.licence}. </>}
+      {route.sourceUrl && (
+        <a href={route.sourceUrl} target="_blank" rel="noreferrer">
+          Source
+        </a>
+      )}
     </span>
   );
 }
@@ -119,6 +142,8 @@ function useTerrainFill(route: Route): { points: RoutePoint[]; gainM: number; lo
 export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHoverIndex, onClose, spotlightSlug, onShowVenue, onShowRoute, routePhotos, onFocusPhoto, onPhotoAdded }: RoutePanelProps) {
   const [adding, setAdding] = useState(false);
   const [reporting, setReporting] = useState(false);
+  // Folded down to its title so the whole route is visible on a short map.
+  const [collapsed, setCollapsed] = useState(false);
   const units = useUnits();
   const elevation = useTerrainFill(route);
   const hasElevation = routeHasElevation(route) || elevation.fromTerrain;
@@ -132,7 +157,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
   const unavailable = elevation.pending ? 'Measuring…' : 'Unavailable';
 
   return (
-    <section className="gpx-panel route-panel" aria-label={`Route: ${route.name}`} key={route.slug}>
+    <section className={`gpx-panel route-panel${collapsed ? ' collapsed' : ''}`} aria-label={`Route: ${route.name}`} key={route.slug}>
       <header className="gpx-panel-head">
         <div className="route-panel-title">
           <h2>{route.name}</h2>
@@ -140,12 +165,22 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
             <RecordedLine recordedAt={route.recordedAt} />
             {hasElevation && <ElevationSourceLine source={elevation.fromTerrain ? 'terrain' : route.elevationSource ?? 'gps'} />}
             <span className="route-meta muted">{[ACTIVITY_LABEL[routeActivity(route)], region, route.loop ? 'Loop' : 'Point to point'].filter(Boolean).join(' · ')}</span>
+            <RouteCredit route={route} />
           </InfoTip>
         </div>
         <div className="gpx-panel-actions">
-          <button type="button" className="gpx-download" onClick={() => downloadRoute(route)}>
-            <DownloadIcon size={14} />
-            <span className="hide-narrow">Download GPX</span>
+          <button type="button" className="gpx-icon-btn" onClick={() => downloadRoute(route)} aria-label="Download GPX" data-tip="Download GPX">
+            <DownloadIcon size={15} />
+          </button>
+          <button
+            type="button"
+            className="gpx-icon-btn gpx-collapse"
+            onClick={() => setCollapsed((value) => !value)}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? 'Show route details' : 'Hide route details'}
+            data-tip={collapsed ? 'Show details' : 'Hide details'}
+          >
+            <ChevronRightIcon size={15} />
           </button>
           <button type="button" className="gpx-close" onClick={onClose} aria-label="Close route">
             <CloseIcon size={12} />
@@ -213,18 +248,6 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
       {adding && <RoutePhotoModal route={route} startIndex={hoverIndex ?? Math.floor(route.coordinates.length / 2)} onPreviewIndex={onHoverIndex} onClose={() => setAdding(false)} onAdded={onPhotoAdded} />}
       {reporting && <ReportModal targetType="route" targetSlug={route.slug} targetName={route.name} onClose={() => setReporting(false)} />}
       <button type="button" className="plan-report route-report" onClick={() => setReporting(true)}>Report an issue with this route</button>
-
-      {(route.contributor || route.licence || route.sourceUrl) && (
-        <p className="route-credit">
-          {route.contributor && <>Added by {route.contributor}. </>}
-          {route.licence && <>{route.licence}. </>}
-          {route.sourceUrl && (
-            <a href={route.sourceUrl} target="_blank" rel="noreferrer">
-              Source
-            </a>
-          )}
-        </p>
-      )}
     </section>
   );
 }

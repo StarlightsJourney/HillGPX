@@ -1,4 +1,4 @@
-import type { Route, RouteDataset, Venue, VenueDataset, VenueType } from '../types';
+import type { Route, RouteDataset, Venue, VenueDataset, VenuePhoto, VenueType } from '../types';
 import { haversineM } from './elevation';
 import { formatDistanceIn, type Units } from './units';
 
@@ -61,6 +61,14 @@ export interface Bounds {
  * page entirely when dist/index.html is opened straight off disk.
  */
 export const DATA_BASE = `${import.meta.env.BASE_URL}data`;
+
+/**
+ * Where a venue photo loads from. Committed photos are files under the base
+ * path; world-summit photos are Wikimedia Commons links stored as full URLs.
+ */
+export function photoSrc(photo: VenuePhoto): string {
+  return /^https?:\/\//.test(photo.file) ? photo.file : `${import.meta.env.BASE_URL}${photo.file}`;
+}
 
 let datasetPromise: Promise<Dataset> | null = null;
 

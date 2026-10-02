@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { createPortal } from 'react-dom';
 import type { Route, Venue } from '../types';
-import { HEIGHT_LABEL, tallestWithin, titleCaseStreet, townName, venueHeight, venueKindLabel } from '../lib/venues';
+import { HEIGHT_LABEL, photoSrc, tallestWithin, titleCaseStreet, townName, venueHeight, venueKindLabel } from '../lib/venues';
 import { useUnits } from './UnitsContext';
 import { ElevationProfile } from './ElevationProfile';
 import { VenueThumb } from './VenueThumb';
@@ -27,7 +27,7 @@ import {
 import { regionOf } from '../lib/regions';
 import { routeHasElevation } from '../lib/routes';
 import { ACTIVITY_LABEL, routeActivity } from '../lib/routeAnalysis';
-import { loadPeakPhotos } from '../lib/worldPeaks';
+import { isWorldPeakSlug, loadPeakPhotos } from '../lib/worldPeaks';
 import { commonsPhotos, generatedDescription, wikiSummary, type GeneratedDescription, type WikiSummary } from '../lib/wiki';
 
 const MiniMap = lazy(() => import('./MiniMap').then((module) => ({ default: module.MiniMap })));
@@ -65,7 +65,8 @@ function useVenueContent(venue: Venue) {
   const [commons, setCommons] = useState<GalleryPhoto[]>([]);
   const [wiki, setWiki] = useState<WikiSummary | null>(null);
   const [generated, setGenerated] = useState<GeneratedDescription | null>(null);
-  const hasPublishedPhoto = Boolean(venue.photo?.file);
+  // A world summit's photo is a Commons link, so the page still looks for more nearby.
+  const hasPublishedPhoto = Boolean(venue.photo?.file) && !isWorldPeakSlug(venue.slug);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,8 +81,10 @@ function useVenueContent(venue: Venue) {
       // The landing's stored summit photo first, then anything else on Commons nearby.
       Promise.all([loadPeakPhotos(), commonsPhotos(venue)])
         .then(([stored, nearby]) => {
-          const lead = stored.get(venue.slug);
-          const rest = nearby.filter((photo) => photo.url !== lead?.url);
+          const storedPhoto = stored.get(venue.slug);
+          const rest = nearby.filter((photo) => photo.url !== storedPhoto?.url);
+          // Already in the gallery as the venue's own photo.
+          const lead = venue.photo ? undefined : storedPhoto;
           return lead ? [{ url: lead.url, pageUrl: lead.pageUrl, artist: lead.credit, licence: lead.licence }, ...rest] : rest;
         })
         .then((photos) => photos.map((photo, i) => ({
@@ -550,14 +553,13 @@ function VenueDetailInner({
 
   const photos: GalleryPhoto[] = useMemo(() => {
     const published = venue.photos ?? (venue.photo ? [venue.photo] : []);
-    const base = import.meta.env.BASE_URL;
     return [
       ...published.map((photo) => {
         const sharp = sharpPhoto(photo.sourceUrl);
         return {
           key: photo.file,
-          src: sharp ?? `${base}${photo.file}`,
-          fallback: sharp ? `${base}${photo.file}` : undefined,
+          src: sharp ?? photoSrc(photo),
+          fallback: sharp ? photoSrc(photo) : undefined,
           credit: photo.credit ?? (photo.source ?? 'Mapillary'),
           creditUrl: photo.sourceUrl,
           licence: photo.license ?? (photo.source ? undefined : 'CC BY-SA · Mapillary'),

@@ -28,7 +28,7 @@ export function SiteHeader({ center, onBack, sticky = false }: { center?: ReactN
         </div>
         <div className="site-header-center">{center}</div>
         <div className="site-header-right">
-          <a className="site-header-cta" href="#import">
+          <a className="site-header-cta" href="#import" aria-label="Add a GPX" title="Add a GPX">
             <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <path d="M8 3v10M3 8h10" />
             </svg>
@@ -42,33 +42,33 @@ export function SiteHeader({ center, onBack, sticky = false }: { center?: ReactN
   );
 }
 
-/** The same footer on every scrolling page. */
-export function SiteFooter({ compact = false }: { compact?: boolean }) {
+/**
+ * The same footer on every page. On the map it sits at the end of the list,
+ * so it only shows once you have scrolled past the results.
+ */
+export function SiteFooter() {
   return (
-    <footer className={`site-footer${compact ? ' compact' : ''}`}>
+    <footer className="site-footer">
       <div className="site-footer-inner">
-        {!compact && (
-          <div className="site-footer-cols">
-            <div>
-              <h3>Explore</h3>
-              <a href="#map">Map of climbs</a>
-              <a href="#routes">Routes</a>
-              <a href="#training">Training balance</a>
-            </div>
-            <div>
-              <h3>Contribute</h3>
-              <a href="#import">Add a GPX</a>
-              <a href={addPlaceUrl()} target="_blank" rel="noreferrer">Add a missing place</a>
-              <a href={`${REPO_URL}/blob/HEAD/CONTRIBUTING.md`} target="_blank" rel="noreferrer">Contributor guide</a>
-            </div>
-            <div>
-              <h3>Project</h3>
-              <a href={`${REPO_URL}/blob/HEAD/docs/COMMUNITY.md`} target="_blank" rel="noreferrer">How we run and fund it</a>
-              <a href={`${REPO_URL}/blob/HEAD/README.md#data-sources-and-licensing`} target="_blank" rel="noreferrer">Data sources and licences</a>
-              <a href={REPO_URL} target="_blank" rel="noreferrer">Source code</a>
-            </div>
+        <div className="site-footer-cols">
+          <div>
+            <h3>Explore</h3>
+            <a href="#map">Map of climbs</a>
+            <a href="#routes">Routes</a>
           </div>
-        )}
+          <div>
+            <h3>Contribute</h3>
+            <a href="#import">Add a GPX</a>
+            <a href={addPlaceUrl()} target="_blank" rel="noreferrer">Add a missing place</a>
+            <a href={`${REPO_URL}/blob/HEAD/CONTRIBUTING.md`} target="_blank" rel="noreferrer">Contributor guide</a>
+          </div>
+          <div>
+            <h3>Project</h3>
+            <a href={`${REPO_URL}/blob/HEAD/docs/COMMUNITY.md`} target="_blank" rel="noreferrer">How we run and fund it</a>
+            <a href={`${REPO_URL}/blob/HEAD/README.md#data-sources-and-licensing`} target="_blank" rel="noreferrer">Data sources and licences</a>
+            <a href={REPO_URL} target="_blank" rel="noreferrer">Source code</a>
+          </div>
+        </div>
         <div className="site-footer-base">
           <span>© hillGPX · Free and open source (MIT) · Built by its community</span>
           <span className="site-footer-credits">

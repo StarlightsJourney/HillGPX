@@ -1,5 +1,6 @@
 import { TypeGlyph } from './TypeGlyph';
 import type { Venue, VenuePhoto } from '../types';
+import { photoSrc } from '../lib/venues';
 
 /**
  * A venue's image.
@@ -25,7 +26,7 @@ export function VenueThumb({ venue, rounded = true }: { venue: Venue; rounded?: 
     return (
       <span className={`card-thumb${rounded ? '' : ' square'}`}>
         <img
-          src={`${import.meta.env.BASE_URL}${venue.photo.file}`}
+          src={photoSrc(venue.photo)}
           alt={venue.name}
           loading="lazy"
           decoding="async"

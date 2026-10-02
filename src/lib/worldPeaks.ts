@@ -44,11 +44,14 @@ function tileKeyOf(lat: number, lng: number, size: number): string {
   return `${Math.floor(lat / size) * size}_${Math.floor(lng / size) * size}`;
 }
 
-function toVenue(row: PeakRow, size: number): Venue {
+function toVenue(row: PeakRow, size: number, photos?: Map<string, PeakPhoto>): Venue {
   const [id, name, lat, lng, ele, source] = row;
   const [south, west] = tileKeyOf(lat, lng, size).split('_').map(Number);
+  const slug = `gn${id}-${token(south)}x${token(west)}`;
+  // The landing's stored Commons photo, so map cards and the photo filter see it too.
+  const photo = photos?.get(slug);
   return {
-    slug: `gn${id}-${token(south)}x${token(west)}`,
+    slug,
     name,
     type: 'hill',
     lat,
@@ -57,6 +60,15 @@ function toVenue(row: PeakRow, size: number): Venue {
     gainM: null,
     elevationSource: source === 's' ? 'community' : 'dem',
     routeSlugs: [],
+    ...(photo && {
+      photo: {
+        file: photo.url,
+        credit: photo.credit || null,
+        license: photo.licence || undefined,
+        source: 'Wikimedia Commons',
+        sourceUrl: photo.pageUrl || undefined,
+      },
+    }),
   };
 }
 
@@ -67,9 +79,11 @@ export function isWorldPeakSlug(slug: string): boolean {
 function loadTile(key: string, size: number): Promise<Venue[]> {
   let pending = tiles.get(key);
   if (!pending) {
-    pending = fetch(`${BASE}/${key}.json`)
-      .then((r) => (r.ok ? (r.json() as Promise<PeakRow[]>) : []))
-      .then((rows) => rows.map((row) => toVenue(row, size)))
+    pending = Promise.all([
+      fetch(`${BASE}/${key}.json`).then((r) => (r.ok ? (r.json() as Promise<PeakRow[]>) : [])),
+      loadPeakPhotos(),
+    ])
+      .then(([rows, photos]) => rows.map((row) => toVenue(row, size, photos)))
       .catch(() => {
         tiles.delete(key);
         return [];
@@ -94,7 +108,10 @@ export async function peaksInView(view: Bounds): Promise<Venue[]> {
       if (index.cells[key]) keys.push(key);
     }
   }
-  if (keys.length > MAX_TILES) return index.top.map((row) => toVenue(row, size));
+  if (keys.length > MAX_TILES) {
+    const photos = await loadPeakPhotos();
+    return index.top.map((row) => toVenue(row, size, photos));
+  }
   return (await Promise.all(keys.map((key) => loadTile(key, size)))).flat();
 }
 

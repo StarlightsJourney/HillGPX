@@ -38,19 +38,9 @@ const MAX_AREAS = 3;
 export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  const [expanded, setExpanded] = useState(() => window.matchMedia('(min-width: 900px)').matches);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const enterTimerRef = useRef<number | null>(null);
-  const leaveTimerRef = useRef<number | null>(null);
   const units = useUnits();
-
-  const clearIntentTimers = () => {
-    if (enterTimerRef.current != null) window.clearTimeout(enterTimerRef.current);
-    if (leaveTimerRef.current != null) window.clearTimeout(leaveTimerRef.current);
-    enterTimerRef.current = null;
-    leaveTimerRef.current = null;
-  };
 
   // Lowercase names once, not once per keystroke.
   const haystack = useMemo(
@@ -82,36 +72,29 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
     [areas, normalised],
   );
 
-  useEffect(() => () => clearIntentTimers(), []);
-
-  // Close the dropdown when clicking anywhere else, and collapse the bar if nothing has been typed.
+  // Close the dropdown when clicking anywhere else.
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
-      if (!rootRef.current || rootRef.current.contains(e.target as Node)) return;
-      clearIntentTimers();
-      setOpen(false);
-      if (!query) setExpanded(false);
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, [query]);
+  }, []);
 
-  const collapse = () => {
-    clearIntentTimers();
+  const reset = () => {
     setQuery('');
     setOpen(false);
-    setExpanded(false);
     inputRef.current?.blur();
   };
 
   const pick = (slug: string) => {
     onPick(slug);
-    collapse();
+    reset();
   };
 
   const pickArea = (area: Area) => {
     onFitBounds(area.bounds);
-    collapse();
+    reset();
   };
 
   /**
@@ -119,9 +102,13 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
    * map application has trained. An area wins over a venue because a typed town
    * name is a request for the town, not for whichever of its blocks happens to
    * be tallest; and a query with several matches frames all of them rather than
-   * silently picking one.
+   * silently picking one. An empty search just puts the caret in the box.
    */
   const submit = () => {
+    if (!query.trim()) {
+      inputRef.current?.focus();
+      return;
+    }
     if (areaHits.length > 0) {
       pickArea(areaHits[0]);
       return;
@@ -142,67 +129,47 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
       <p className="small muted results-head">No matches. Try a different place or clear filters.</p>
     ) : null;
 
+  // The same pill as the landing page's search, so the header keeps one shape
+  // and one position on every page and at every width. It used to be a circle
+  // that grew on hover, which sat off-centre on narrow windows.
   return (
-    <div
-      className={`searchbar${expanded ? ' expanded' : ''}`}
+    <form
       ref={rootRef}
-      onMouseEnter={() => {
-        clearIntentTimers();
-        if (!window.matchMedia('(hover: hover)').matches) return;
-        enterTimerRef.current = window.setTimeout(() => setExpanded(true), 120);
-      }}
-      onFocusCapture={() => {
-        clearIntentTimers();
-        setExpanded(true);
+      className={`home-search map-search${open ? ' focused' : ''}`}
+      role="search"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
       }}
     >
-      <button
-        type="button"
-        className="searchbar-toggle"
-        aria-label="Search"
-        // Keep focus off the button: a mousedown here would focus it, and the
-        // focus handler above would expand the bar before the click arrived —
-        // leaving the click to decide it was a submit of an empty query, so the
-        // input never got the caret. It also keeps the caret in the input when
-        // the same button is pressed to run a typed search.
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => {
-          clearIntentTimers();
-          if (query.trim()) submit();
-          else {
-            setExpanded(true);
-            requestAnimationFrame(() => inputRef.current?.focus());
-          }
-        }}
-      >
-        <SearchIcon size={18} />
+      <label className="home-search-field home-search-where">
+        <span className="home-search-label">Where</span>
+        <input
+          ref={inputRef}
+          type="search"
+          value={query}
+          placeholder="Hills, blocks or streets"
+          aria-label="Search hills, blocks, and streets"
+          autoComplete="off"
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') reset();
+          }}
+        />
+      </label>
+      <button type="submit" className="home-search-go" aria-label="Search">
+        <SearchIcon size={16} />
+        <span>Search</span>
       </button>
-      <input
-        ref={inputRef}
-        type="search"
-        value={query}
-        placeholder="Search hills, blocks, or streets"
-        aria-label="Search hills, blocks, and streets"
-        onFocus={() => {
-          clearIntentTimers();
-          setExpanded(true);
-          setOpen(true);
-        }}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setExpanded(true);
-          setOpen(true);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') submit();
-          if (e.key === 'Escape') collapse();
-        }}
-      />
-      {expanded && open && (message !== null || areaHits.length > 0 || results.length > 0) && (
+      {open && (message !== null || areaHits.length > 0 || results.length > 0) && (
         <div className="searchbar-results">
           {message}
           {areaHits.map((area) => (
-            <button key={area.code} className="result-row area-row" onClick={() => pickArea(area)}>
+            <button type="button" key={area.code} className="result-row area-row" onClick={() => pickArea(area)}>
               <span className="result-name">{area.name}</span>
               <span className="result-meta small muted">Area · {area.venueCount} places mapped</span>
             </button>
@@ -210,7 +177,7 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
           {results.map((venue) => {
             const height = venueHeight(venue);
             return (
-              <button key={venue.slug} className="result-row" onClick={() => pick(venue.slug)}>
+              <button type="button" key={venue.slug} className="result-row" onClick={() => pick(venue.slug)}>
                 <span className="result-name">{venue.name}</span>
                 <span className="result-meta small muted">
                   {venueKindLabel(venue)}
@@ -221,6 +188,6 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
           })}
         </div>
       )}
-    </div>
+    </form>
   );
 }

@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "data": "python scripts/build_data.py",
-    "data:dem": "python scripts/fetch_dem.py"
+    "data:dem": "python scripts/fetch_dem.py",
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
   },
   "dependencies": {
     "maplibre-gl": "^6.10.0",

@@ -1,0 +1,21 @@
+#!/bin/sh
+# Strips AI/bot attribution from commit messages so tools never show up as
+# contributors on GitHub. GitHub credits every "Co-authored-by:" trailer, so a
+# single one from a bot account adds that bot to the contributor list.
+#
+# Human co-authors (classmates pairing with you) are kept.
+#
+# Enabled per clone by `npm install` (the "prepare" script), or by hand:
+#   git config core.hooksPath .githooks
+
+msg_file="$1"
+tmp="$(mktemp)"
+
+grep -v -i -E \
+  -e '^co-authored-by:.*(\[bot\]|devin|copilot|cursor|noreply@anthropic\.com|noreply@openai\.com)' \
+  -e '^(🤖 )?generated (with|by) \[?(devin|claude|copilot|cursor|chatgpt)' \
+  "$msg_file" > "$tmp"
+
+# Squeeze the blank lines a removed block leaves behind, and drop trailing ones.
+cat -s "$tmp" | awk 'NF { for (; blank > 0; blank--) print ""; print; next } { blank++ }' > "$msg_file"
+rm -f "$tmp"

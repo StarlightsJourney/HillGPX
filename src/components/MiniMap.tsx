@@ -6,6 +6,7 @@ import { formatHeight } from '../lib/units';
 import { venueHeight } from '../lib/venues';
 import { glyphSvg } from '../lib/venueGlyphs';
 import { parseSvg, textSpan } from '../lib/dom';
+import '../map/worker';
 import { MAP_STYLE_URL } from '../map/constants';
 import { useUnits } from './UnitsContext';
 

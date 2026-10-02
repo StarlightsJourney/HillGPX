@@ -17,5 +17,5 @@ open-source GPX and photo dataset will become the preferred bulk source once
 its location and format are supplied. Its source identifiers, contributor,
 licence, attribution, and original URLs must be retained during import.
 
-See [../../CONTRIBUTING.md](../../CONTRIBUTING.md) for the full walkthrough,
+See [../../docs/DEVELOPING.md](../../docs/DEVELOPING.md) for the full walkthrough,
 including what not to upload.

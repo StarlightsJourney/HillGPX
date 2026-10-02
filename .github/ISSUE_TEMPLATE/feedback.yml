@@ -1,0 +1,36 @@
+name: Feedback on using the site
+description: Something was confusing, hard to find or hard to read. No technical knowledge needed.
+title: "Feedback: "
+labels: ["ux", "feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. Plain words are perfect. A screenshot helps a lot if you can add one.
+  - type: textarea
+    id: trying
+    attributes:
+      label: What were you trying to do?
+      placeholder: I wanted to download the route up Bukit Timah.
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened instead, or what was confusing?
+      placeholder: I could not find the download button on my phone.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could it be better? (optional)
+      description: A sketch, a link to another app that does it well, or just an idea.
+  - type: dropdown
+    id: device
+    attributes:
+      label: What were you using?
+      options:
+        - Phone
+        - Tablet
+        - Computer

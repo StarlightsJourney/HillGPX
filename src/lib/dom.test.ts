@@ -8,6 +8,12 @@ describe('dom helpers', () => {
     expect(svg.querySelector('circle')).not.toBeNull();
   });
 
+  it('parses markup without xmlns into a real SVG element', () => {
+    const svg = parseSvg('<svg viewBox="0 0 16 16"><path d="M0 0h16v16z"/></svg>');
+    expect(svg.namespaceURI).toBe('http://www.w3.org/2000/svg');
+    expect(svg.querySelector('path')?.namespaceURI).toBe('http://www.w3.org/2000/svg');
+  });
+
   it('falls back to an empty svg for malformed input', () => {
     const svg = parseSvg('not svg');
     expect(svg.tagName.toLowerCase()).toBe('svg');

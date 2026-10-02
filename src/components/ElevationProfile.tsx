@@ -115,21 +115,28 @@ export function ElevationProfile({
           </defs>
           <path d={area} fill={`url(#${gradientId})`} />
           <path d={line} fill="none" stroke="var(--accent)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
-          {active && (
-            <>
-              <line className="profile-guide" x1={active.x} x2={active.x} y1={0} y2={H} />
-              <circle className="profile-dot" cx={active.x} cy={active.y} r={5} />
-            </>
-          )}
+          {active && <line className="profile-guide" x1={active.x} x2={active.x} y1={0} y2={H} />}
         </svg>
         <div className="profile-y-labels" aria-hidden="true">
           <span>{units.height(maxEle)}</span>
           <span>{units.height(minEle)}</span>
         </div>
         {active && (
-          <span className="profile-tooltip" style={{ left: `${(active.x / W) * 100}%` }}>
-            {active.label}
-          </span>
+          <>
+            {/* An HTML dot: the SVG is stretched (preserveAspectRatio="none"), which turned a circle into an oval. */}
+            <span className="profile-dot-html" style={{ left: `${(active.x / W) * 100}%`, top: `${(active.y / H) * height}px` }} />
+            {/* Pinned inside the chart near the ends: a tooltip hanging past the edge made the
+                scrollable panel grow a scrollbar, and the whole panel jumped up and down. */}
+            <span
+              className="profile-tooltip"
+              style={{
+                left: `${(active.x / W) * 100}%`,
+                transform: `translateX(${active.x < W * 0.15 ? '0' : active.x > W * 0.85 ? '-100%' : '-50%'})`,
+              }}
+            >
+              {active.label}
+            </span>
+          </>
         )}
       </div>
       <div className="profile-axis" aria-hidden="true">

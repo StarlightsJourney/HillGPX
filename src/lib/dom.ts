@@ -11,7 +11,10 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
  * trusted, self-contained SVG; this is for icons and glyphs, not arbitrary HTML.
  */
 export function parseSvg(svg: string): SVGElement {
-  const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+  // Without the namespace the XML parser returns a plain <svg> element that
+  // browsers lay out but never paint, so every icon silently vanished.
+  const markup = /^<svg\b[^>]*\sxmlns=/.test(svg) ? svg : svg.replace(/^<svg\b/, `<svg xmlns="${SVG_NS}"`);
+  const doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
   const root = doc.documentElement;
   if (root.tagName.toLowerCase() !== 'svg' || doc.querySelector('parsererror')) {
     const fallback = document.createElementNS(SVG_NS, 'svg');

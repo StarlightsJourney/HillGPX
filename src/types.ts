@@ -88,6 +88,8 @@ export interface Venue {
 }
 
 export type RouteSurface = 'trail' | 'stairs' | 'road' | 'boardwalk' | 'mixed';
+/** Trail running and hiking share one category: same paths, different pace. */
+export type RouteActivity = 'run' | 'trail' | 'cycle';
 export type RouteDifficulty = 'easy' | 'moderate' | 'hard';
 
 /** A single point on a route: [lng, lat, elevation in metres]. */
@@ -121,6 +123,14 @@ export interface Route {
   /** Where the GPX came from, and under what terms it is republished. */
   sourceUrl?: string;
   licence?: string;
+
+  activity?: RouteActivity;
+  /** When the GPX was recorded (first timestamp), if the file says. Older tracks may predate trail changes. */
+  recordedAt?: string;
+  /** Where EG/EL came from: the device, or worldwide terrain tiles when the file had none. */
+  elevationSource?: 'gps' | 'terrain' | 'dem';
+  /** Original file, for routes contributed through the site. */
+  gpxUrl?: string;
 }
 
 /**

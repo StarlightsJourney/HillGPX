@@ -388,12 +388,12 @@ button {
   box-shadow: 0 0 0 1px rgb(0 0 0 / 6%), 0 3px 10px rgb(0 0 0 / 18%);
   transition: transform .12s ease, background-color .12s ease, box-shadow .12s ease;
 }
+/* Hover only lifts the pill; black is reserved for the one you clicked, so
+   sweeping the pointer across the map never looks like a selection. */
 .pin:hover,
 .pin.is-hover {
-  background: var(--ink);
-  color: #fff;
   transform: scale(1.06);
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 6%), 0 6px 16px rgb(0 0 0 / 24%);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 10%), 0 6px 16px rgb(0 0 0 / 24%);
 }
 .pin.is-selected {
   background: var(--ink);
@@ -436,9 +436,7 @@ button {
   height: 18px;
   fill: currentColor;
 }
-.pin.is-selected .pin-glyph,
-.pin.is-hover .pin-glyph,
-.pin:hover .pin-glyph {
+.pin.is-selected .pin-glyph {
   color: #fff;
 }
 
@@ -1249,17 +1247,25 @@ button {
 .gpx-touches > strong {
   font-size: 13px;
 }
-.gpx-touches a {
+.gpx-touches button {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 5px;
   padding: 5px 9px;
+  border: none;
   border-radius: 999px;
   background: var(--bg-raised);
   color: var(--ink);
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
+  font: 600 13px/1.2 var(--font-sans);
+  cursor: pointer;
+}
+.gpx-touches button:hover {
+  background: var(--border);
+}
+.gpx-touches button.on {
+  background: var(--ink);
+  color: #fff;
 }
 .gpx-saved-note {
   margin: 0 0 4px;
@@ -1277,16 +1283,20 @@ button {
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
-.profile-dot {
-  fill: var(--accent);
-  stroke: #fff;
-  stroke-width: 2;
-  vector-effect: non-scaling-stroke;
+.profile-dot-html {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+  pointer-events: none;
 }
 .profile-tooltip {
   position: absolute;
   top: 2px;
-  transform: translateX(-50%);
   padding: 4px 7px;
   border-radius: 6px;
   background: var(--ink);
@@ -2491,12 +2501,14 @@ button {
 
 /* ─── Training panel ──────────────────────────────────────────────────── */
 
-.training-panel {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
+.training-page {
+  min-height: 100dvh;
   background: #fff;
-  overflow-y: auto;
+}
+.training-panel {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 8px 20px 40px;
 }
 
 .training-panel-head {

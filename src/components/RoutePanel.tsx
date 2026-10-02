@@ -1,45 +1,151 @@
-import { useMemo } from 'react';
-import type { Route, Venue } from '../types';
-import { computeGain } from '../lib/elevation';
-import { climbRate, routeDifficulty, routeHasElevation } from '../lib/routes';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Route, RoutePoint, Venue } from '../types';
+import { computeGain, totalDistanceM } from '../lib/elevation';
+import { routeHasElevation } from '../lib/routes';
 import { regionOf } from '../lib/regions';
+import { terrainElevations } from '../lib/terrain';
+import { ACTIVITY_LABEL, findOverlaps, routeActivity, type RouteOverlap } from '../lib/routeAnalysis';
 import { ElevationProfile } from './ElevationProfile';
 import { TypeGlyph } from './TypeGlyph';
 import { useUnits } from './UnitsContext';
 import { downloadRoute } from './VenueCard';
 import { CloseIcon, DownloadIcon } from './icons';
+import type { RoutePhoto } from '../lib/api';
+import { RoutePhotoModal } from './RoutePhotoModal';
+import { ReportModal } from './ReportModal';
 
 interface RoutePanelProps {
   route: Route;
   venuesBySlug: Map<string, Venue>;
+  allRoutes: Route[];
   hoverIndex: number | null;
   onHoverIndex: (index: number | null) => void;
   onClose: () => void;
+  spotlightSlug: string | null;
+  onShowVenue: (slug: string) => void;
+  onShowRoute: (slug: string) => void;
+  routePhotos: RoutePhoto[];
+  onFocusPhoto: (photo: RoutePhoto) => void;
+  onPhotoAdded: (photo: RoutePhoto) => void;
+}
+
+const YEAR_MS = 365.25 * 24 * 3600 * 1000;
+
+/** "Recorded 12 Mar 2024 · 2 years ago", with a nudge when a track is old enough that trails may have changed. */
+export function RecordedLine({ recordedAt }: { recordedAt: string | null | undefined }) {
+  // Read once per mount: "2 years ago" does not need to tick while the panel is open.
+  const [now] = useState(() => Date.now());
+  if (!recordedAt) return <p className="route-meta muted">Recording date not in file</p>;
+  const date = new Date(recordedAt);
+  const years = (now - date.getTime()) / YEAR_MS;
+  const ago = years < 1 / 12 ? 'this month' : years < 1 ? `${Math.round(years * 12)} months ago` : `${Math.floor(years)} year${Math.floor(years) === 1 ? '' : 's'} ago`;
+  return (
+    <p className={`route-meta${years >= 3 ? ' stale' : ''}`}>
+      Recorded {date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} · {ago}
+      {years >= 3 && ' · trails may have changed since'}
+    </p>
+  );
+}
+
+/** Secondary facts (when it was recorded, where EG/EL came from) behind an (i), not in the way. */
+export function InfoTip({ children, label = 'About these numbers' }: { children: React.ReactNode; label?: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+  return (
+    <span className="info-tip" ref={ref}>
+      <button type="button" className="info-tip-btn" aria-label={label} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        i
+      </button>
+      {open && <span className="info-tip-pop" role="tooltip">{children}</span>}
+    </span>
+  );
+}
+
+export function ElevationSourceLine({ source }: { source: Route['elevationSource'] | 'dem' }) {
+  const text = source === 'terrain'
+    ? 'EG/EL measured from terrain data (the file had no elevation)'
+    : source === 'dem'
+      ? 'EG/EL from Singapore terrain model'
+      : 'EG/EL from the device that recorded it';
+  return <p className="route-meta muted">{text}</p>;
+}
+
+export function OverlapChips({ overlaps, onShowRoute }: { overlaps: RouteOverlap[]; onShowRoute: (slug: string) => void }) {
+  if (overlaps.length === 0) return null;
+  return (
+    <div className="gpx-touches route-overlaps">
+      <strong>Shares ground with</strong>
+      {overlaps.slice(0, 4).map(({ route, share }) => (
+        <button type="button" key={route.slug} onClick={() => onShowRoute(route.slug)} title={`${Math.round(share * 100)}% of this route runs along ${route.name}`}>
+          {route.name} · {Math.round(share * 100)}%
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Ground elevation for routes whose file had none, measured once per route on demand. */
+function useTerrainFill(route: Route): { points: RoutePoint[]; gainM: number; lossM: number; fromTerrain: boolean; pending: boolean } {
+  const needsFill = !routeHasElevation(route);
+  const [filled, setFilled] = useState<{ slug: string; points: RoutePoint[] | null } | null>(null);
+  useEffect(() => {
+    if (!needsFill) return;
+    let cancelled = false;
+    void terrainElevations(route.coordinates).then((points) => {
+      if (!cancelled) setFilled({ slug: route.slug, points });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsFill, route.coordinates, route.slug]);
+  const ready = filled?.slug === route.slug ? filled.points : null;
+  return useMemo(() => {
+    if (!needsFill) return { points: route.coordinates, gainM: route.gainM, lossM: route.lossM, fromTerrain: false, pending: false };
+    if (!ready) return { points: route.coordinates, gainM: 0, lossM: 0, fromTerrain: false, pending: filled?.slug !== route.slug };
+    const { gainM, lossM } = computeGain(ready);
+    return { points: ready, gainM, lossM, fromTerrain: true, pending: false };
+  }, [needsFill, ready, route, filled]);
 }
 
 /** The selected route, docked over the bottom of the map with its profile. */
-export function RoutePanel({ route, venuesBySlug, hoverIndex, onHoverIndex, onClose }: RoutePanelProps) {
+export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHoverIndex, onClose, spotlightSlug, onShowVenue, onShowRoute, routePhotos, onFocusPhoto, onPhotoAdded }: RoutePanelProps) {
+  const [adding, setAdding] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const units = useUnits();
-  const { minM, maxM } = useMemo(() => computeGain(route.coordinates), [route.coordinates]);
-  const hasElevation = routeHasElevation(route);
+  const elevation = useTerrainFill(route);
+  const hasElevation = routeHasElevation(route) || elevation.fromTerrain;
+  const { minM, maxM } = useMemo(() => computeGain(elevation.points), [elevation.points]);
+  const overlaps = useMemo(() => findOverlaps(route.coordinates, allRoutes, route.slug), [route, allRoutes]);
   const region = route.country ?? regionOf(route.coordinates[0][0], route.coordinates[0][1]);
   const touches = route.venueSlugs
     .map((slug) => venuesBySlug.get(slug))
     .filter((venue): venue is Venue => Boolean(venue));
+  const km = totalDistanceM(route.coordinates) / 1000 || 1;
+  const unavailable = elevation.pending ? 'Measuring…' : 'Unavailable';
 
   return (
     <section className="gpx-panel route-panel" aria-label={`Route: ${route.name}`} key={route.slug}>
       <header className="gpx-panel-head">
         <div className="route-panel-title">
-          <p className="route-panel-kicker">
-            {[region, routeDifficulty(route), route.loop ? 'Loop' : 'Point to point'].filter(Boolean).join(' · ')}
-          </p>
           <h2>{route.name}</h2>
+          <InfoTip>
+            <RecordedLine recordedAt={route.recordedAt} />
+            {hasElevation && <ElevationSourceLine source={elevation.fromTerrain ? 'terrain' : route.elevationSource ?? 'gps'} />}
+            <span className="route-meta muted">{[ACTIVITY_LABEL[routeActivity(route)], region, route.loop ? 'Loop' : 'Point to point'].filter(Boolean).join(' · ')}</span>
+          </InfoTip>
         </div>
         <div className="gpx-panel-actions">
           <button type="button" className="gpx-download" onClick={() => downloadRoute(route)}>
             <DownloadIcon size={14} />
-            Download GPX
+            <span className="hide-narrow">Download GPX</span>
           </button>
           <button type="button" className="gpx-close" onClick={onClose} aria-label="Close route">
             <CloseIcon size={12} />
@@ -50,11 +156,11 @@ export function RoutePanel({ route, venuesBySlug, hoverIndex, onHoverIndex, onCl
       <div className="gpx-stats">
         {[
           ['Distance', units.distance(route.distanceM)],
-          ['EG', hasElevation ? units.height(route.gainM) : 'Unavailable'],
-          ['Descent', hasElevation ? units.height(route.lossM) : 'Unavailable'],
-          ['Highest', hasElevation ? units.height(maxM) : 'Unavailable'],
-          ['Lowest', hasElevation ? units.height(minM) : 'Unavailable'],
-          ['EG / km', hasElevation ? units.height(climbRate(route)) : 'Unavailable'],
+          ['EG', hasElevation ? units.height(elevation.gainM) : unavailable],
+          ['EL', hasElevation ? units.height(elevation.lossM) : unavailable],
+          ['Highest', hasElevation ? units.height(maxM) : unavailable],
+          ['Lowest', hasElevation ? units.height(minM) : unavailable],
+          ['EG / km', hasElevation ? units.height(elevation.gainM / km) : unavailable],
         ].map(([label, value]) => (
           <div className="gpx-stat" key={label}>
             <strong>{value}</strong>
@@ -67,19 +173,46 @@ export function RoutePanel({ route, venuesBySlug, hoverIndex, onHoverIndex, onCl
         <div className="gpx-touches">
           <strong>Passes</strong>
           {touches.map((venue) => (
-            <a key={venue.slug} href={`#venue/${venue.slug}`}>
+            <button
+              type="button"
+              key={venue.slug}
+              className={venue.slug === spotlightSlug ? 'on' : undefined}
+              aria-pressed={venue.slug === spotlightSlug}
+              onClick={() => onShowVenue(venue.slug)}
+            >
               <TypeGlyph type={venue.type} />
               {venue.name}
-            </a>
+            </button>
           ))}
         </div>
       )}
 
+      <OverlapChips overlaps={overlaps} onShowRoute={onShowRoute} />
+
+      <div className="route-photos">
+        <strong>Along the route</strong>
+        {routePhotos.map((photo) => (
+          <button type="button" key={photo.id} className={`route-photo-thumb ${photo.kind}`} onClick={() => onFocusPhoto(photo)} title={photo.caption || (photo.kind === 'hazard' ? 'Hazard' : 'Photo')}>
+            <img src={photo.url} alt="" loading="lazy" />
+            {photo.kind === 'hazard' && <span aria-label="Hazard">!</span>}
+            {photo.pending && <em className="route-photo-pending">Pending</em>}
+          </button>
+        ))}
+        <button type="button" className="route-photo-add" onClick={() => setAdding(true)}>
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+          Photo or hazard
+        </button>
+      </div>
+
       {hasElevation ? (
-        <ElevationProfile points={route.coordinates} height={92} hoverIndex={hoverIndex} onHoverIndex={onHoverIndex} />
+        <ElevationProfile points={elevation.points} height={92} hoverIndex={hoverIndex} onHoverIndex={onHoverIndex} />
       ) : (
-        <p className="route-elevation-unavailable">Elevation is unavailable for this route.</p>
+        <p className="route-elevation-unavailable">{elevation.pending ? 'Measuring elevation from terrain data…' : 'Elevation is unavailable for this route.'}</p>
       )}
+
+      {adding && <RoutePhotoModal route={route} startIndex={hoverIndex ?? Math.floor(route.coordinates.length / 2)} onPreviewIndex={onHoverIndex} onClose={() => setAdding(false)} onAdded={onPhotoAdded} />}
+      {reporting && <ReportModal targetType="route" targetSlug={route.slug} targetName={route.name} onClose={() => setReporting(false)} />}
+      <button type="button" className="plan-report route-report" onClick={() => setReporting(true)}>Report an issue with this route</button>
 
       {(route.contributor || route.licence || route.sourceUrl) && (
         <p className="route-credit">

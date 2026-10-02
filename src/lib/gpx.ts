@@ -16,6 +16,8 @@ export interface ParsedGpx {
   waypoints: { name: string | null; lng: number; lat: number }[];
   /** Timestamp of the first point, when present. */
   startedAt: string | null;
+  /** Epoch ms per point (aligned with `points`), null where the file has no time. */
+  times: (number | null)[];
 }
 
 export class GpxParseError extends Error {}
@@ -36,6 +38,7 @@ export function parseGpx(xml: string): ParsedGpx {
   if (nodes.length === 0) nodes = Array.from(doc.getElementsByTagName('rtept'));
 
   const points: RoutePoint[] = [];
+  const times: (number | null)[] = [];
   for (const node of nodes) {
     const lat = Number(node.getAttribute('lat'));
     const lng = Number(node.getAttribute('lon'));
@@ -43,6 +46,8 @@ export function parseGpx(xml: string): ParsedGpx {
     const eleText = node.getElementsByTagName('ele')[0]?.textContent;
     const ele = eleText ? Number(eleText) : 0;
     points.push([lng, lat, Number.isFinite(ele) ? ele : 0]);
+    const time = Date.parse(node.getElementsByTagName('time')[0]?.textContent ?? '');
+    times.push(Number.isFinite(time) ? time : null);
   }
 
   if (points.length === 0) {
@@ -63,9 +68,14 @@ export function parseGpx(xml: string): ParsedGpx {
     doc.querySelector('rte > name')?.textContent ??
     null;
 
-  const startedAt = nodes[0]?.getElementsByTagName('time')[0]?.textContent ?? null;
+  // The first track timestamp, falling back to the file's metadata time.
+  const firstTime = times.find((t): t is number => t != null);
+  const metadataTime = Date.parse(doc.querySelector('metadata > time')?.textContent ?? '');
+  const startedAt = firstTime != null
+    ? new Date(firstTime).toISOString()
+    : Number.isFinite(metadataTime) ? new Date(metadataTime).toISOString() : null;
 
-  return { name, points, waypoints, startedAt };
+  return { name, points, waypoints, startedAt, times };
 }
 
 /**

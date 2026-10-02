@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Map as MapLibreMap,
+  Marker,
   Popup,
-  NavigationControl,
   GeolocateControl,
   LngLatBounds,
   type ErrorEvent,
@@ -18,6 +18,7 @@ import {
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { Route, RoutePoint, Venue } from '../types';
+import type { RoutePhoto } from '../lib/api';
 import { rankingHeight, type Bounds } from '../lib/venues';
 import { haversineM } from '../lib/elevation';
 import { useUnits } from '../components/UnitsContext';
@@ -28,6 +29,7 @@ import {
   addVenueLayers,
   animateActiveRoute,
   routesToGeoJson,
+  setOverlapRoutes,
   setRouteEmphasis,
   setRouteFeatureState,
   setRouteHover,
@@ -37,7 +39,8 @@ import {
 } from './layers';
 import { RouteMarkers, VenueMarkers } from './markers';
 import { MAP_STYLE_URL } from './constants';
-import { parseSvg } from '../lib/dom';
+import { parseSvg, textSpan } from '../lib/dom';
+import { glyphSvg } from '../lib/venueGlyphs';
 
 /**
  * Basemap tiles come from OpenFreeMap, which is free to use and needs no API
@@ -118,6 +121,14 @@ interface MapViewProps {
   hoverPoint: [number, number] | null;
   onRouteHover: (index: number | null) => void;
   routePanelOpen: boolean;
+  /** A venue a route passes, pinned and flown to without leaving the route. */
+  spotlight?: { venue: Venue; nonce: number } | null;
+  /** Routes sharing ground with the open one, drawn dashed alongside it. */
+  overlapSlugs?: string[];
+  /** Approved photos and hazards pinned along the open route. */
+  routePhotos?: RoutePhoto[];
+  /** Fly to one of them and open its popup. */
+  photoFocus?: { id: string; nonce: number } | null;
   onToggleExpand: () => void;
   favorites: Set<string>;
   onToggleFavorite: (slug: string) => void;
@@ -216,6 +227,75 @@ class ExpandControl {
   }
 }
 
+const TERRAIN_TILES = 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png';
+
+/**
+ * Flat map or mountains: hillshade shading plus real 3D relief from the same
+ * keyless AWS terrain tiles, tilted so slopes read at a glance.
+ */
+class TerrainControl {
+  private button: HTMLButtonElement | null = null;
+  private map: MlMap | null = null;
+  private on = false;
+
+  onAdd(map: MlMap): HTMLElement {
+    this.map = map;
+    const group = document.createElement('div');
+    group.className = 'maplibregl-ctrl maplibregl-ctrl-group map-terrain-ctrl';
+    this.button = document.createElement('button');
+    this.button.type = 'button';
+    this.button.className = 'maplibregl-ctrl-icon';
+    const label = document.createElement('span');
+    label.className = 'terrain-ctrl-label';
+    this.button.replaceChildren(label);
+    this.button.addEventListener('click', () => this.toggle());
+    this.sync();
+    group.appendChild(this.button);
+    return group;
+  }
+
+  onRemove(): void {
+    this.button?.parentElement?.remove();
+    this.button = null;
+    this.map = null;
+  }
+
+  private sync(): void {
+    if (!this.button) return;
+    const label = this.on ? 'Show flat map' : 'Show mountain terrain';
+    const text = this.button.querySelector('.terrain-ctrl-label');
+    if (text) text.textContent = this.on ? '2D' : '3D';
+    this.button.setAttribute('aria-label', label);
+    this.button.setAttribute('aria-pressed', String(this.on));
+    this.button.title = label;
+  }
+
+  private toggle(): void {
+    const map = this.map;
+    if (!map || !map.isStyleLoaded()) return;
+    this.on = !this.on;
+    if (!map.getSource('terrain-dem')) {
+      map.addSource('terrain-dem', { type: 'raster-dem', tiles: [TERRAIN_TILES], encoding: 'terrarium', tileSize: 256, maxzoom: 15 });
+      map.addSource('terrain-shade', { type: 'raster-dem', tiles: [TERRAIN_TILES], encoding: 'terrarium', tileSize: 256, maxzoom: 15 });
+      const beneath = map.getStyle().layers.find((layer) => layer.type === 'line' || layer.type === 'symbol')?.id;
+      map.addLayer(
+        {
+          id: 'terrain-hillshade',
+          type: 'hillshade',
+          source: 'terrain-shade',
+          layout: { visibility: 'none' },
+          paint: { 'hillshade-exaggeration': 0.6, 'hillshade-shadow-color': '#4f5d46', 'hillshade-highlight-color': '#ffffff' },
+        },
+        beneath,
+      );
+    }
+    map.setLayoutProperty('terrain-hillshade', 'visibility', this.on ? 'visible' : 'none');
+    map.setTerrain(this.on ? { source: 'terrain-dem', exaggeration: 1.4 } : null);
+    map.easeTo({ pitch: this.on ? 55 : 0, duration: 700 });
+    this.sync();
+  }
+}
+
 export function MapView({
   venues,
   selectedSlug,
@@ -233,6 +313,10 @@ export function MapView({
   hoverPoint,
   onRouteHover,
   routePanelOpen,
+  spotlight,
+  overlapSlugs,
+  routePhotos,
+  photoFocus,
   favorites,
   onToggleFavorite,
   onLocateHint,
@@ -294,6 +378,8 @@ export function MapView({
   const mapExpandedRef = useRef(mapExpanded);
   mapExpandedRef.current = mapExpanded;
   const expandControlRef = useRef<ExpandControl | null>(null);
+  const routePanelOpenRef = useRef(routePanelOpen);
+  routePanelOpenRef.current = routePanelOpen;
 
   // The viewport and marker bounds are tracked separately because list updates
   // and the 6 × 4 marker shortlist use different thresholds.
@@ -326,8 +412,15 @@ export function MapView({
 
     if (import.meta.env.DEV) (window as unknown as { map: MlMap }).map = map;
 
-    map.on('error', (e: ErrorEvent) => {
+    map.on('error', (e: ErrorEvent & { sourceId?: string; tile?: unknown }) => {
       const message = e.error?.message ?? 'Unknown map error';
+      // A single tile that fails to download (flaky network, a gap in the
+      // terrain set while panning in 3D) leaves a blank square at worst; it is
+      // not "the map failed to load", so it must not raise the banner.
+      if (e.sourceId || e.tile || /Failed to fetch|\/terrarium\/|\.pbf|\.png/.test(message)) {
+        console.warn('[map tile]', message);
+        return;
+      }
       console.error('[map]', message);
       onMapErrorRef.current?.(message);
     });
@@ -336,7 +429,8 @@ export function MapView({
       onToggleExpandRef.current(),
     );
     map.addControl(expandControlRef.current, 'top-right');
-    map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
+    // Pinch, scroll and drag already zoom and rotate; +/- and a compass only duplicated them.
+    map.addControl(new TerrainControl(), 'top-right');
 
     const geolocate = new GeolocateControl({
       positionOptions: { enableHighAccuracy: true },
@@ -644,8 +738,15 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const cancel = animateActiveRoute(map, activeRoute);
+    return animateActiveRoute(map, activeRoute);
+  }, [activeRoute, ready]);
 
+  // The camera does not need the basemap style, so frame the route straight
+  // away. Waiting for `ready` left the map parked on Singapore for seconds
+  // after opening a route from the landing page, which read as "not working".
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
     if (activeRoute && activeRoute.length > 1) {
       const bounds = activeRoute.reduce(
         (b, [lng, lat]) => b.extend([lng, lat]),
@@ -655,19 +756,64 @@ export function MapView({
         ),
       );
       map.fitBounds(bounds, {
-        padding: { top: 80, bottom: routePanelOpen ? 320 : 80, left: 80, right: 80 },
+        padding: { top: 80, bottom: routePanelOpenRef.current ? 320 : 80, left: 80, right: 80 },
         maxZoom: 15,
-        duration: 900,
+        // Before load, resize() during start-up calls stop() and would cancel
+        // an animation half-way; jump instead.
+        duration: map.loaded() ? 900 : 0,
       });
     }
-    return cancel;
-  }, [activeRoute, routePanelOpen, ready]);
+  }, [activeRoute]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
     setRouteHover(map, hoverPoint);
   }, [hoverPoint, ready]);
+
+  const photoMarkersRef = useRef(new Map<string, Marker>());
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const markers = photoMarkersRef.current;
+    for (const photo of routePhotos ?? []) markers.set(photo.id, routePhotoMarker(photo).addTo(map));
+    return () => {
+      markers.forEach((marker) => marker.remove());
+      markers.clear();
+    };
+  }, [routePhotos]);
+  useEffect(() => {
+    const map = mapRef.current;
+    const marker = photoFocus ? photoMarkersRef.current.get(photoFocus.id) : undefined;
+    if (!map || !marker) return;
+    map.flyTo({ center: marker.getLngLat(), zoom: Math.max(map.getZoom(), 14), duration: 800, padding: { top: 120, bottom: routePanelOpenRef.current ? 320 : 64, left: 40, right: 40 } });
+    if (!marker.getPopup()?.isOpen()) marker.togglePopup();
+  }, [photoFocus]);
+
+  const overlapKey = (overlapSlugs ?? []).join('|');
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    setOverlapRoutes(map, overlapKey ? overlapKey.split('|') : []);
+  }, [overlapKey, ready, allRoutes]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !spotlight) return;
+    const { venue } = spotlight;
+    const marker = spotlightMarker(venue).addTo(map);
+    map.flyTo({
+      center: [venue.lng, venue.lat],
+      zoom: Math.max(map.getZoom(), 14),
+      duration: 900,
+      essential: true,
+      // Keep the pin clear of the route panel docked over the bottom of the map.
+      padding: { top: 64, bottom: routePanelOpenRef.current ? 320 : 64, left: 64, right: 64 },
+    });
+    return () => {
+      marker.remove();
+    };
+  }, [spotlight, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -705,6 +851,60 @@ export function MapView({
       )}
     </>
   );
+}
+
+/**
+ * A photo (round thumbnail) or hazard (warning badge) on the route. Tapping it
+ * opens a card with the picture, caption and who added it.
+ */
+function routePhotoMarker(photo: RoutePhoto): Marker {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = `route-photo-pin ${photo.kind}`;
+  el.setAttribute('aria-label', photo.kind === 'hazard' ? `Hazard: ${photo.caption || 'see photo'}` : `Photo: ${photo.caption || 'along the route'}`);
+  const img = document.createElement('img');
+  img.src = photo.url;
+  img.alt = '';
+  el.appendChild(img);
+  if (photo.kind === 'hazard') el.appendChild(textSpan('!', 'route-photo-pin-badge'));
+
+  const card = document.createElement('div');
+  card.className = `route-photo-pop ${photo.kind}`;
+  const big = document.createElement('img');
+  big.src = photo.url;
+  big.alt = photo.caption;
+  card.appendChild(big);
+  const body = document.createElement('div');
+  if (photo.kind === 'hazard') body.appendChild(textSpan('Hazard', 'route-photo-pop-tag'));
+  if (photo.pending) body.appendChild(textSpan('Only you can see this until a volunteer approves it', 'route-photo-pop-pending'));
+  if (photo.caption) body.appendChild(textSpan(photo.caption, 'route-photo-pop-caption'));
+  body.appendChild(textSpan(`Added by ${photo.author} · ${new Date(photo.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`, 'route-photo-pop-meta'));
+  card.appendChild(body);
+
+  const popup = new Popup({ offset: 22, closeButton: true, maxWidth: '280px', className: 'route-photo-popup' }).setDOMContent(card);
+  el.addEventListener('click', (event) => event.stopPropagation());
+  return new Marker({ element: el, anchor: 'center' }).setLngLat([photo.lng, photo.lat]).setPopup(popup);
+}
+
+/** A selected-style pin, labelled by name, that opens the venue's detail page. */
+function spotlightMarker(venue: Venue): Marker {
+  const anchor = document.createElement('div');
+  anchor.className = 'pin-anchor';
+  anchor.style.zIndex = '5';
+  const pin = document.createElement('button');
+  pin.type = 'button';
+  pin.className = 'pin is-selected';
+  pin.setAttribute('aria-label', `${venue.name} — open details`);
+  const glyph = document.createElement('span');
+  glyph.className = 'pin-glyph';
+  glyph.appendChild(parseSvg(glyphSvg(venue.type)));
+  pin.append(glyph, textSpan(venue.name, 'pin-label'));
+  pin.addEventListener('click', (event) => {
+    event.stopPropagation();
+    window.location.hash = `#venue/${venue.slug}`;
+  });
+  anchor.appendChild(pin);
+  return new Marker({ element: anchor, anchor: 'center' }).setLngLat([venue.lng, venue.lat]);
 }
 
 /** A card anchored to the selected venue's map coordinate. */

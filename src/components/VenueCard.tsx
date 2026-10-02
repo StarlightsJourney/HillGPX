@@ -1,5 +1,5 @@
 import type { Route, Venue } from '../types';
-import { VENUE_TYPE_LABEL, townName, venueHeight } from '../lib/venues';
+import { HEIGHT_LABEL, townName, venueHeight, venueKindLabel } from '../lib/venues';
 import { PhotoCredit, VenueThumb } from './VenueThumb';
 import { useUnits } from './UnitsContext';
 import { CloseIcon, HeartIcon } from './icons';
@@ -37,7 +37,7 @@ export function VenueCard({
   const height = venueHeight(venue);
   const units = useUnits();
   const detail = [
-    VENUE_TYPE_LABEL[venue.type],
+    venueKindLabel(venue),
     venue.storeys != null ? `${venue.storeys} floors` : null,
     townName(venue.town),
   ]
@@ -79,7 +79,7 @@ export function VenueCard({
           <p className="card-height">
             <strong>{units.height(height.value)}</strong>
             <span>
-              {height.kind === 'gain' ? ' EG' : ' summit'}
+              {` ${HEIGHT_LABEL[height.kind]}`}
               {routeLabel}
             </span>
           </p>

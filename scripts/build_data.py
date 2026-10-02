@@ -533,10 +533,12 @@ def build_routes(venues: list[dict], dem: Dem | None) -> list[dict]:
             "elevationAvailable": elevation_available,
         }
         # Optional provenance, passed through only when the sidecar has it.
-        for key in ("sourceUrl", "licence"):
+        for key in ("sourceUrl", "licence", "activity", "recordedAt", "elevationSource"):
             value = meta.get(key)
             if isinstance(value, str) and value.strip():
                 route[key] = value.strip()
+        if resampled:
+            route["elevationSource"] = "dem"
         country = country_for(start[0], start[1])
         if country:
             route["country"] = country

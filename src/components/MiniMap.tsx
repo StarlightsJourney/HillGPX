@@ -19,10 +19,16 @@ export function MiniMap({ venue }: { venue: Venue }) {
       container: containerRef.current,
       style: MAP_STYLE_URL,
       center: [venue.lng, venue.lat],
-      zoom: 14,
+      // Built climbs need street level; a mountain needs its massif around it.
+      zoom: venue.type === 'hill' ? 12 : 15,
       interactive: false,
       attributionControl: { compact: true },
     });
+    // The detail page animates in, so the container can still be zero-sized
+    // when the map is created; without a resize the canvas stays blank.
+    const observer = new ResizeObserver(() => map.resize());
+    observer.observe(containerRef.current);
+    map.once('load', () => map.resize());
     const collapseAttribution = () => {
       const element = map.getContainer().querySelector('.maplibregl-ctrl-attrib');
       if (element instanceof HTMLDetailsElement) element.open = false;
@@ -47,6 +53,7 @@ export function MiniMap({ venue }: { venue: Venue }) {
       .setLngLat([venue.lng, venue.lat])
       .addTo(map);
     return () => {
+      observer.disconnect();
       venueMarker.remove();
       map.remove();
     };

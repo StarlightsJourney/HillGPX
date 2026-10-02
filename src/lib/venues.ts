@@ -2,6 +2,26 @@ import type { Route, RouteDataset, Venue, VenueDataset, VenueType } from '../typ
 import { haversineM } from './elevation';
 import { formatDistanceIn, type Units } from './units';
 
+const FAVORITES_KEY = 'hillgpx:favorites';
+
+/** Saved venue slugs. The key and shape (a JSON array of slugs) are part of the storage contract. */
+export function loadFavorites(): Set<string> {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
+    return new Set(Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveFavorites(favorites: Set<string>): void {
+  try {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]));
+  } catch {
+    return;
+  }
+}
+
 /** Friendly rounded count: exact under 100, rounded to the hundred above that. */
 export function formatCount(n: number): string {
   if (n >= 10_000) return '10,000+';
@@ -131,11 +151,22 @@ export interface VenueHeight {
   kind: HeightKind;
 }
 
+/**
+ * Built climbs (stairwells, blocks) are climbed bottom to top, so their number
+ * is elevation gain. Hills and mountains are described by their elevation
+ * above sea level; gain only exists for a route up them.
+ */
+const CLIMBED_BOTTOM_TO_TOP: ReadonlySet<VenueType> = new Set(['hdb_block', 'stairs', 'carpark', 'bridge']);
+
 export function venueHeight(venue: Venue): VenueHeight | null {
-  if (venue.gainM != null) return { value: venue.gainM, kind: 'gain' };
+  if (CLIMBED_BOTTOM_TO_TOP.has(venue.type) && venue.gainM != null) return { value: venue.gainM, kind: 'gain' };
   if (venue.summitM != null) return { value: venue.summitM, kind: 'summit' };
+  if (venue.gainM != null) return { value: venue.gainM, kind: 'gain' };
   return null;
 }
+
+/** The word printed after a venue's number: EG for built climbs, elevation for terrain. */
+export const HEIGHT_LABEL: Record<HeightKind, string> = { gain: 'EG', summit: 'elevation' };
 
 /**
  * A single number for sorting only — never for display.
@@ -202,6 +233,11 @@ export const VENUE_TYPE_LABEL: Record<VenueType, string> = {
  * nothing. Deriving the list from the data instead means those chips appear on
  * their own the day someone contributes a staircase or a carpark.
  */
+/** "Mountain" for high summits, the type label otherwise: Monte Rosa is not a hill. */
+export function venueKindLabel(venue: Venue): string {
+  return venue.type === 'hill' && (venue.summitM ?? 0) >= 600 ? 'Mountain' : VENUE_TYPE_LABEL[venue.type];
+}
+
 export function presentVenueTypes(venues: Venue[]): VenueType[] {
   const seen = new Set(venues.map((v) => v.type));
   return (Object.keys(VENUE_TYPE_LABEL) as VenueType[]).filter((t) => seen.has(t));
@@ -222,6 +258,8 @@ export interface VenueFilters {
   maxHeightM: number | null;
   notableOnly: boolean;
   withPhoto: boolean;
+  /** Only places you have hearted. */
+  savedOnly: boolean;
 }
 
 export const NO_FILTERS: VenueFilters = {
@@ -230,6 +268,7 @@ export const NO_FILTERS: VenueFilters = {
   maxHeightM: null,
   notableOnly: false,
   withPhoto: false,
+  savedOnly: false,
 };
 
 /** How many separate things the filters currently ask for. Drives the badge. */
@@ -241,7 +280,8 @@ export function activeFilterCount(filters: VenueFilters): number {
     // for it would send them hunting for a second filter they never set.
     (filters.minHeightM != null || filters.maxHeightM != null ? 1 : 0) +
     (filters.notableOnly ? 1 : 0) +
-    (filters.withPhoto ? 1 : 0)
+    (filters.withPhoto ? 1 : 0) +
+    (filters.savedOnly ? 1 : 0)
   );
 }
 
@@ -258,7 +298,7 @@ export function activeFilterCount(filters: VenueFilters): number {
  * gainM alone would be the worse answer: no hill in the dataset carries one, so
  * asking for anything over 100 m would hide the only venues that clear it.
  */
-export function filterVenues(venues: Venue[], filters: VenueFilters): Venue[] {
+export function filterVenues(venues: Venue[], filters: VenueFilters, saved: ReadonlySet<string> = new Set()): Venue[] {
   // The same array back when nothing is on, rather than an equal copy. A fresh
   // reference every render would re-sort the results list and push all ~12k
   // features through the map source again for a picture that has not changed.
@@ -270,7 +310,8 @@ export function filterVenues(venues: Venue[], filters: VenueFilters): Venue[] {
       (filters.minHeightM == null || rankingHeight(v) >= filters.minHeightM) &&
       (filters.maxHeightM == null || rankingHeight(v) <= filters.maxHeightM) &&
       (!filters.notableOnly || Boolean(v.notable)) &&
-      (!filters.withPhoto || Boolean(v.photo)),
+      (!filters.withPhoto || Boolean(v.photo)) &&
+      (!filters.savedOnly || saved.has(v.slug)),
   );
 }
 

@@ -9,7 +9,8 @@ import {
   weeklyTotalM,
 } from '../lib/training';
 import { useUnits } from './UnitsContext';
-import { ChartIcon, ChevronLeftIcon, TargetIcon } from './icons';
+import { ChartIcon, TargetIcon } from './icons';
+import { SiteFooter, SiteHeader } from './SiteChrome';
 
 function TrashIconComp({ size = 16 }: { size?: number }) {
   return (
@@ -61,11 +62,10 @@ export function TrainingPanel({ onClose }: TrainingPanelProps) {
   }, []);
 
   return (
+    <div className="training-page">
+    <SiteHeader onBack={onClose} />
     <div className="training-panel">
       <header className="training-panel-head">
-        <button type="button" className="training-back" onClick={onClose} aria-label="Back to map">
-          <ChevronLeftIcon size={20} />
-        </button>
         <h1>Training balance</h1>
       </header>
 
@@ -154,6 +154,8 @@ export function TrainingPanel({ onClose }: TrainingPanelProps) {
           </ul>
         )}
       </section>
+    </div>
+    <SiteFooter />
     </div>
   );
 }

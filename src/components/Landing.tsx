@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Route, Venue } from '../types';
-import { loadDataset, rankingHeight, venueHeight, VENUE_TYPE_LABEL, type Dataset } from '../lib/venues';
+import { HEIGHT_LABEL, loadDataset, rankingHeight, venueHeight, type Dataset, venueKindLabel } from '../lib/venues';
 import { DESTINATIONS, boundsToHash, regionOf, type Destination } from '../lib/regions';
-import { addPlaceUrl, addRouteUrl, REPO_URL } from '../lib/contribute';
+import { countrySummaries, loadPeakPhotos, type CountrySummary, type PeakPhoto } from '../lib/worldPeaks';
+import { SiteFooter, SiteHeader } from './SiteChrome';
 import { routeDifficulty, routeHasElevation } from '../lib/routes';
-import { ChevronLeftIcon, ChevronRightIcon, GitHubIcon, Mark, SearchIcon } from './icons';
-import { HeaderControls } from './HeaderControls';
+import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from './icons';
 import { RatingLabel } from './ResultsList';
 import { RouteThumb } from './RouteThumb';
-import { VenueThumb } from './VenueThumb';
+import { ActivityTag } from './ActivityIcon';
+import { routeActivity } from '../lib/routeAnalysis';
+import { PlaceArt, VenueThumb } from './VenueThumb';
 import { useUnits } from './UnitsContext';
 
 interface LandingProps {
@@ -31,13 +33,22 @@ export function Landing({ onOpen }: LandingProps) {
   const [mode, setMode] = useState<Mode>('climbs');
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [scrolled, setScrolled] = useState(false);
+  // Switching Climbs and Routes shows a brief loading state instead of the
+  // rows vanishing and reappearing in one frame.
+  const [switching, setSwitching] = useState(false);
+  const switchMode = (next: Mode) => {
+    if (next === mode) return;
+    setMode(next);
+    setSwitching(true);
+  };
+  useEffect(() => {
+    if (!switching) return;
+    const timer = window.setTimeout(() => setSwitching(false), 450);
+    return () => window.clearTimeout(timer);
+  }, [switching]);
 
   useEffect(() => {
     loadDataset().then(setDataset).catch((error: Error) => setLoadError(error.message));
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   const rows = useMemo(() => (dataset ? buildRows(dataset.venues) : null), [dataset]);
@@ -48,43 +59,9 @@ export function Landing({ onOpen }: LandingProps) {
 
   return (
     <div className="home">
-      <header className={`home-nav${scrolled ? ' scrolled' : ''}`}>
-        <div className="home-shell home-nav-row">
-          <a className="wordmark" href="#">
-            <Mark size={30} />
-            <span>
-              hill<span className="dot">GPX</span>
-            </span>
-          </a>
-          <nav className="home-tabs" aria-label="Browse">
-            {(['climbs', 'routes'] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                className={`home-tab${mode === value ? ' on' : ''}`}
-                aria-pressed={mode === value}
-                onClick={() => setMode(value)}
-              >
-                <span className="home-tab-icon" aria-hidden="true">
-                  {value === 'climbs' ? <HillArt /> : <RouteArt />}
-                </span>
-                {value === 'climbs' ? 'Climbs' : 'Routes'}
-              </button>
-            ))}
-          </nav>
-          <div className="home-nav-actions">
-            <a className="home-nav-link" href={addRouteUrl()} target="_blank" rel="noreferrer">
-              Share a route
-            </a>
-            <HeaderControls />
-          </div>
-        </div>
-        <div className="home-shell">
-          <HomeSearch mode={mode} onModeChange={setMode} onOpen={onOpen} />
-        </div>
-      </header>
+      <SiteHeader sticky center={<HomeSearch mode={mode} onModeChange={switchMode} onOpen={onOpen} />} />
 
-      <HeroBlock dataset={dataset} mode={mode} />
+      <HeroBlock mode={mode} />
 
       <main className="home-shell home-main">
         {loadError && (
@@ -94,12 +71,17 @@ export function Landing({ onOpen }: LandingProps) {
             <button type="button" className="btn btn-light" onClick={() => window.location.reload()}>Try again</button>
           </section>
         )}
-        {!loadError && (mode === 'routes' ? (
+        {!loadError && switching && (
+          <>
+            <Row title="" action={() => undefined} loading>{null}</Row>
+            <Row title="" action={() => undefined} loading>{null}</Row>
+          </>
+        )}
+        {!loadError && !switching && (mode === 'routes' ? (
           <>
             <Row title="Routes worth running" action={() => openMap('routes', '#routes')} loading={!routes}>
               {routes?.map((route, i) => <RouteTile key={route.slug} route={route} index={i} />)}
             </Row>
-            <ContributeBanner />
           </>
         ) : (
           <>
@@ -108,7 +90,21 @@ export function Landing({ onOpen }: LandingProps) {
                 {routes.map((route, i) => <RouteTile key={route.slug} route={route} index={i} />)}
               </Row>
             )}
-            {(rows ?? PLACEHOLDER_ROWS).map((row) => (
+            {/* Singapore's two short rows read as one place: side by side, not two thin strips. */}
+            <div className="home-row-pair">
+              {(rows ?? PLACEHOLDER_ROWS).slice(0, 2).map((row) => (
+                <Row
+                  key={row.title}
+                  half
+                  title={row.title}
+                  action={row.bounds ? () => openMap('climbs', boundsToHash(row.bounds!)) : onOpen}
+                  loading={!rows}
+                >
+                  {row.venues.map((venue, i) => <VenueTile key={venue.slug} venue={venue} index={i} />)}
+                </Row>
+              ))}
+            </div>
+            {(rows ?? PLACEHOLDER_ROWS).slice(2).map((row) => (
               <Row
                 key={row.title}
                 title={row.title}
@@ -118,85 +114,154 @@ export function Landing({ onOpen }: LandingProps) {
                 {row.venues.map((venue, i) => <VenueTile key={venue.slug} venue={venue} index={i} />)}
               </Row>
             ))}
-            <ContributeBanner />
+            <WorldRows />
           </>
         ))}
       </main>
 
-      <footer className="home-foot">
-        <div className="home-shell home-foot-row">
-          <span>
-            © hillGPX · MIT ·{' '}
-            <a href={REPO_URL} target="_blank" rel="noreferrer">
-              Source
-            </a>
-          </span>
-          <span className="home-foot-credits">
-            Data from <a href="https://data.gov.sg" target="_blank" rel="noreferrer">data.gov.sg</a>,{' '}
-            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>,{' '}
-            <a href="https://www.mapillary.com" target="_blank" rel="noreferrer">Mapillary</a> and{' '}
-            <a href="https://commons.wikimedia.org" target="_blank" rel="noreferrer">Wikimedia Commons</a>
-          </span>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
 
 /* ─── Hero ─────────────────────────────────────────────────────────────── */
 
-function HeroBlock({ dataset, mode }: { dataset: Dataset | null; mode: Mode }) {
-  const totalVenues = dataset?.venues.length ?? 0;
-  const totalRoutes = dataset?.routes.length ?? 0;
-  const regions = useMemo(() => {
-    if (!dataset) return DESTINATIONS.slice(0, 4);
-    const seen = new Set<string>();
-    return dataset.venues.reduce<Destination[]>((acc, venue) => {
-      const region = regionOf(venue.lng, venue.lat);
-      const dest = region ? DESTINATIONS.find((d) => d.name === region) : undefined;
-      if (dest && !seen.has(dest.name)) {
-        seen.add(dest.name);
-        acc.push(dest);
-      }
-      return acc;
-    }, []);
-  }, [dataset]);
-
+function HeroBlock({ mode }: { mode: Mode }) {
   return (
     <section className="home-hero">
-      <div className="home-shell">
-        <div className="home-hero-grid">
-          <div className="home-hero-copy">
-            <h1 className="home-hero-title">Find your next vertical, anywhere.</h1>
-            <p className="home-hero-lead">
-              Hills, staircases, tall blocks and real GPX routes. Compare honest elevation gain, inspect route profiles, and train with real data.
-            </p>
-            <div className="home-hero-stats">
-              <div>
-                <strong>{totalVenues.toLocaleString()}</strong>
-                <span>venues</span>
-              </div>
-              <div>
-                <strong>{totalRoutes.toLocaleString()}</strong>
-                <span>routes</span>
-              </div>
-            </div>
-            <div className="home-hero-chips">
-              {regions.slice(0, 5).map((dest) => (
-                <button key={dest.name} type="button" className="home-hero-chip" onClick={() => openMap(mode, boundsToHash(dest.bounds))}>
-                  {dest.name}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="home-hero-art" aria-hidden="true">
-            <div className="home-hero-card home-hero-card-1" />
-            <div className="home-hero-card home-hero-card-2" />
-            <div className="home-hero-card home-hero-card-3" />
-          </div>
-        </div>
-      </div>
+      <h1 className="visually-hidden">hillGPX: hills, mountains and GPX routes worldwide</h1>
+      <CountryMarquee mode={mode} />
     </section>
+  );
+}
+
+function useCountries(): CountrySummary[] | null {
+  const [countries, setCountries] = useState<CountrySummary[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void countrySummaries().then((list) => {
+      if (!cancelled) setCountries(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return countries;
+}
+
+/** Every country on the map, drifting past; hover pauses it, a tap opens that country. */
+function CountryMarquee({ mode }: { mode: Mode }) {
+  const countries = useCountries();
+  if (!countries || countries.length === 0) return <div className="marquee loading" aria-hidden="true" />;
+  const list = countries.slice(0, 60);
+  const chip = (country: CountrySummary, copy: number) => (
+    <button
+      key={`${country.code}-${copy}`}
+      type="button"
+      className="marquee-chip"
+      tabIndex={copy ? -1 : 0}
+      aria-hidden={copy ? true : undefined}
+      onClick={() => openMap(mode, country.bounds ? boundsToHash(country.bounds) : '#map')}
+    >
+      <span>{country.name}</span>
+      <small>{country.count.toLocaleString()}</small>
+    </button>
+  );
+  return (
+    <nav className="marquee" aria-label="Countries with mapped summits">
+      <div className="marquee-track" style={{ '--n': list.length } as React.CSSProperties}>
+        {list.map((country) => chip(country, 0))}
+        {list.map((country) => chip(country, 1))}
+      </div>
+    </nav>
+  );
+}
+
+const WORLD_SKIP = new Set(['SG', 'MY', 'TW', 'HK']);
+const WORLD_BATCH = 4;
+
+/**
+ * More countries as you scroll, Airbnb-style: a skeleton row appears, then
+ * the next countries' tallest summits fill in.
+ */
+function WorldRows() {
+  const countries = useCountries();
+  const [photos, setPhotos] = useState<Map<string, PeakPhoto> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void loadPeakPhotos().then((map) => {
+      if (!cancelled) setPhotos(map);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const [shown, setShown] = useState(WORLD_BATCH);
+  const [loading, setLoading] = useState(false);
+  const sentinel = useRef<HTMLDivElement>(null);
+  const list = useMemo(() => (countries ?? []).filter((c) => !WORLD_SKIP.has(c.code) && c.peaks.length >= 4), [countries]);
+  const done = shown >= Math.min(list.length, 24);
+
+  // Seeing the sentinel starts a short skeleton; the timer below then reveals
+  // the next batch. Kept as two effects so starting the skeleton does not
+  // cancel its own timer.
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || done || loading) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) setLoading(true);
+    }, { rootMargin: '200px' });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [done, loading, list.length]);
+
+  useEffect(() => {
+    if (!loading) return;
+    const timer = window.setTimeout(() => {
+      setShown((n) => n + WORLD_BATCH);
+      setLoading(false);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
+
+  if (!countries) return null;
+  return (
+    <>
+      {list.slice(0, shown).map((country) => (
+        <Row
+          key={country.code}
+          title={`Highest peaks in ${country.name}`}
+          action={() => openMap('climbs', country.bounds ? boundsToHash(country.bounds) : '#map')}
+          loading={false}
+        >
+          {country.peaks.map((venue, i) => <PeakTile key={venue.slug} venue={venue} country={country.name} index={i} photo={photos?.get(venue.slug)} />)}
+        </Row>
+      ))}
+      {loading && <Row title="" action={() => undefined} loading>{null}</Row>}
+      {!done && <div ref={sentinel} className="home-sentinel" aria-hidden="true" />}
+    </>
+  );
+}
+
+/** A landing summit: its Commons/Wikipedia photo when one exists, the shared drawn placeholder otherwise. */
+function PeakTile({ venue, country, index, photo }: { venue: Venue; country: string; index: number; photo?: PeakPhoto }) {
+  const units = useUnits();
+  const [failed, setFailed] = useState(false);
+  return (
+    <a className="tile" href={`#venue/${venue.slug}`} style={{ '--i': index } as React.CSSProperties}>
+      <span className="tile-media">
+        {photo && !failed ? (
+          <span className="card-thumb loading-shimmer"><img src={photo.url} alt={venue.name} loading="lazy" decoding="async" onError={() => setFailed(true)} /></span>
+        ) : (
+          <span className="card-thumb placeholder"><PlaceArt venue={venue} /></span>
+        )}
+        <span className="tile-badge">{units.height(venue.summitM ?? 0)}</span>
+      </span>
+      <span className="tile-top">
+        <span className="tile-name">{venue.name}</span>
+      </span>
+      <span className="tile-meta">{venueKindLabel(venue)} in {country}</span>
+    </a>
   );
 }
 
@@ -334,7 +399,7 @@ const PLACEHOLDER_ROWS: RowSpec[] = [
 ];
 
 /** Photo first, then height: an empty grey tile in a row of photos reads as broken. */
-function showcase(venues: Venue[], limit = 3): Venue[] {
+function showcase(venues: Venue[], limit = 12): Venue[] {
   return [...venues]
     .sort((a, b) => Number(Boolean(b.photo)) - Number(Boolean(a.photo)) || rankingHeight(b) - rankingHeight(a))
     .slice(0, limit);
@@ -362,7 +427,7 @@ function buildRows(venues: Venue[]): RowSpec[] {
   return rows.filter((row) => row.venues.length > 0);
 }
 
-function Row({ title, action, loading, children }: { title: string; action: () => void; loading: boolean; children: React.ReactNode }) {
+function Row({ title, action, loading, children, half = false }: { title: string; action: () => void; loading: boolean; children: React.ReactNode; half?: boolean }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ start: true, end: false });
 
@@ -379,13 +444,15 @@ function Row({ title, action, loading, children }: { title: string; action: () =
   };
 
   return (
-    <section className="home-row">
+    <section className={`home-row${half ? ' half' : ''}`}>
       <header className="home-row-head">
+        {title === '' ? <span className="sk-line sk-heading" aria-hidden="true" /> : (
         <button type="button" className="home-row-title" onClick={action}>
           {title}
           <span className="home-row-see-all">See all</span>
           <ChevronRightIcon size={14} />
         </button>
+        )}
         <div className="home-row-nav">
           <button type="button" aria-label="Previous" disabled={edges.start} onClick={() => page(-1)}>
             <ChevronLeftIcon size={12} />
@@ -424,12 +491,12 @@ function VenueTile({ venue, index }: { venue: Venue; index: number }) {
         <RatingLabel rating={venue.rating} />
       </span>
       <span className="tile-meta">
-        {VENUE_TYPE_LABEL[venue.type]}
+        {venueKindLabel(venue)}
         {region ? ` in ${region}` : ''}
       </span>
       {height && (
         <span className="tile-meta">
-          <strong>{units.height(height.value)}</strong> {height.kind === 'gain' ? 'EG' : 'summit'}
+          <strong>{units.height(height.value)}</strong> {HEIGHT_LABEL[height.kind]}
         </span>
       )}
     </a>
@@ -455,6 +522,7 @@ function RouteTile({ route, index }: { route: Route; index: number }) {
       </span>
       <span className="tile-top">
         <span className="tile-name">{route.name}</span>
+        <ActivityTag activity={routeActivity(route)} />
       </span>
       <span className="tile-meta">{[region, route.loop ? 'Loop' : 'Point to point'].filter(Boolean).join(' · ')}</span>
       <span className="tile-meta">
@@ -464,56 +532,3 @@ function RouteTile({ route, index }: { route: Route; index: number }) {
   );
 }
 
-function ContributeBanner() {
-  return (
-    <section className="home-contribute">
-      <div className="home-contribute-copy">
-        <h2>Know a hill that isn’t here?</h2>
-        <p>
-          Every place, photo, rating and route on hillGPX is a public contribution. Add the stairwell you repeat,
-          the hill you race up, or the GPX from your last long run.
-        </p>
-        <div className="home-contribute-actions">
-          <a className="btn btn-accent" href={addPlaceUrl()} target="_blank" rel="noreferrer">
-            Add a place
-          </a>
-          <a className="btn btn-light" href={addRouteUrl()} target="_blank" rel="noreferrer">
-            Share a route
-          </a>
-          <a className="btn btn-ghost" href={REPO_URL} target="_blank" rel="noreferrer">
-            <GitHubIcon size={16} /> GitHub
-          </a>
-        </div>
-      </div>
-      <div className="home-contribute-art" aria-hidden="true">
-        <svg viewBox="0 0 400 220" preserveAspectRatio="xMidYMax slice">
-          <path d="M0 220 L70 120 L110 160 L180 60 L240 140 L290 95 L400 220Z" fill="#f3d9cf" />
-          <path d="M0 220 L90 150 L150 190 L230 110 L300 170 L360 130 L400 160 L400 220Z" fill="#e8b7a4" />
-          <path className="home-contribute-trail" d="M20 210 C 80 190, 110 150, 150 165 S 210 90, 240 120 S 300 150, 330 115 S 380 90, 395 80" fill="none" stroke="#c1502e" strokeWidth="3" strokeLinecap="round" strokeDasharray="6 8" />
-          <circle cx="180" cy="60" r="6" fill="#c1502e" />
-        </svg>
-      </div>
-    </section>
-  );
-}
-
-function HillArt() {
-  return (
-    <svg viewBox="0 0 48 48" width="40" height="40" aria-hidden="true">
-      <path d="M4 40 L18 18 L25 28 L31 20 L44 40Z" fill="#e8b7a4" />
-      <path d="M18 18 L22 24 L18 23 L14 25Z" fill="#fff" />
-      <path d="M4 40 L14 30 L20 36 L28 28 L44 40Z" fill="#c1502e" opacity="0.85" />
-    </svg>
-  );
-}
-
-function RouteArt() {
-  return (
-    <svg viewBox="0 0 48 48" width="40" height="40" aria-hidden="true">
-      <rect x="4" y="8" width="40" height="32" rx="6" fill="#f3e6df" />
-      <path d="M11 33 C 18 30, 16 20, 24 21 S 32 14, 37 15" fill="none" stroke="#c1502e" strokeWidth="3" strokeLinecap="round" />
-      <circle cx="11" cy="33" r="3.5" fill="#fff" stroke="#222" strokeWidth="2" />
-      <circle cx="37" cy="15" r="3" fill="#222" />
-    </svg>
-  );
-}

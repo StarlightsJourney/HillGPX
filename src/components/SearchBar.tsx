@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Venue } from '../types';
 import {
-  VENUE_TYPE_LABEL,
+  HEIGHT_LABEL,
   boundsOf,
   buildAreas,
   matchAreas,
   rankingHeight,
   venueHeight,
+  venueKindLabel,
   type Area,
   type Bounds,
 } from '../lib/venues';
@@ -212,8 +213,8 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
               <button key={venue.slug} className="result-row" onClick={() => pick(venue.slug)}>
                 <span className="result-name">{venue.name}</span>
                 <span className="result-meta small muted">
-                  {VENUE_TYPE_LABEL[venue.type]}
-                  {height && ` · ${units.height(height.value)}${height.kind === 'gain' ? ' EG' : ''}`}
+                  {venueKindLabel(venue)}
+                  {height && ` · ${units.height(height.value)} ${HEIGHT_LABEL[height.kind]}`}
                 </span>
               </button>
             );

@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Venue } from '../types';
-import { VENUE_TYPE_LABEL, rankingHeight, venueHeight, venuesInBounds } from '../lib/venues';
+import { HEIGHT_LABEL, nearest, rankingHeight, venueHeight, venuesInBounds, venueKindLabel } from '../lib/venues';
+import { haversineM } from '../lib/elevation';
 import { VenueThumb } from './VenueThumb';
 import { HeartIcon, SearchIcon, StarIcon } from './icons';
 import { useUnits } from './UnitsContext';
@@ -24,6 +25,8 @@ interface ResultsListProps {
   onHover?: (slug: string | null) => void;
   favorites: Set<string>;
   onToggleFavorite: (slug: string) => void;
+  /** Frame a set of places on the map (used by the "closest places" fallback). */
+  onShowPlaces?: (venues: Venue[]) => void;
 }
 
 const PAGE_SIZE = 24;
@@ -116,6 +119,7 @@ function ResultsListInner({
   onHover,
   favorites,
   onToggleFavorite,
+  onShowPlaces,
 }: ResultsListProps) {
   const units = useUnits();
   const sectionRef = useRef<HTMLElement>(null);
@@ -124,7 +128,7 @@ function ResultsListInner({
 
   useEffect(() => setPage(0), [venues, bounds]);
 
-  const inView = useMemo(() => {
+  const visible = useMemo(() => {
     const list = bounds ? venuesInBounds(venues, bounds) : venues;
     return [...list].sort((a, b) => {
       const aScore = rankingHeight(a) + (a.photo?.file ? 10_000 : 0);
@@ -132,10 +136,25 @@ function ResultsListInner({
       return bScore - aScore;
     });
   }, [venues, bounds]);
+  // An empty list over open water or a blank region reads as broken. Show the
+  // closest places instead, as the routes list does, with a way to go there.
+  const centreLng = bounds ? (bounds.west + bounds.east) / 2 : null;
+  const centreLat = bounds ? (bounds.south + bounds.north) / 2 : null;
+  const isEmpty = visible.length === 0;
+  const nearby = useMemo(
+    () => (isEmpty && centreLng != null && centreLat != null ? nearest(venues, centreLng, centreLat, 12) : []),
+    [isEmpty, venues, centreLng, centreLat],
+  );
+  const showingNearby = nearby.length > 0;
+  const inView = showingNearby ? nearby : visible;
+  const nearestKm = showingNearby && centreLng != null && centreLat != null
+    ? Math.round(haversineM(centreLng, centreLat, nearby[0].lng, nearby[0].lat) / 1000)
+    : 0;
 
   const total = inView.length;
-  const heading =
-    total >= 1000
+  const heading = showingNearby
+    ? 'Nothing mapped here yet — closest places'
+    : total >= 1000
       ? 'Over 1,000 places'
       : `${total.toLocaleString()} place${total === 1 ? '' : 's'}`;
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -198,7 +217,19 @@ function ResultsListInner({
   return (
     <section className="results" ref={sectionRef}>
       <header className="results-head">
-        <h2>{heading}</h2>
+        <div>
+          <h2>{heading}</h2>
+          {showingNearby && (
+            <p className="results-sub">
+              The nearest is about {nearestKm.toLocaleString()} km away.{' '}
+              {onShowPlaces && (
+                <button type="button" className="linkish" onClick={() => onShowPlaces(nearby)}>
+                  Show them on the map
+                </button>
+              )}
+            </p>
+          )}
+        </div>
       </header>
 
       {total === 0 && !loading ? (
@@ -249,7 +280,7 @@ function ResultsListInner({
                         <RatingLabel rating={venue.rating} />
                       </span>
                       <span className="result-card-meta">
-                        {VENUE_TYPE_LABEL[venue.type]}
+                        {venueKindLabel(venue)}
                         {region && region !== 'Singapore' ? ` in ${region}` : ''}
                         {venue.storeys != null && ` · ${venue.storeys} floors`}
                         {routeCount > 0 && ` · ${routeCount} route${routeCount === 1 ? '' : 's'}`}
@@ -258,7 +289,7 @@ function ResultsListInner({
                         {height ? (
                           <>
                             <strong>{units.height(height.value)}</strong>{' '}
-                            {height.kind === 'gain' ? 'EG' : 'summit'}
+                            {HEIGHT_LABEL[height.kind]}
                           </>
                         ) : (
                           'Height not recorded'

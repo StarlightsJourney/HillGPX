@@ -4,6 +4,8 @@ import { routeDifficulty, routeHasElevation, routeIntersects } from '../lib/rout
 import type { Bounds } from '../lib/venues';
 import { regionOf } from '../lib/regions';
 import { RouteThumb } from './RouteThumb';
+import { ActivityTag } from './ActivityIcon';
+import { routeActivity } from '../lib/routeAnalysis';
 import { useUnits } from './UnitsContext';
 import { DownloadIcon, UploadIcon } from './icons';
 import { downloadRoute } from './VenueCard';
@@ -83,6 +85,7 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
                   <RouteThumb route={route} />
                   <span className="result-card-top">
                     <span className="result-card-name">{route.name}</span>
+                    <ActivityTag activity={routeActivity(route)} />
                   </span>
                   <span className="result-card-meta">
                     {[region, route.loop ? 'Loop' : 'Point to point', route.source === 'local' ? 'On this device' : null]

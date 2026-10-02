@@ -1,3 +1,4 @@
+import { TypeGlyph } from './TypeGlyph';
 import type { Venue, VenuePhoto } from '../types';
 
 /**
@@ -34,33 +35,39 @@ export function VenueThumb({ venue, rounded = true }: { venue: Venue; rounded?: 
   }
 
   return (
-    <span
-      className={`card-thumb placeholder${rounded ? '' : ' square'}`}
-      role="img"
-      aria-label={`No photo of ${venue.name} yet — add one`}
-    >
-      {/* The centring lives on this inner box rather than on .card-thumb, which
-          the list and the card hero each restyle for their own layout. */}
-      <span className="placeholder-inner">
-        <svg
-          className="placeholder-icon"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <rect x="2" y="5" width="20" height="15" rx="2" fill="none" />
-          <circle cx="7" cy="10.5" r="1.5" fill="currentColor" stroke="none" />
-          <path d="M3.5 19 L9 13 L14.5 19" fill="none" />
-          <path d="M10 19 L15 14 L19.5 19" fill="none" />
-          <circle cx="20" cy="19" r="4" stroke="none" />
-          <path d="M20 16.5 V21.5 M17.5 19 H22.5" stroke="#ffffff" strokeWidth="1.5" />
-        </svg>
-        <span className="placeholder-label">Add photo</span>
+    <span className={`card-thumb placeholder${rounded ? '' : ' square'}`} role="img" aria-label={`No photo of ${venue.name} yet — add one`}>
+      <PlaceArt venue={venue} />
+      <span className="place-art-cta">Add photo</span>
+    </span>
+  );
+}
+
+/**
+ * The one placeholder used everywhere a place has no photo yet: a drawn
+ * ridge tinted by height for hills and mountains, and a plain tile with the
+ * type icon for blocks and stairs.
+ */
+export function PlaceArt({ venue }: { venue: Venue }) {
+  const height = venue.summitM ?? venue.gainM ?? 0;
+  const seed = [...venue.slug].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  const hue = Math.max(0, 210 - Math.min(height, 6000) / 30);
+  const built = venue.type === 'hdb_block' || venue.type === 'stairs' || venue.type === 'carpark';
+  const n = (i: number, span: number) => ((seed >> (i * 3)) % span);
+  const far = `M0 100 L0 ${66 - n(0, 10)} L22 ${46 + n(1, 10)} L38 ${58 - n(2, 10)} L55 ${26 + n(3, 12)} L72 ${50 + n(4, 10)} L86 ${38 + n(5, 10)} L100 ${56 - n(6, 10)} L100 100 Z`;
+  // Built climbs get a plain tile with their type icon; a drawn skyline read as decoration.
+  if (built) {
+    return (
+      <span className="place-art plain" aria-hidden="true">
+        <TypeGlyph type={venue.type} size={28} />
       </span>
+    );
+  }
+  return (
+    <span className="place-art" style={{ '--hue': hue } as React.CSSProperties} aria-hidden="true">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <path d={far} />
+        <path className="near" d="M0 100 L0 82 L18 74 L34 84 L52 70 L68 80 L84 72 L100 80 L100 100 Z" />
+      </svg>
     </span>
   );
 }

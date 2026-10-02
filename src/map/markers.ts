@@ -4,6 +4,8 @@ import { formatDistanceIn, formatHeight, type Units } from '../lib/units';
 import { rankingHeight, venueHeight } from '../lib/venues';
 import { glyphSvg } from '../lib/venueGlyphs';
 import { setSvgIcon } from '../lib/dom';
+import { activityGlyphSvg } from '../lib/activityGlyphs';
+import { ACTIVITY_LABEL, routeActivity } from '../lib/routeAnalysis';
 
 export interface MarkerState {
   selected: string | null;
@@ -178,8 +180,6 @@ export class VenueMarkers {
   }
 }
 
-const ROUTE_GLYPH =
-  '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8h12M4.5 5.5 2 8l2.5 2.5M11.5 5.5 14 8l-2.5 2.5"/><path d="M5.5 6.5v3M8 6.5v2M10.5 6.5v3"/></svg>';
 
 /**
  * One pill per route, at its start, labelled with its distance — the route
@@ -210,10 +210,11 @@ export class RouteMarkers {
         anchor.className = 'pin-anchor';
         const element = document.createElement('button');
         element.type = 'button';
-        element.className = 'pin route-pin';
+        const activity = routeActivity(route);
+        element.className = `pin route-pin ${activity}`;
         const glyph = document.createElement('span');
-        glyph.className = 'pin-glyph';
-        setSvgIcon(glyph, ROUTE_GLYPH);
+        glyph.className = 'pin-glyph route-pin-badge';
+        setSvgIcon(glyph, activityGlyphSvg(activity, 17, 2.4));
         const label = document.createElement('span');
         label.className = 'pin-label';
         element.append(glyph, label);
@@ -231,7 +232,7 @@ export class RouteMarkers {
       }
       entry.route = route;
       entry.label.textContent = formatDistanceIn(route.distanceM, units);
-      entry.element.setAttribute('aria-label', `${route.name}, ${entry.label.textContent}`);
+      entry.element.setAttribute('aria-label', `${route.name}, ${ACTIVITY_LABEL[routeActivity(route)]}, ${entry.label.textContent}`);
     }
   }
 

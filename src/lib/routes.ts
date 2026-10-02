@@ -1,4 +1,5 @@
-import type { Route, RoutePoint, Venue } from '../types';
+import type { Route, RouteActivity, RoutePoint, Venue } from '../types';
+import { routeActivity } from './routeAnalysis';
 import { computeGain, haversineM, totalDistanceM } from './elevation';
 import type { Bounds } from './venues';
 
@@ -6,14 +7,14 @@ import type { Bounds } from './venues';
  * Quick route categories, shown as the icon row in routes mode. Each is a
  * question the route data can answer on its own — no invented tags.
  */
-export type RouteCategory = 'all' | 'loop' | 'short' | 'long' | 'climb' | 'saved';
+export type RouteCategory = 'all' | RouteActivity | 'saved';
 
+/** Same number of slots as the climbs bar, so switching modes does not shift the icons. */
 export const ROUTE_CATEGORIES: { id: RouteCategory; label: string; shortLabel: string }[] = [
   { id: 'all', label: 'All routes', shortLabel: 'All' },
-  { id: 'climb', label: 'Big climbs', shortLabel: 'Big EG' },
-  { id: 'loop', label: 'Loops', shortLabel: 'Loops' },
-  { id: 'short', label: 'Under 10 km', shortLabel: '<10 km' },
-  { id: 'long', label: 'Ultra 30 km+', shortLabel: '30 km+' },
+  { id: 'run', label: 'Road runs', shortLabel: 'Run' },
+  { id: 'trail', label: 'Trails', shortLabel: 'Trail' },
+  { id: 'cycle', label: 'Cycling', shortLabel: 'Cycle' },
   { id: 'saved', label: 'On this device', shortLabel: 'Saved' },
 ];
 
@@ -34,14 +35,10 @@ export function filterRoutes(routes: Route[], filters: RouteFilters): Route[] {
     if (filters.minGainM != null && route.gainM < filters.minGainM) return false;
     if (filters.maxDistanceM != null && route.distanceM > filters.maxDistanceM) return false;
     switch (filters.category) {
-      case 'loop':
-        return route.loop;
-      case 'short':
-        return route.distanceM < 10_000;
-      case 'long':
-        return route.distanceM >= 30_000;
-      case 'climb':
-        return route.gainM >= 500;
+      case 'run':
+      case 'trail':
+      case 'cycle':
+        return routeActivity(route) === filters.category;
       case 'saved':
         return route.source === 'local';
       default:

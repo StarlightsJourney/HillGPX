@@ -81,7 +81,7 @@ export function routesToGeoJson(routes: Route[]): FeatureCollection {
       .filter((route) => route.coordinates.length > 1)
       .map((route) => ({
         type: 'Feature' as const,
-        properties: { slug: route.slug },
+        properties: { slug: route.slug, gain: route.gainM },
         geometry: { type: 'LineString' as const, coordinates: route.coordinates.map(([lng, lat]) => [lng, lat]) },
       })),
   };
@@ -109,11 +109,27 @@ export function addAllRouteLayers(map: MlMap, data: FeatureCollection): void {
     id: 'routes-line',
     type: 'line',
     source: 'routes',
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    // Where routes share a path, the one with more climbing is drawn on top.
+    layout: { 'line-cap': 'round', 'line-join': 'round', 'line-sort-key': ['get', 'gain'] },
     paint: {
       'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#c1502e', hot, '#222222', '#3f3f3f'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 6, ['case', hot, 3, 1.6], 12, ['case', hot, 4.5, 2.6], 16, ['case', hot, 6, 3.5]],
       'line-opacity': ['case', hot, 1, 0.7],
+    },
+  });
+  // Routes that share ground with the one being viewed: dashed, so the open
+  // route stays the solid line and the overlap is visible rather than hidden.
+  map.addLayer({
+    id: 'routes-overlap',
+    type: 'line',
+    source: 'routes',
+    filter: ['in', ['get', 'slug'], ['literal', []]],
+    layout: { 'line-cap': 'butt', 'line-join': 'round' },
+    paint: {
+      'line-color': '#1f6f8b',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 8, 2, 14, 4],
+      'line-dasharray': [1.5, 1.5],
+      'line-offset': 4,
     },
   });
   // A fat invisible line under the visible one, so a 2 px trace is still easy to hover and click.
@@ -129,6 +145,11 @@ export function setRouteFeatureState(map: MlMap, slug: string | null, key: 'hove
   if (!map.getSource('routes')) return;
   if (previous && previous !== slug) map.setFeatureState({ source: 'routes', id: previous }, { [key]: false });
   if (slug) map.setFeatureState({ source: 'routes', id: slug }, { [key]: true });
+}
+
+export function setOverlapRoutes(map: MlMap, slugs: string[]): void {
+  if (!map.getLayer('routes-overlap')) return;
+  map.setFilter('routes-overlap', ['in', ['get', 'slug'], ['literal', slugs]]);
 }
 
 /** How strongly routes read against the venue pills in each mode. */

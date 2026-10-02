@@ -22,6 +22,7 @@ import {
   type VenueFilters,
 } from '../lib/venues';
 import { NO_ROUTE_FILTERS, ROUTE_CATEGORIES, filterRoutes, type RouteCategory, type RouteFilters } from '../lib/routes';
+import { ACTIVITY_PATHS } from '../lib/activityGlyphs';
 import { VENUE_GLYPH_PATH } from '../lib/venueGlyphs';
 
 export type BrowseMode = 'climbs' | 'routes';
@@ -36,6 +37,8 @@ interface FilterBarProps {
   visibleVenues: Venue[];
   filters: VenueFilters;
   onChange: (filters: VenueFilters) => void;
+  /** How many places you have hearted; the Saved chip only appears once there is one. */
+  savedCount: number;
 }
 
 interface CategoryBarProps extends FilterBarProps {
@@ -46,10 +49,11 @@ interface CategoryBarProps extends FilterBarProps {
   onRouteFiltersChange: (filters: RouteFilters) => void;
 }
 
-type ClimbCategory = 'all' | VenueType | 'photo';
+type ClimbCategory = 'all' | VenueType | 'photo' | 'liked';
 
 function climbCategoryOf(filters: VenueFilters): ClimbCategory | null {
-  const { types, notableOnly, withPhoto } = filters;
+  const { types, notableOnly, withPhoto, savedOnly } = filters;
+  if (savedOnly) return types.length === 0 && !notableOnly && !withPhoto ? 'liked' : null;
   if (types.length === 0 && !notableOnly && !withPhoto) return 'all';
   if (types.length === 1 && !notableOnly && !withPhoto) return types[0];
   if (types.length === 0 && !notableOnly && withPhoto) return 'photo';
@@ -58,7 +62,22 @@ function climbCategoryOf(filters: VenueFilters): ClimbCategory | null {
 
 const STROKE = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
 
+/** Climb categories drawn in the same stroke style as the route activities. */
+const CLIMB_PATHS: Record<string, string> = {
+  hill: 'M2 19 9 7l3.5 5.5L15 9l7 10Z M9 7l1.6 2.8',
+  hdb_block: 'M5 21V4.5h9V21 M14 9h5v12 M3 21h18 M8 8h1.5M8 11.5h1.5M8 15h1.5M11 8h.01M11 11.5h.01M11 15h.01 M16.5 12.5h.01M16.5 16h.01',
+  stairs: 'M3 20h4v-4h4v-4h4V8h4V4 M3 20h18',
+  carpark: 'M4 21V4h16v17 M9 16V8h3.5a2.5 2.5 0 0 1 0 5H9',
+};
+
 function CategoryIcon({ id }: { id: string }) {
+  if (id in CLIMB_PATHS) {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" {...STROKE} aria-hidden="true">
+        <path d={CLIMB_PATHS[id]} />
+      </svg>
+    );
+  }
   if (id in VENUE_GLYPH_PATH) {
     return (
       <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -74,6 +93,10 @@ function CategoryIcon({ id }: { id: string }) {
     short: <><circle cx="6" cy="18" r="2" /><circle cx="18" cy="6" r="2" /><path d="M8 16l8-8" /></>,
     long: <><circle cx="4" cy="19" r="2" /><circle cx="20" cy="5" r="2" /><path d="M6 18c6-1 3-7 8-9s4-3 4-3" /></>,
     saved: <><rect x="6" y="2" width="12" height="20" rx="2.5" /><path d="M10 18h4" /></>,
+    liked: <path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z" />,
+    run: <path d={ACTIVITY_PATHS.run} />,
+    trail: <path d={ACTIVITY_PATHS.trail} />,
+    cycle: <path d={ACTIVITY_PATHS.cycle} />,
   };
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" {...STROKE} aria-hidden="true">
@@ -316,7 +339,7 @@ function RouteFilterModal({
  * room to be understood — the type choice, the height distribution — lives in
  * the dialog.
  */
-function ClimbCategories({ types, visibleVenues, filters, onChange }: FilterBarProps) {
+function ClimbCategories({ types, visibleVenues, filters, onChange, savedCount }: FilterBarProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const openerRef = useRef<HTMLButtonElement>(null);
 
@@ -325,9 +348,10 @@ function ClimbCategories({ types, visibleVenues, filters, onChange }: FilterBarP
   const pick = (category: ClimbCategory) =>
     onChange({
       ...filters,
-      types: category === 'all' || category === 'photo' ? [] : [category],
+      types: category === 'all' || category === 'photo' || category === 'liked' ? [] : [category],
       notableOnly: false,
       withPhoto: category === 'photo',
+      savedOnly: category === 'liked',
     });
 
   const categories: { id: ClimbCategory; label: string; shortLabel?: string }[] = [
@@ -338,6 +362,7 @@ function ClimbCategories({ types, visibleVenues, filters, onChange }: FilterBarP
       shortLabel: type === 'hill' ? 'Hills' : type === 'hdb_block' ? 'Blocks' : type === 'stairs' ? 'Stairs' : `${VENUE_TYPE_LABEL[type]}s`,
     })),
     { id: 'photo', label: 'With photos', shortLabel: 'Photos' },
+    ...(savedCount > 0 || filters.savedOnly ? [{ id: 'liked' as const, label: `Saved (${savedCount})`, shortLabel: 'Saved' }] : []),
   ];
 
   return (
@@ -373,6 +398,7 @@ function ClimbCategories({ types, visibleVenues, filters, onChange }: FilterBarP
           visibleVenues={visibleVenues}
           filters={filters}
           onChange={onChange}
+          savedCount={savedCount}
           onClose={() => setModalOpen(false)}
           returnFocusTo={openerRef}
         />

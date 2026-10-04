@@ -1,14 +1,28 @@
-import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import type { Route, Venue } from '../types';
-import { HEIGHT_LABEL, photoSrc, tallestWithin, titleCaseStreet, townName, venueHeight, venueKindLabel } from '../lib/venues';
+import type { Route, Venue, VenuePhoto } from '../types';
+import {
+  HEIGHT_LABEL,
+  commonsFileName,
+  photoKey,
+  photoSrc,
+  tallestWithin,
+  titleCaseStreet,
+  townName,
+  venueHeight,
+  venueKindLabel,
+  venuePhotoKeys,
+  venuePhotos,
+} from '../lib/venues';
 import { useUnits } from './UnitsContext';
 import { ElevationProfile } from './ElevationProfile';
-import { VenueThumb } from './VenueThumb';
+import { PlaceArt, VenueThumb } from './VenueThumb';
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, HeartIcon, MapIcon, StarIcon, UploadIcon } from './icons';
 import { FlagIcon, LinkIcon, PlusIcon, ReportModal } from './ReportModal';
 import { useReveal } from './useReveal';
 import { SiteFooter, SiteHeader } from './SiteChrome';
+import { SearchBar } from './SearchBar';
+import { RatingLabel } from './ResultsList';
 import { directionsUrl, venueConditions, type Conditions } from '../lib/conditions';
 import { downloadRoute } from './VenueCard';
 import { RouteThumb } from './RouteThumb';
@@ -24,7 +38,8 @@ import {
   submitPhoto,
   submitReview,
 } from '../lib/api';
-import { regionOf } from '../lib/regions';
+import { boundsToHash, regionOf } from '../lib/regions';
+import { lockPageScroll } from '../lib/dom';
 import { routeHasElevation } from '../lib/routes';
 import { ACTIVITY_LABEL, routeActivity } from '../lib/routeAnalysis';
 import { isWorldPeakSlug, loadPeakPhotos } from '../lib/worldPeaks';
@@ -33,6 +48,12 @@ import { commonsPhotos, generatedDescription, wikiSummary, type GeneratedDescrip
 const MiniMap = lazy(() => import('./MiniMap').then((module) => ({ default: module.MiniMap })));
 
 const RATING_WORDS = ['', 'Not worth it', 'Meh', 'Solid', 'Great session', 'Must do'];
+
+/** Airbnb's grid: one large photo and up to four small ones. */
+const GRID_SIZE = 5;
+
+/** Built climbs: a Commons photo "within 1 km" of a block is a photo of somewhere else. */
+const BUILT_TYPES: ReadonlySet<Venue['type']> = new Set(['hdb_block', 'stairs', 'carpark']);
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
@@ -47,16 +68,32 @@ interface GalleryPhoto {
   credit: string;
   creditUrl?: string;
   licence?: string;
+  /** Identities used to drop the same file arriving from two sources (see `photoKey`). */
+  keys: string[];
 }
 
 /**
- * The stored files are 420 px card thumbnails, soft at page width. Commons
- * photos are fetched sharp straight from Wikimedia (Special:FilePath scales on
- * request); Mapillary originals are not kept, so those stay at card size.
+ * The stored files are 420 px card thumbnails (and world-summit links are
+ * 960 px thumbs), soft at page width. Commons photos are fetched sharp straight
+ * from Wikimedia (Special:FilePath scales on request); Mapillary originals are
+ * not kept, so those stay at card size.
  */
-function sharpPhoto(sourceUrl: string | undefined): string | undefined {
-  const match = sourceUrl ? /commons\.wikimedia\.org\/wiki\/(File:[^?#]+)/.exec(sourceUrl) : null;
-  return match ? `https://commons.wikimedia.org/wiki/Special:FilePath/${match[1].slice('File:'.length)}?width=1280` : undefined;
+function sharpPhoto(photo: VenuePhoto): string | undefined {
+  const name = commonsFileName(photo.sourceUrl ?? '') ?? commonsFileName(photo.file);
+  return name ? `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(name)}?width=1280` : undefined;
+}
+
+function storedGalleryPhoto(photo: VenuePhoto): GalleryPhoto {
+  const sharp = sharpPhoto(photo);
+  return {
+    key: photo.file,
+    src: sharp ?? photoSrc(photo),
+    fallback: sharp ? photoSrc(photo) : undefined,
+    credit: photo.credit ?? (photo.source ?? 'Mapillary'),
+    creditUrl: photo.sourceUrl,
+    licence: photo.license ?? (photo.source ? undefined : 'CC BY-SA · Mapillary'),
+    keys: venuePhotoKeys(photo),
+  };
 }
 
 function useVenueContent(venue: Venue) {
@@ -65,8 +102,6 @@ function useVenueContent(venue: Venue) {
   const [commons, setCommons] = useState<GalleryPhoto[]>([]);
   const [wiki, setWiki] = useState<WikiSummary | null>(null);
   const [generated, setGenerated] = useState<GeneratedDescription | null>(null);
-  // A world summit's photo is a Commons link, so the page still looks for more nearby.
-  const hasPublishedPhoto = Boolean(venue.photo?.file) && !isWorldPeakSlug(venue.slug);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,22 +112,25 @@ function useVenueContent(venue: Venue) {
     fetchPhotos(venue.slug).then(guard(setCommunityPhotos)).catch(() => undefined);
     wikiSummary(venue).then(guard(setWiki)).catch(() => undefined);
     generatedDescription(venue.slug).then(guard(setGenerated)).catch(() => undefined);
-    if (!hasPublishedPhoto) {
-      // The landing's stored summit photo first, then anything else on Commons nearby.
-      Promise.all([loadPeakPhotos(), commonsPhotos(venue)])
-        .then(([stored, nearby]) => {
-          const storedPhoto = stored.get(venue.slug);
-          const rest = nearby.filter((photo) => photo.url !== storedPhoto?.url);
-          // Already in the gallery as the venue's own photo.
-          const lead = venue.photo ? undefined : storedPhoto;
-          return lead ? [{ url: lead.url, pageUrl: lead.pageUrl, artist: lead.credit, licence: lead.licence }, ...rest] : rest;
-        })
-        .then((photos) => photos.map((photo, i) => ({
+    // Open-licence photos taken nearby fill out a hill's grid, after its own
+    // photos. Never for blocks and stairs: nearby is not the place.
+    const stored = venuePhotos(venue);
+    if (!BUILT_TYPES.has(venue.type) && stored.length < GRID_SIZE) {
+      const peakPhoto = stored.length === 0 && isWorldPeakSlug(venue.slug)
+        ? loadPeakPhotos().then((photos) => photos.get(venue.slug))
+        : Promise.resolve(undefined);
+      Promise.all([peakPhoto, commonsPhotos(venue)])
+        .then(([lead, nearby]) => [
+          ...(lead ? [{ url: lead.url, pageUrl: lead.pageUrl, artist: lead.credit, licence: lead.licence, nearby: false }] : []),
+          ...nearby.map((photo) => ({ ...photo, nearby: true })),
+        ])
+        .then((photos) => photos.map((photo, i): GalleryPhoto => ({
           key: `commons-${i}`,
           src: photo.url,
           credit: photo.artist,
           creditUrl: photo.pageUrl,
-          licence: `${photo.licence} · Wikimedia Commons`,
+          licence: `${photo.licence} · Wikimedia Commons${photo.nearby ? ', taken nearby' : ''}`,
+          keys: [photoKey(photo.url), photoKey(photo.pageUrl)],
         })))
         .then(guard(setCommons))
         .catch(() => undefined);
@@ -100,9 +138,94 @@ function useVenueContent(venue: Venue) {
     return () => {
       cancelled = true;
     };
-  }, [venue, hasPublishedPhoto]);
+  }, [venue]);
 
   return { reviews, setReviews, communityPhotos, commons, wiki, generated };
+}
+
+const NARROW_QUERY = '(max-width: 743px)';
+function subscribeNarrow(onChange: () => void) {
+  const query = window.matchMedia(NARROW_QUERY);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+/** Phones get the swipe carousel; wider screens get Airbnb's photo grid. */
+function useNarrow(): boolean {
+  return useSyncExternalStore(subscribeNarrow, () => window.matchMedia(NARROW_QUERY).matches);
+}
+
+function swapToFallback(photo: GalleryPhoto) {
+  return (event: React.SyntheticEvent<HTMLImageElement>) => {
+    if (photo.fallback && event.currentTarget.src !== photo.fallback) event.currentTarget.src = photo.fallback;
+  };
+}
+
+function PhotoCreditText({ photo }: { photo: GalleryPhoto }) {
+  return (
+    <>
+      Photo by {photo.creditUrl ? <a href={photo.creditUrl} target="_blank" rel="noreferrer">{photo.credit}</a> : photo.credit}
+      {photo.licence ? ` · ${photo.licence}` : ''}
+    </>
+  );
+}
+
+const creditTitle = (photo: GalleryPhoto) => `Photo by ${photo.credit}${photo.licence ? ` · ${photo.licence}` : ''}`;
+
+/** No photo at all: the same drawn placeholder the cards use, with the invitation on top. */
+function NoPhotos({ venue, onAdd, actions }: { venue: Venue; onAdd: () => void; actions?: ReactNode }) {
+  return (
+    <div className="venue-gallery-empty has-art">
+      <PlaceArt venue={venue} />
+      {actions && <div className="carousel-actions">{actions}</div>}
+      <div className="venue-gallery-empty-copy">
+        <CameraGlyph />
+        <strong>No photos yet</strong>
+        <p>Been here? A photo of the trailhead or the view helps the next person.</p>
+        <button type="button" className="btn btn-dark" onClick={onAdd}>Add a photo</button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Airbnb's listing photos on wide screens: one large photo on the left and up
+ * to four on the right, rounded on the outside corners only. Any photo opens
+ * the full-screen viewer, which steps through every photo with its credit; the
+ * last cell says how many more there are. One photo fills the frame.
+ */
+function PhotoGrid({ photos, venueName, onAdd }: { photos: GalleryPhoto[]; venueName: string; onAdd: () => void }) {
+  const [viewer, setViewer] = useState<number | null>(null);
+  const closeViewer = useCallback(() => setViewer(null), []);
+  const shown = photos.slice(0, GRID_SIZE);
+  const count = photos.length;
+  const hidden = count - shown.length;
+
+  return (
+    <div className="venue-photo-grid-wrap">
+      <div className="venue-photo-frame">
+        <div className={`venue-photo-grid n${shown.length}`}>
+          {shown.map((photo, i) => (
+            <button
+              type="button"
+              key={photo.key}
+              className="venue-photo-cell"
+              title={creditTitle(photo)}
+              aria-label={`Open photo ${i + 1} of ${count} of ${venueName}`}
+              onClick={() => setViewer(i)}
+            >
+              <img src={photo.src} alt="" loading={i === 0 ? 'eager' : 'lazy'} decoding="async" onError={swapToFallback(photo)} />
+              {hidden > 0 && i === shown.length - 1 && <span className="venue-photo-more">+{hidden}</span>}
+            </button>
+          ))}
+        </div>
+        <div className="venue-photo-grid-actions">
+          <button type="button" className="venue-photo-pill" onClick={onAdd}><PlusIcon />Add photos</button>
+        </div>
+      </div>
+      <p className="venue-photo-credit"><PhotoCreditText photo={photos[0]} /></p>
+      {viewer != null && <Lightbox photos={photos} index={viewer} onIndex={setViewer} onClose={closeViewer} />}
+    </div>
+  );
 }
 
 const AUTOPLAY_MS = 5000;
@@ -110,12 +233,13 @@ const AUTOPLAY_MS = 5000;
 /**
  * One photo at a time, with arrows on either side, a counter, and gentle
  * auto-advance that pauses while you are hovering or have interacted — the
- * Airbnb listing carousel. Tapping the photo opens the same carousel full screen.
+ * Airbnb listing carousel on phones. Tapping the photo opens it full screen.
  */
-function PhotoCarousel({ photos, venueName, onAdd, actions }: { photos: GalleryPhoto[]; venueName: string; onAdd: () => void; actions: React.ReactNode }) {
+function PhotoCarousel({ photos, onAdd, actions }: { photos: GalleryPhoto[]; onAdd: () => void; actions: ReactNode }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const closeFullscreen = useCallback(() => setFullscreen(false), []);
   const count = photos.length;
   const go = (delta: number) => setIndex((i) => (i + delta + count) % count);
 
@@ -124,18 +248,6 @@ function PhotoCarousel({ photos, venueName, onAdd, actions }: { photos: GalleryP
     const timer = window.setInterval(() => setIndex((i) => (i + 1) % count), AUTOPLAY_MS);
     return () => window.clearInterval(timer);
   }, [count, paused, fullscreen]);
-
-  if (count === 0) {
-    return (
-      <div className="venue-gallery-empty">
-        <div className="carousel-actions">{actions}</div>
-        <CameraGlyph />
-        <strong>No photos yet</strong>
-        <p>Been here? A photo of the trailhead or the view helps the next person.</p>
-        <button type="button" className="btn btn-dark" onClick={onAdd}>Add a photo</button>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -146,7 +258,7 @@ function PhotoCarousel({ photos, venueName, onAdd, actions }: { photos: GalleryP
         onFocus={() => setPaused(true)}
         onTouchStart={() => setPaused(true)}
       >
-        <Slides photos={photos} index={index} onIndex={setIndex} onOpen={() => setFullscreen(true)} venueName={venueName} />
+        <Slides photos={photos} index={index} onIndex={setIndex} onOpen={() => setFullscreen(true)} />
         {count > 1 && (
           <>
             <button type="button" className="carousel-arrow prev" aria-label="Previous photo" onClick={() => { setPaused(true); go(-1); }}>
@@ -163,18 +275,15 @@ function PhotoCarousel({ photos, venueName, onAdd, actions }: { photos: GalleryP
         )}
         <div className="carousel-actions">{actions}</div>
         <button type="button" className="carousel-add" onClick={onAdd} aria-label="Add photos" data-tip="Add photos"><PlusIcon /></button>
-        <p className="carousel-credit">
-          Photo by {photos[index].creditUrl ? <a href={photos[index].creditUrl} target="_blank" rel="noreferrer">{photos[index].credit}</a> : photos[index].credit}
-          {photos[index].licence ? ` · ${photos[index].licence}` : ''}
-        </p>
+        <p className="carousel-credit"><PhotoCreditText photo={photos[index]} /></p>
       </div>
-      {fullscreen && <Lightbox photos={photos} index={index} onIndex={setIndex} onClose={() => setFullscreen(false)} />}
+      {fullscreen && <Lightbox photos={photos} index={index} onIndex={setIndex} onClose={closeFullscreen} />}
     </>
   );
 }
 
 /** A horizontal strip that snaps one photo per view: swipe on touch, arrows elsewhere. */
-function Slides({ photos, index, onIndex, onOpen, venueName }: { photos: GalleryPhoto[]; index: number; onIndex: (i: number) => void; onOpen?: () => void; venueName: string }) {
+function Slides({ photos, index, onIndex, onOpen }: { photos: GalleryPhoto[]; index: number; onIndex: (i: number) => void; onOpen?: () => void }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const programmatic = useRef(false);
 
@@ -201,15 +310,13 @@ function Slides({ photos, index, onIndex, onOpen, venueName }: { photos: Gallery
       }}
     >
       {photos.map((photo, i) => (
-        <button type="button" key={photo.key} className="carousel-slide" onClick={onOpen} aria-label={onOpen ? `Open photo ${i + 1} of ${venueName} full screen` : undefined} tabIndex={onOpen ? 0 : -1}>
+        <button type="button" key={photo.key} className="carousel-slide" onClick={onOpen} aria-label={onOpen ? `Open photo ${i + 1} full screen` : undefined} tabIndex={onOpen ? 0 : -1}>
           <img
             src={photo.src}
             alt=""
             loading={Math.abs(i - index) <= 1 ? 'eager' : 'lazy'}
             decoding="async"
-            onError={(event) => {
-              if (photo.fallback && event.currentTarget.src !== photo.fallback) event.currentTarget.src = photo.fallback;
-            }}
+            onError={swapToFallback(photo)}
           />
         </button>
       ))}
@@ -220,19 +327,20 @@ function Slides({ photos, index, onIndex, onOpen, venueName }: { photos: Gallery
 function Lightbox({ photos, index, onIndex, onClose }: { photos: GalleryPhoto[]; index: number; onIndex: (i: number) => void; onClose: () => void }) {
   const count = photos.length;
   useEffect(() => {
+    // Capture on window, ahead of the dialog underneath: Escape closes only this.
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        onClose();
+      }
       if (event.key === 'ArrowRight') onIndex((index + 1) % count);
       if (event.key === 'ArrowLeft') onIndex((index - 1 + count) % count);
     };
-    document.addEventListener('keydown', onKey);
-    const { overflow } = document.body.style;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = overflow;
-    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [index, count, onIndex, onClose]);
+
+  useEffect(() => lockPageScroll(), []);
 
   return createPortal(
     <div className="lightbox" role="dialog" aria-modal="true" aria-label="Photos">
@@ -241,7 +349,7 @@ function Lightbox({ photos, index, onIndex, onClose }: { photos: GalleryPhoto[];
         <span>{index + 1} / {count}</span>
       </header>
       <div className="lightbox-stage">
-        <Slides photos={photos} index={index} onIndex={onIndex} venueName="" />
+        <Slides photos={photos} index={index} onIndex={onIndex} />
         {count > 1 && (
           <>
             <button type="button" className="carousel-arrow prev" aria-label="Previous photo" onClick={() => onIndex((index - 1 + count) % count)}><ChevronLeftIcon size={18} /></button>
@@ -249,10 +357,7 @@ function Lightbox({ photos, index, onIndex, onClose }: { photos: GalleryPhoto[];
           </>
         )}
       </div>
-      <p className="lightbox-credit">
-        Photo by {photos[index].creditUrl ? <a href={photos[index].creditUrl} target="_blank" rel="noreferrer">{photos[index].credit}</a> : photos[index].credit}
-        {photos[index].licence ? ` · ${photos[index].licence}` : ''}
-      </p>
+      <p className="lightbox-credit"><PhotoCreditText photo={photos[index]} /></p>
     </div>,
     document.body,
   );
@@ -285,7 +390,7 @@ function ReviewCard({ review }: { review: Review }) {
   );
 }
 
-function ReviewForm({ venue, initialRating, onPosted }: { venue: Venue; initialRating: number; onPosted: (review: Review) => void }) {
+function ReviewForm({ venue, initialRating, first, onPosted }: { venue: Venue; initialRating: number; first: boolean; onPosted: (review: Review) => void }) {
   const [hover, setHover] = useState(0);
   const [mine, setMine] = useState(initialRating);
   const [comment, setComment] = useState('');
@@ -312,7 +417,7 @@ function ReviewForm({ venue, initialRating, onPosted }: { venue: Venue; initialR
   if (done) return <p className="review-thanks">Thanks — your review is live.</p>;
   return (
     <div className="review-form inline">
-      <h3>Your review</h3>
+      <h3>{first ? 'Be the first to review it' : 'Your review'}</h3>
       <div className="rate-stars" role="radiogroup" aria-label="Your rating" onMouseLeave={() => setHover(0)}>
         {[1, 2, 3, 4, 5].map((value) => (
           <button
@@ -330,7 +435,7 @@ function ReviewForm({ venue, initialRating, onPosted }: { venue: Venue; initialR
         ))}
         <span className="rate-word">{RATING_WORDS[shown]}</span>
       </div>
-      <textarea className="review-comment" placeholder="Gates, water, shade, best time to go (optional)" rows={2} value={comment} maxLength={1000} onChange={(event) => setComment(event.target.value)} />
+      <textarea className="review-comment" placeholder="How was it? Access, shade, water, best time to go (optional)" rows={2} value={comment} maxLength={1000} onChange={(event) => setComment(event.target.value)} />
       <div className="review-form-row">
         <input className="review-author" type="text" placeholder="Your name (optional)" value={author} maxLength={60} onChange={(event) => setAuthor(event.target.value)} />
         <button type="button" className="btn btn-dark" disabled={mine === 0 || submitting} onClick={() => void post()}>{submitting ? 'Posting…' : 'Post review'}</button>
@@ -349,12 +454,10 @@ function ReviewsSection({ venue, reviews, rating, initialRating, onPosted, secti
     <section className="venue-detail-section reviews-section" ref={sectionRef} id="reviews">
       <div className="reviews-head">
         <h2>
-          {rating ? <><StarIcon size={18} filled /> {rating.average.toFixed(2)} · {rating.count} review{rating.count === 1 ? '' : 's'}</> : 'No reviews yet'}
+          {rating ? <><StarIcon size={18} filled /> {rating.average.toFixed(2)} · {rating.count} review{rating.count === 1 ? '' : 's'}</> : 'Reviews'}
         </h2>
       </div>
-      {reviews.length === 0 ? (
-        <p className="muted">Trained here? Tell others about access, shade, water and the best time to go.</p>
-      ) : (
+      {reviews.length > 0 && (
         <div className="review-grid">
           {reviews.slice(0, REVIEWS_SHOWN).map((review) => <ReviewCard key={review.id} review={review} />)}
         </div>
@@ -362,7 +465,7 @@ function ReviewsSection({ venue, reviews, rating, initialRating, onPosted, secti
       {reviews.length > REVIEWS_SHOWN && (
         <button type="button" className="reviews-all" onClick={() => setShowAll(true)}>Show all {reviews.length} reviews</button>
       )}
-      <ReviewForm key={initialRating} venue={venue} initialRating={initialRating} onPosted={onPosted} />
+      <ReviewForm key={initialRating} venue={venue} initialRating={initialRating} first={reviews.length === 0} onPosted={onPosted} />
       {showAll && (
         <Modal title={`${reviews.length} reviews`} onClose={() => setShowAll(false)} wide>
           <div className="review-grid single">{reviews.map((review) => <ReviewCard key={review.id} review={review} />)}</div>
@@ -414,76 +517,163 @@ function PlanCard({ venue }: { venue: Venue }) {
   );
 }
 
+const MAX_PHOTOS = 12;
+
+interface PendingPhoto {
+  id: string;
+  file: File;
+  url: string;
+  status: 'ready' | 'uploading' | 'done' | 'failed';
+}
+
+/**
+ * Several photos at once: drop or pick them, keep adding more, remove any
+ * before sending. Each tile shows its own progress, and a failed one stays
+ * behind to retry while the rest are already through.
+ */
 function AddPhotosModal({ venue, onClose }: { venue: Venue; onClose: () => void }) {
-  const [files, setFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
+  const [items, setItems] = useState<PendingPhoto[]>([]);
   const [credit, setCredit] = useState(loadAuthor);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+  useEffect(() => () => itemsRef.current.forEach((item) => URL.revokeObjectURL(item.url)), []);
 
-  useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews]);
-
-  const choose = (event: ChangeEvent<HTMLInputElement>) => {
-    const picked = [...(event.target.files ?? [])].filter((file) => file.type.startsWith('image/')).slice(0, 8);
-    setFiles(picked);
-    setPreviews(picked.map((file) => URL.createObjectURL(file)));
-    setError(null);
+  const add = (list: FileList | null) => {
+    const known = new Set(items.map((item) => `${item.file.name}:${item.file.size}`));
+    const images = [...(list ?? [])].filter((file) => file.type.startsWith('image/') && !known.has(`${file.name}:${file.size}`));
+    if (images.length === 0) return;
+    const room = MAX_PHOTOS - items.length;
+    setError(images.length > room ? `Up to ${MAX_PHOTOS} photos at a time. Send these, then add more.` : null);
+    const fresh = images
+      .slice(0, Math.max(0, room))
+      .map((file): PendingPhoto => ({ id: `${file.name}:${file.size}:${file.lastModified}`, file, url: URL.createObjectURL(file), status: 'ready' }));
+    setItems([...items, ...fresh]);
   };
+
+  const remove = (id: string) =>
+    setItems((current) => {
+      const gone = current.find((item) => item.id === id);
+      if (gone) URL.revokeObjectURL(gone.url);
+      return current.filter((item) => item.id !== id);
+    });
+
+  const setStatus = (id: string, status: PendingPhoto['status']) =>
+    setItems((current) => current.map((item) => (item.id === id ? { ...item, status } : item)));
 
   const upload = async () => {
     setBusy(true);
     setError(null);
     saveAuthor(credit);
-    let count = 0;
-    try {
-      for (const file of files) {
-        await submitPhoto({ venueSlug: venue.slug, file, credit, licence: 'CC BY-SA 4.0', author: credit });
-        count += 1;
-        setDone(count);
+    let failed = 0;
+    for (const item of items.filter((entry) => entry.status !== 'done')) {
+      setStatus(item.id, 'uploading');
+      try {
+        await submitPhoto({ venueSlug: venue.slug, file: item.file, credit, licence: 'CC BY-SA 4.0', author: credit });
+        setStatus(item.id, 'done');
+      } catch (err) {
+        failed += 1;
+        setStatus(item.id, 'failed');
+        setError((err as Error).message);
       }
-    } catch (err) {
-      setError(`Uploaded ${count} of ${files.length}. ${(err as Error).message}`);
-    } finally {
-      setBusy(false);
     }
+    if (failed) setError((message) => `${failed} photo${failed === 1 ? '' : 's'} did not upload${message ? `: ${message}` : ''}. Try again.`);
+    setBusy(false);
   };
 
-  const finished = done === files.length && files.length > 0 && !busy && !error;
+  const sent = items.filter((item) => item.status === 'done').length;
+  const toSend = items.length - sent;
+  const finished = items.length > 0 && toSend === 0 && !busy;
+  const uploadingIndex = items.findIndex((item) => item.status === 'uploading');
+
+  const picker = (className: string, content: ReactNode) => (
+    <label
+      className={`${className}${dragging ? ' dragging' : ''}`}
+      onDragOver={(event) => {
+        event.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragging(false);
+        add(event.dataTransfer.files);
+      }}
+    >
+      {content}
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        disabled={busy}
+        onChange={(event: ChangeEvent<HTMLInputElement>) => {
+          add(event.target.files);
+          event.target.value = '';
+        }}
+      />
+    </label>
+  );
 
   return (
     <Modal
-      title={`Add photos of ${venue.name}`}
+      title="Add photos"
       onClose={onClose}
       footer={finished ? (
         <button type="button" className="btn btn-dark" onClick={onClose}>Done</button>
       ) : (
-        <button type="button" className="btn btn-accent" disabled={files.length === 0 || busy} onClick={() => void upload()}>
-          {busy ? `Uploading ${done + 1} of ${files.length}…` : `Upload ${files.length || ''} photo${files.length === 1 ? '' : 's'}`}
-        </button>
+        <>
+          <span className="photo-count">{items.length === 0 ? `Up to ${MAX_PHOTOS} photos` : `${items.length} of ${MAX_PHOTOS} selected`}</span>
+          <button type="button" className="btn btn-accent" disabled={toSend === 0 || busy} onClick={() => void upload()}>
+            {busy ? `Uploading ${uploadingIndex + 1} of ${items.length}…` : `Upload ${toSend || ''} photo${toSend === 1 ? '' : 's'}`}
+          </button>
+        </>
       )}
     >
       {finished ? (
-        <p className="review-thanks">Thank you. Your photo{files.length === 1 ? '' : 's'} will appear once a volunteer has had a quick look — usually within a day.</p>
+        <div className="photo-done">
+          <span className="photo-done-icon"><CheckIcon size={22} /></span>
+          <h3>Thank you</h3>
+          <p>{sent} photo{sent === 1 ? '' : 's'} of {venue.name} will appear once a volunteer has had a quick look, usually within a day.</p>
+        </div>
       ) : (
         <div className="photo-form">
-          <label className="photo-upload">
-            {previews.length > 0 ? (
-              <span className="photo-previews">{previews.map((url) => <img key={url} src={url} alt="" />)}</span>
-            ) : (
+          {items.length === 0 ? (
+            picker('photo-upload', (
               <>
-                <CameraGlyph />
-                <strong>Choose photos</strong>
-                <span>Up to 8 at a time. Landscape shots of the trail, stairs or view work best.</span>
+                <CameraGlyph size={30} />
+                <strong>Drag photos here</strong>
+                <span>or <u>choose from your device</u>. The trailhead, the stairs and the view all help.</span>
               </>
-            )}
-            <input type="file" accept="image/*" multiple onChange={choose} />
-          </label>
+            ))
+          ) : (
+            <ul className="photo-picks" aria-label="Photos to upload">
+              {items.map((item) => (
+                <li key={item.id} className={`photo-pick ${item.status}`}>
+                  <img src={item.url} alt="" />
+                  {item.status === 'uploading' && <span className="photo-pick-state" aria-label="Uploading"><span className="spinner" /></span>}
+                  {item.status === 'done' && <span className="photo-pick-state" aria-label="Uploaded"><CheckIcon size={16} /></span>}
+                  {item.status === 'failed' && <span className="photo-pick-state failed" aria-label="Failed">!</span>}
+                  {(item.status === 'ready' || item.status === 'failed') && !busy && (
+                    <button type="button" className="photo-pick-remove" aria-label="Remove photo" onClick={() => remove(item.id)}>
+                      <CloseIcon size={10} />
+                    </button>
+                  )}
+                </li>
+              ))}
+              {items.length < MAX_PHOTOS && !busy && (
+                <li>{picker('photo-pick-add', <><PlusIcon /><span>Add more</span></>)}</li>
+              )}
+            </ul>
+          )}
           <label className="field">
             <span>Credit as</span>
             <input value={credit} maxLength={60} onChange={(event) => setCredit(event.target.value)} placeholder="Your name or handle" />
           </label>
-          <p className="photo-note">A volunteer checks every photo before it appears, so nothing unsuitable goes public. Shared under CC BY-SA 4.0 with your credit; location data is removed.</p>
+          <p className="photo-note">A volunteer checks every photo before it appears. Shared under CC BY-SA 4.0 with your credit; location data is removed.</p>
           {error && <p className="review-error">{error}</p>}
         </div>
       )}
@@ -495,16 +685,35 @@ interface VenueDetailProps {
   venue: Venue;
   routes: Route[];
   allVenues: Venue[];
-  onClose: () => void;
+  /**
+   * Unused: the page opens in its own tab and has no back. Kept optional so
+   * callers that still pass it compile.
+   */
+  onClose?: () => void;
+  /** Leave this page for the map, framed on the place (or on one of its routes). */
   onShowOnMap: (routeSlug?: string) => void;
+  /** The header's centre. Defaults to the site search over `allVenues`. */
+  headerCenter?: ReactNode;
   isFavorite: boolean;
   onToggleFavorite: () => void;
   onRemoveLocalRoute: (slug: string) => void;
 }
 
 
-function CameraGlyph() {
-  return <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 7h4l1.5-2h7L17 7h4v12H3V7Z" /><circle cx="12" cy="13" r="4" /></svg>;
+function CameraGlyph({ size = 34 }: { size?: number }) {
+  return <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 7h4l1.5-2h7L17 7h4v12H3V7Z" /><circle cx="12" cy="13" r="4" /></svg>;
+}
+
+/** A trace between two points: the empty-routes icon, in the same stroke style as the others. */
+function RouteGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="6" cy="18" r="2.2" />
+      <path d="M18 3.5c-1.9 0-3.4 1.5-3.4 3.3 0 2.4 3.4 5.7 3.4 5.7s3.4-3.3 3.4-5.7c0-1.8-1.5-3.3-3.4-3.3z" />
+      <circle cx="18" cy="6.8" r="1" />
+      <path d="M8.2 18H15a3 3 0 0 0 0-6h-4a3 3 0 0 1 0-6h1.5" />
+    </svg>
+  );
 }
 
 function aboutFallback(venue: Venue, typeLabel: string, area: string | null, heightText: string, routeCount: number): string {
@@ -520,8 +729,8 @@ function VenueDetailInner({
   venue,
   routes,
   allVenues,
-  onClose,
   onShowOnMap,
+  headerCenter,
   isFavorite,
   onToggleFavorite,
   onRemoveLocalRoute,
@@ -539,6 +748,7 @@ function VenueDetailInner({
   const pageRef = useRef<HTMLDivElement>(null);
   useReveal(pageRef, venue.slug);
   const { reviews, setReviews, communityPhotos, commons, wiki, generated } = useVenueContent(venue);
+  const narrow = useNarrow();
   const height = venueHeight(venue);
   const typeLabel = venueKindLabel(venue);
   const area = townName(venue.town) ?? regionOf(venue.lng, venue.lat);
@@ -551,23 +761,21 @@ function VenueDetailInner({
     [allVenues, venue],
   );
 
+  // The stored cover first, as on every card; then the rest of the stored
+  // gallery, community photos, and Commons photos taken nearby. The same file
+  // from two sources appears once.
   const photos: GalleryPhoto[] = useMemo(() => {
-    const published = venue.photos ?? (venue.photo ? [venue.photo] : []);
+    const seen = new Set<string>();
+    const unique = (photo: GalleryPhoto) => {
+      if (photo.keys.some((key) => seen.has(key))) return false;
+      photo.keys.forEach((key) => seen.add(key));
+      return true;
+    };
     return [
-      ...published.map((photo) => {
-        const sharp = sharpPhoto(photo.sourceUrl);
-        return {
-          key: photo.file,
-          src: sharp ?? photoSrc(photo),
-          fallback: sharp ? photoSrc(photo) : undefined,
-          credit: photo.credit ?? (photo.source ?? 'Mapillary'),
-          creditUrl: photo.sourceUrl,
-          licence: photo.license ?? (photo.source ? undefined : 'CC BY-SA · Mapillary'),
-        };
-      }),
-      ...communityPhotos.map((photo) => ({ key: photo.id, src: photo.url, credit: photo.credit, licence: photo.licence })),
+      ...venuePhotos(venue).map(storedGalleryPhoto),
+      ...communityPhotos.map((photo): GalleryPhoto => ({ key: photo.id, src: photo.url, credit: photo.credit, licence: photo.licence, keys: [photoKey(photo.url)] })),
       ...commons,
-    ];
+    ].filter(unique);
   }, [venue, communityPhotos, commons]);
 
   const about = generated?.text ?? wiki?.extract ?? aboutFallback(venue, typeLabel, area, heightText, routes.length);
@@ -578,16 +786,9 @@ function VenueDetailInner({
     if (el && !aboutExpanded) setAboutOverflows(el.scrollHeight > el.clientHeight + 2);
   }, [about, aboutExpanded]);
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !addingPhotos && !document.querySelector('.lightbox, .modal-root')) onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      if (copyTimer.current != null) window.clearTimeout(copyTimer.current);
-    };
-  }, [onClose, addingPhotos]);
+  useEffect(() => () => {
+    if (copyTimer.current != null) window.clearTimeout(copyTimer.current);
+  }, []);
 
   const share = async () => {
     const url = window.location.href;
@@ -600,44 +801,70 @@ function VenueDetailInner({
     }
   };
 
+  const iconActions = (
+    <div className="venue-icon-actions">
+      <button type="button" className={`icon-action${isFavorite ? ' on' : ''}`} aria-label={isFavorite ? 'Saved' : 'Save'} title={isFavorite ? 'Saved' : 'Save'} onClick={onToggleFavorite}>
+        <HeartIcon size={18} filled={isFavorite} />
+      </button>
+      <button type="button" className="icon-action" aria-label={copied ? 'Link copied' : 'Copy link'} title={copied ? 'Link copied' : 'Copy link'} onClick={() => void share()}>
+        {copied ? <CheckIcon size={16} /> : <LinkIcon />}
+      </button>
+    </div>
+  );
+
   const heightBlock = height ? <><strong>{units.height(height.value)}</strong> {HEIGHT_LABEL[height.kind]}</> : 'Height not recorded';
 
   return createPortal(
     <div className="venue-detail" ref={pageRef}>
-      <SiteHeader onBack={onClose} />
+      {/* A page of its own (cards open it in a new tab): the site header with
+          search on top, no back button. */}
+      <SiteHeader
+        center={headerCenter ?? (
+          <SearchBar
+            venues={allVenues}
+            onPick={(slug) => (window.location.hash = `#venue/${slug}`)}
+            onFitBounds={(bounds) => (window.location.hash = boundsToHash(bounds))}
+          />
+        )}
+      />
 
       <main className="venue-detail-content">
         <div className="venue-detail-title-row">
           <div>
             <h1>{venue.name}</h1>
             <p className="venue-detail-sub">
-              {rating && (
-                <button type="button" className="venue-rating-link" onClick={() => reviewsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
-                  <StarIcon size={12} filled /> {rating.average.toFixed(2)} · <u>{rating.count} review{rating.count === 1 ? '' : 's'}</u>
-                </button>
-              )}
-              {rating && <span aria-hidden="true"> · </span>}
+              <button type="button" className="venue-rating-link" onClick={() => reviewsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+                {rating ? (
+                  <><StarIcon size={12} filled /> {rating.average.toFixed(2)} · <u>{rating.count} review{rating.count === 1 ? '' : 's'}</u></>
+                ) : (
+                  <RatingLabel />
+                )}
+              </button>
+              <span aria-hidden="true"> · </span>
               {area ? `${typeLabel} in ${area}` : typeLabel}
             </p>
           </div>
+          {!narrow && (
+            <div className="venue-detail-title-actions">
+              <button type="button" onClick={() => void share()} aria-label={copied ? 'Link copied' : 'Share'}>
+                {copied ? <CheckIcon size={16} /> : <LinkIcon />}
+                <span className="venue-action-label">{copied ? 'Link copied' : 'Share'}</span>
+              </button>
+              <button type="button" className={isFavorite ? 'on' : undefined} onClick={onToggleFavorite} aria-label={isFavorite ? 'Saved' : 'Save'} aria-pressed={isFavorite}>
+                <HeartIcon size={16} filled={isFavorite} />
+                <span className="venue-action-label">{isFavorite ? 'Saved' : 'Save'}</span>
+              </button>
+            </div>
+          )}
         </div>
 
-        <PhotoCarousel
-          key={venue.slug}
-          photos={photos}
-          venueName={venue.name}
-          onAdd={() => setAddingPhotos(true)}
-          actions={
-            <div className="venue-icon-actions">
-            <button type="button" className={`icon-action${isFavorite ? ' on' : ''}`} aria-label={isFavorite ? 'Saved' : 'Save'} title={isFavorite ? 'Saved' : 'Save'} onClick={onToggleFavorite}>
-              <HeartIcon size={18} filled={isFavorite} />
-            </button>
-            <button type="button" className="icon-action" aria-label={copied ? 'Link copied' : 'Copy link'} title={copied ? 'Link copied' : 'Copy link'} onClick={() => void share()}>
-              {copied ? <CheckIcon size={16} /> : <LinkIcon />}
-            </button>
-            </div>
-          }
-        />
+        {photos.length === 0 ? (
+          <NoPhotos venue={venue} onAdd={() => setAddingPhotos(true)} actions={narrow ? iconActions : undefined} />
+        ) : narrow ? (
+          <PhotoCarousel photos={photos} onAdd={() => setAddingPhotos(true)} actions={iconActions} />
+        ) : (
+          <PhotoGrid photos={photos} venueName={venue.name} onAdd={() => setAddingPhotos(true)} />
+        )}
 
         <div className="venue-detail-layout">
           <div className="venue-detail-main">
@@ -694,9 +921,8 @@ function VenueDetailInner({
             </section>
 
             <section className="venue-detail-section venue-routes-section">
+              <h2>Routes that pass here</h2>
               {routes.length > 0 ? (
-                <>
-                  <h2>Routes that pass here</h2>
                   <div className="venue-route-grid">
                     {routes.map((route) => (
                       <article className="venue-route-card" key={route.slug}>
@@ -717,12 +943,14 @@ function VenueDetailInner({
                       </article>
                     ))}
                   </div>
-                </>
               ) : (
-                <div className="venue-routes-empty">
-                  <h2>No GPX for this place yet</h2>
-                  <p>Been up {venue.name}? Upload the GPX from your watch or app and it becomes the first route here. Free for everyone.</p>
-                  <a className="btn btn-accent" href="#import"><UploadIcon size={16} />Upload a GPX</a>
+                <div className="venue-empty">
+                  <span className="venue-empty-icon" aria-hidden="true"><RouteGlyph /></span>
+                  <div className="venue-empty-copy">
+                    <h3>No GPX here yet</h3>
+                    <p>Been up {venue.name}? Share the file from your watch or app and anyone can download it.</p>
+                  </div>
+                  <a className="btn btn-dark venue-empty-btn" href="#import"><UploadIcon size={15} />Upload a GPX</a>
                 </div>
               )}
             </section>
@@ -735,7 +963,7 @@ function VenueDetailInner({
                 <div className="nearby-grid">
                   {nearby.map(({ venue: item }) => {
                     const itemHeight = venueHeight(item);
-                    return <a className="nearby-card" href={`#venue/${item.slug}`} key={item.slug}><VenueThumb venue={item} /><strong>{item.name}</strong><span>{venueKindLabel(item)}{itemHeight ? ` · ${units.height(itemHeight.value)} ${HEIGHT_LABEL[itemHeight.kind]}` : ''}</span></a>;
+                    return <a className="nearby-card" href={`#venue/${item.slug}`} target="_blank" rel="noopener" key={item.slug}><VenueThumb venue={item} /><strong>{item.name}</strong><span>{venueKindLabel(item)}{itemHeight ? ` · ${units.height(itemHeight.value)} ${HEIGHT_LABEL[itemHeight.kind]}` : ''}</span></a>;
                   })}
                 </div>
               </section>
@@ -770,4 +998,14 @@ function VenueDetailInner({
   );
 }
 
-export const VenueDetail = VenueDetailInner;
+/**
+ * The venue page. App can hand over a fresh object for the same place (map
+ * tiles reload), so the page pins one venue per slug: content is fetched once
+ * per place, and a new slug remounts the page at the top.
+ */
+export function VenueDetail(props: VenueDetailProps) {
+  const [venue, setVenue] = useState(props.venue);
+  if (venue.slug !== props.venue.slug) setVenue(props.venue);
+  const current = venue.slug === props.venue.slug ? venue : props.venue;
+  return <VenueDetailInner key={current.slug} {...props} venue={current} />;
+}

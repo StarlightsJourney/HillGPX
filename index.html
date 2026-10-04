@@ -8,7 +8,12 @@
       name="description"
       content="Find hills, stairs, tall HDB blocks and trail routes to train elevation gain on. Browse routes on the map, drop in your own GPX, get an honest elevation profile."
     />
+    <!-- Absolute paths: Vite prefixes them with `base` (e.g. /HillGPX/) at build. -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icons/icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#ffffff" />
     <!-- Figtree, the closest free face to Airbnb Cereal. Preconnect so the
          font request does not wait on DNS and TLS before it starts. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -17,6 +22,8 @@
       href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;900&display=swap"
       rel="stylesheet"
     />
+    <!-- The wordmark's face, subset to the letters of "hillGPX" (a few KB). -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700&text=hillGPX&display=block" rel="stylesheet" />
   </head>
   <body>
     <div id="root"></div>

@@ -2,29 +2,36 @@ import type { ReactNode } from 'react';
 import { REPO_URL, addPlaceUrl } from '../lib/contribute';
 import { HeaderControls } from './HeaderControls';
 import { MilestoneBar } from './Milestones';
-import { ChevronLeftIcon, GitHubIcon, Mark } from './icons';
+import { GitHubIcon, Mark } from './icons';
 
 /**
- * The one header every page uses: logo on the left, the page's own control
- * (tabs, search) in the centre, and the same two actions on the right. Kept
- * compact and centred in a narrow column so the eye lands in the middle.
+ * The logo lockup: the mark and the name in one brand colour, set in Nunito
+ * (rounded, like Airbnb's wordmark) at a medium-bold weight with tight
+ * tracking. Only these seven letters of the face are loaded (see index.html).
  */
-export function SiteHeader({ center, onBack, sticky = false }: { center?: ReactNode; onBack?: () => void; sticky?: boolean }) {
+export function Wordmark({ size = 28, href = '#' }: { size?: number; href?: string }) {
+  return (
+    <a className="wordmark" href={href} aria-label="hillGPX home">
+      <Mark size={size} />
+      <span className="wordmark-text">hillGPX</span>
+    </a>
+  );
+}
+
+/**
+ * The one header every page uses. On top, the community progress strip; below
+ * it, logo on the left, the page's own control (tabs, search) in the centre,
+ * and the same two actions on the right. When sticky (landing), the strip
+ * scrolls away and the logo row stays: the header keeps one fixed size, it is
+ * only offset by the strip's height, so nothing resizes on scroll.
+ */
+export function SiteHeader({ center, sticky = false }: { center?: ReactNode; sticky?: boolean }) {
   return (
     <header className={`site-header${sticky ? ' sticky' : ''}`}>
+      <MilestoneBar />
       <div className="site-header-row">
         <div className="site-header-left">
-          {onBack && (
-            <button type="button" className="site-header-back" onClick={onBack} aria-label="Back">
-              <ChevronLeftIcon size={18} />
-            </button>
-          )}
-          <a className="wordmark" href="#" aria-label="hillGPX home">
-            <Mark size={28} />
-            <span className="wordmark-text">
-              hill<span className="dot">GPX</span>
-            </span>
-          </a>
+          <Wordmark />
         </div>
         <div className="site-header-center">{center}</div>
         <div className="site-header-right">
@@ -37,7 +44,6 @@ export function SiteHeader({ center, onBack, sticky = false }: { center?: ReactN
           <HeaderControls />
         </div>
       </div>
-      <MilestoneBar />
     </header>
   );
 }

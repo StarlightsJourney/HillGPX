@@ -77,7 +77,7 @@ def search(row: list) -> list | None:
     else:
         return None
     name = core(row[1])
-    best = None
+    ranked: list[tuple[int, int, list]] = []
     for page in pages.values():
         info = (page.get("imageinfo") or [{}])[0]
         meta = info.get("extmetadata") or {}
@@ -88,9 +88,11 @@ def search(row: list) -> list | None:
         if (info.get("thumbwidth") or 0) < (info.get("thumbheight") or 1):
             continue  # portrait shots crop badly in square cards
         score = 2 if name and name in core(title) else 1
-        if not best or score > best[0]:
-            best = (score, [info["thumburl"], info.get("descriptionurl", ""), strip(meta.get("Artist", {}).get("value", "Unknown"))[:80], licence])
-    return best[1] if best else wikipedia_image(row)
+        # geosearch returns nearest first; keep that order within a score.
+        ranked.append((score, page.get("index", len(ranked)), [info["thumburl"], info.get("descriptionurl", ""), strip(meta.get("Artist", {}).get("value", "Unknown"))[:80], licence]))
+    ranked.sort(key=lambda r: (-r[0], r[1]))
+    fallback = wikipedia_image(row)
+    return [r[2] for r in ranked] + ([fallback] if fallback else [])
 
 
 def wikipedia_image(row: list) -> list:
@@ -119,10 +121,16 @@ def main(refresh: bool, retry_missing: bool) -> None:
     with open(INDEX, encoding="utf-8") as fh:
         index = json.load(fh)
     tile = index["tile"]
-    by_country: dict[str, list] = {}
-    for row in index["top"]:
-        by_country.setdefault(row[6], []).append(row)
-    targets = [r for rows in by_country.values() for r in sorted(rows, key=lambda r: -r[4])[:PER_COUNTRY]]
+    # The landing's country rows (index["rows"]: ISO code -> geonameids), as
+    # chosen by fetch_world_peaks.py; fall back to each country's tallest.
+    by_id = {row[0]: row for row in index["top"]}
+    if index.get("rows"):
+        targets = [by_id[i] for ids in index["rows"].values() for i in ids if i in by_id]
+    else:
+        by_country: dict[str, list] = {}
+        for row in index["top"]:
+            by_country.setdefault(row[6], []).append(row)
+        targets = [r for rows in by_country.values() for r in sorted(rows, key=lambda r: -r[4])[:PER_COUNTRY]]
 
     found: dict[str, list] = {}
     if os.path.exists(OUT) and not refresh:
@@ -136,10 +144,31 @@ def main(refresh: bool, retry_missing: bool) -> None:
             json.dump({"note": "Wikimedia Commons photos near each summit; links only. Built by scripts/fetch_peak_photos.py.",
                        "photos": found}, fh, ensure_ascii=False, separators=(",", ":"))
 
+    # One picture per summit, so two cards never show the same view. Earlier
+    # runs shared the nearest photo between neighbours: keep each shared photo
+    # for the summit its file name mentions (else the first) and search again for the rest.
+    names = {slug_of(r, tile): core(r[1]) for r in index["top"]}
+    owners: dict[str, list[str]] = {}
+    for slug, value in found.items():
+        if value:
+            owners.setdefault(value[0], []).append(slug)
+    for slugs in owners.values():
+        if len(slugs) < 2:
+            continue
+        keep = next((s for s in slugs if names.get(s) and names[s] in core(urllib.parse.unquote(found[s][1]))), slugs[0])
+        for slug in slugs:
+            if slug != keep:
+                del found[slug]
+    todo = [r for r in targets if slug_of(r, tile) not in found or (retry_missing and not found[slug_of(r, tile)])]
+    print(f"  {len(todo)} to search after clearing shared photos")
+    used = {v[0] for v in found.values() if v}
     with cf.ThreadPoolExecutor(max_workers=4) as pool:
         for i, (row, result) in enumerate(zip(todo, pool.map(search, todo)), 1):
             if result is not None:
-                found[slug_of(row, tile)] = result
+                pick = next((c for c in result if c[0] not in used), [])
+                found[slug_of(row, tile)] = pick
+                if pick:
+                    used.add(pick[0])
             if i % 100 == 0:
                 save()
                 print(f"  {i}/{len(todo)} searched, {sum(1 for v in found.values() if v)} with a photo")

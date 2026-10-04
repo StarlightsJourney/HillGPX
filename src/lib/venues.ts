@@ -70,6 +70,64 @@ export function photoSrc(photo: VenuePhoto): string {
   return /^https?:\/\//.test(photo.file) ? photo.file : `${import.meta.env.BASE_URL}${photo.file}`;
 }
 
+/**
+ * Every stored photo of a venue, cover first. `venue.photo` is the cover on
+ * every surface (cards, map popup, detail hero); `venue.photos` adds the rest
+ * of the build-time gallery. Duplicates are dropped by `photoKey`.
+ */
+export function venuePhotos(venue: Venue): VenuePhoto[] {
+  const all = [venue.photo, ...(venue.photos ?? [])].filter((photo): photo is VenuePhoto => Boolean(photo?.file));
+  const seen = new Set<string>();
+  return all.filter((photo) => {
+    const keys = venuePhotoKeys(photo);
+    if (keys.some((key) => seen.has(key))) return false;
+    keys.forEach((key) => seen.add(key));
+    return true;
+  });
+}
+
+/**
+ * A comparable identity for a photo URL. Wikimedia serves one file under many
+ * URLs (a thumb at any width, the original, Special:FilePath, the File: page),
+ * so those collapse to the file name; anything else is the URL without its query.
+ */
+export function photoKey(url: string): string {
+  const name = commonsFileName(url);
+  return name ? `file:${name.toLowerCase()}` : url.split(/[?#]/)[0];
+}
+
+/**
+ * The Wikimedia Commons file name behind a Commons URL (upload/thumb file,
+ * Special:FilePath, or the File: page), decoded, with underscores for spaces.
+ * Null for anything else, including files local to one Wikipedia.
+ */
+export function commonsFileName(url: string): string | null {
+  const clean = url.split(/[?#]/)[0];
+  const match =
+    /\/wikipedia\/commons\/thumb\/[0-9a-f]\/[0-9a-f]{2}\/([^/]+)\//.exec(clean) ??
+    /\/wikipedia\/commons\/[0-9a-f]\/[0-9a-f]{2}\/([^/]+)$/.exec(clean) ??
+    /commons\.wikimedia\.org\/wiki\/Special:FilePath\/([^/]+)$/.exec(clean) ??
+    /commons\.wikimedia\.org\/wiki\/(?:File|Image):([^/]+)$/.exec(clean);
+  if (!match) return null;
+  let name = match[1];
+  try {
+    name = decodeURIComponent(name);
+  } catch {
+    // Keep the raw name; it still compares equal to itself.
+  }
+  return name.replace(/ /g, '_');
+}
+
+/** Keys for a stored photo: its own file and, for Commons copies, the source file page. */
+export function venuePhotoKeys(photo: VenuePhoto): string[] {
+  const keys = [photoKey(photo.file)];
+  if (photo.sourceUrl) {
+    const source = photoKey(photo.sourceUrl);
+    if (source.startsWith('file:') && !keys.includes(source)) keys.push(source);
+  }
+  return keys;
+}
+
 let datasetPromise: Promise<Dataset> | null = null;
 
 /**
@@ -197,10 +255,15 @@ export function venuesInBounds(
   bounds: { west: number; south: number; east: number; north: number },
   types?: Set<VenueType>,
 ): Venue[] {
+  // A view across the antimeridian arrives as west > east or east > 180.
+  const within = (lng: number) => lng >= bounds.west && lng <= bounds.east;
+  const inLng = (lng: number) =>
+    bounds.west <= bounds.east
+      ? within(lng) || within(lng + 360) || within(lng - 360)
+      : lng >= bounds.west || lng <= bounds.east;
   return venues.filter(
     (v) =>
-      v.lng >= bounds.west &&
-      v.lng <= bounds.east &&
+      inLng(v.lng) &&
       v.lat >= bounds.south &&
       v.lat <= bounds.north &&
       (!types || types.has(v.type)),

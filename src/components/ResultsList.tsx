@@ -1,20 +1,103 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Venue } from '../types';
-import { HEIGHT_LABEL, nearest, photoSrc, rankingHeight, venueHeight, venuesInBounds, venueKindLabel } from '../lib/venues';
+import { HEIGHT_LABEL, nearest, photoSrc, rankingHeight, venueHeight, venuePhotos, venuesInBounds, venueKindLabel } from '../lib/venues';
 import { haversineM } from '../lib/elevation';
-import { VenueThumb } from './VenueThumb';
+import { CardPhotoNav, VenueThumb } from './VenueThumb';
 import { HeartIcon, SearchIcon, StarIcon } from './icons';
 import { useUnits } from './UnitsContext';
 import { regionOf } from '../lib/regions';
 
+/**
+ * The score in a card's first line, right-aligned opposite the name, as on
+ * Airbnb: "★ 4.85 (12)" with reviews, "★ New" without. "New" keeps the slot
+ * filled without inventing a number; nothing is borrowed from other sites.
+ */
 export function RatingLabel({ rating }: { rating?: { average: number; count: number } }) {
-  if (!rating || rating.count === 0) return null;
+  if (!rating || rating.count === 0) {
+    return (
+      <span className="rating rating-new" aria-label="New, no reviews yet">
+        <StarIcon size={12} filled />
+        New
+      </span>
+    );
+  }
+  const score = rating.average.toFixed(2).replace(/0$/, '');
   return (
-    <span className="rating" aria-label={`Rated ${rating.average.toFixed(1)} out of 5 by ${rating.count}`}>
+    <span className="rating" aria-label={`Rated ${score} out of 5, ${rating.count} review${rating.count === 1 ? '' : 's'}`}>
       <StarIcon size={12} filled />
-      {rating.average.toFixed(2).replace(/0$/, '')}
+      {score}
       <span className="rating-count">({rating.count})</span>
     </span>
+  );
+}
+
+/**
+ * One result. The card opens the place's page in a new tab, as Airbnb's
+ * listing cards do, so the map and the list stay exactly where they were.
+ * Places with more than one stored photo get Airbnb's in-card carousel; the
+ * extra files only load when someone steps to them.
+ */
+function ResultCard({
+  venue,
+  index,
+  routeCount,
+  isFavorite,
+  onToggleFavorite,
+  onHover,
+}: {
+  venue: Venue;
+  index: number;
+  routeCount: number;
+  isFavorite: boolean;
+  onToggleFavorite: (slug: string) => void;
+  onHover?: (slug: string | null) => void;
+}) {
+  const units = useUnits();
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const photoCount = useMemo(() => venuePhotos(venue).length, [venue]);
+  const height = venueHeight(venue);
+  const region = regionOf(venue.lng, venue.lat);
+
+  return (
+    <li
+      className="result-item"
+      style={{ '--i': index } as React.CSSProperties}
+      onMouseEnter={() => onHover?.(venue.slug)}
+      onMouseLeave={() => onHover?.(null)}
+    >
+      <button
+        type="button"
+        className={`result-favorite${isFavorite ? ' on' : ''}`}
+        aria-label={isFavorite ? 'Remove favourite' : 'Add to favourites'}
+        onClick={() => onToggleFavorite(venue.slug)}
+      >
+        <HeartIcon size={24} filled={isFavorite} />
+      </button>
+      <a className="result-card" data-slug={venue.slug} href={`#venue/${venue.slug}`} target="_blank" rel="noopener">
+        <VenueThumb venue={venue} index={photoIndex} />
+        <span className="result-card-top">
+          <span className="result-card-name">{venue.name}</span>
+          <RatingLabel rating={venue.rating} />
+        </span>
+        <span className="result-card-meta">
+          {venueKindLabel(venue)}
+          {region && region !== 'Singapore' ? ` in ${region}` : ''}
+          {venue.storeys != null && ` · ${venue.storeys} floors`}
+        </span>
+        <span className="result-card-gain">
+          {height ? (
+            <>
+              <strong>{units.height(height.value)}</strong>{' '}
+              {HEIGHT_LABEL[height.kind]}
+            </>
+          ) : (
+            'Height not recorded'
+          )}
+          {routeCount > 0 && ` · ${routeCount} route${routeCount === 1 ? '' : 's'}`}
+        </span>
+      </a>
+      <CardPhotoNav count={photoCount} index={photoIndex} onIndex={setPhotoIndex} name={venue.name} />
+    </li>
   );
 }
 
@@ -121,7 +204,6 @@ function ResultsListInner({
   onToggleFavorite,
   onShowPlaces,
 }: ResultsListProps) {
-  const units = useUnits();
   const sectionRef = useRef<HTMLElement>(null);
   const [page, setPage] = useState(0);
   const [shownKey, setShownKey] = useState('');
@@ -251,55 +333,17 @@ function ResultsListInner({
                   <span className="sk-line" />
                 </li>
               ))
-            : rows.map((venue, index) => {
-                const height = venueHeight(venue);
-                const isFavorite = favorites.has(venue.slug);
-                const routeCount = venue.routeSlugs.length + (routeCounts.get(venue.slug) ?? 0);
-                const region = regionOf(venue.lng, venue.lat);
-
-                return (
-                  <li
-                    key={venue.slug}
-                    className="result-item"
-                    style={{ '--i': index } as React.CSSProperties}
-                    onMouseEnter={() => onHover?.(venue.slug)}
-                    onMouseLeave={() => onHover?.(null)}
-                  >
-                    <button
-                      type="button"
-                      className={`result-favorite${isFavorite ? ' on' : ''}`}
-                      aria-label={isFavorite ? 'Remove favourite' : 'Add to favourites'}
-                      onClick={() => onToggleFavorite(venue.slug)}
-                    >
-                      <HeartIcon size={24} filled={isFavorite} />
-                    </button>
-                    <a className="result-card" data-slug={venue.slug} href={`#venue/${venue.slug}`}>
-                      <VenueThumb venue={venue} />
-                      <span className="result-card-top">
-                        <span className="result-card-name">{venue.name}</span>
-                        <RatingLabel rating={venue.rating} />
-                      </span>
-                      <span className="result-card-meta">
-                        {venueKindLabel(venue)}
-                        {region && region !== 'Singapore' ? ` in ${region}` : ''}
-                        {venue.storeys != null && ` · ${venue.storeys} floors`}
-                        {routeCount > 0 && ` · ${routeCount} route${routeCount === 1 ? '' : 's'}`}
-                      </span>
-                      <span className="result-card-gain">
-                        {height ? (
-                          <>
-                            <strong>{units.height(height.value)}</strong>{' '}
-                            {HEIGHT_LABEL[height.kind]}
-                          </>
-                        ) : (
-                          'Height not recorded'
-                        )}
-                        {routeCount > 0 && ` · ${routeCount} route${routeCount > 1 ? 's' : ''}`}
-                      </span>
-                    </a>
-                  </li>
-                );
-              })}
+            : rows.map((venue, index) => (
+                <ResultCard
+                  key={venue.slug}
+                  venue={venue}
+                  index={index}
+                  routeCount={venue.routeSlugs.length + (routeCounts.get(venue.slug) ?? 0)}
+                  isFavorite={favorites.has(venue.slug)}
+                  onToggleFavorite={onToggleFavorite}
+                  onHover={onHover}
+                />
+              ))}
         </ul>
       )}
 
@@ -309,9 +353,8 @@ function ResultsListInner({
           total={totalPages}
           onPage={(nextPage) => {
             setPage(nextPage - 1);
-            const pane = sectionRef.current?.closest('.list-pane');
-            if (pane instanceof HTMLElement) pane.scrollTo({ top: 0 });
-            else window.scrollTo({ top: 0 });
+            // The page scrolls, not the list pane (the footer sits under list and map).
+            window.scrollTo({ top: 0 });
           }}
         />
       )}

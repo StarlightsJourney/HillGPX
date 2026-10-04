@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 /**
  * Inline SVG icons. Kept in code rather than pulled from an icon package so the
  * landing bundle stays small and the marks inherit `currentColor` in both
@@ -5,61 +7,28 @@
  */
 
 /**
- * The product mark: an app-icon-style rounded tile with a mountain-and-route
- * emblem. Matches public/favicon.svg — change the two together.
+ * The product mark: an app-icon-style rounded tile with a white "H" whose
+ * crossbar peaks like a summit. Matches public/favicon.svg and the PNGs in
+ * public/icons/ — change them together.
  *
- * The shape is a bold elevation profile that also reads as two peaks: a route
- * climbs, dips, then climbs to a summit dot. This keeps it legible at 22 px in
- * the header and as a favicon.
+ * Solid shapes, no strokes or filters, so it stays crisp at 16 px.
  */
 export function Mark({ size = 22 }: { size?: number }) {
+  const gradient = `mark${useId().replace(/:/g, '')}`;
   return (
-    <svg
-      className="mark"
-      width={size}
-      height={size}
-      viewBox="0 0 32 32"
-      aria-hidden="true"
-      focusable="false"
-    >
+    <svg className="mark" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
       <defs>
-        <linearGradient id="markGradient" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={gradient} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#e06c44" />
           <stop offset="0.55" stopColor="#c1502e" />
           <stop offset="1" stopColor="#9c3a1d" />
         </linearGradient>
-        <filter id="markShadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="#000000" floodOpacity="0.2" />
-        </filter>
       </defs>
-      <rect width="32" height="32" rx="7" fill="url(#markGradient)" />
-      {/* Subtle mountain backdrop. */}
+      <rect width="32" height="32" rx="7" fill={`url(#${gradient})`} />
       <path
-        d="M5 26 L13 12 L19 18 L27 6 L27 26 Z"
+        d="M9.75 7.5h2A1.25 1.25 0 0 1 13 8.75V15l3-3.25 3 3.25V8.75a1.25 1.25 0 0 1 1.25-1.25h2a1.25 1.25 0 0 1 1.25 1.25v14.5a1.25 1.25 0 0 1-1.25 1.25h-2A1.25 1.25 0 0 1 19 23.25V19H13v4.25a1.25 1.25 0 0 1-1.25 1.25h-2A1.25 1.25 0 0 1 8.5 23.25V8.75A1.25 1.25 0 0 1 9.75 7.5z"
         fill="#ffffff"
-        fillOpacity="0.08"
       />
-      {/* Route trace with a soft casing for contrast against the backdrop. */}
-      <path
-        d="M5 25 L13 17 L19 20 L27 9"
-        fill="none"
-        stroke="#7e2e1b"
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        opacity="0.4"
-      />
-      <path
-        d="M5 25 L13 17 L19 20 L27 9"
-        fill="none"
-        stroke="#ffffff"
-        strokeWidth="2.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        filter="url(#markShadow)"
-      />
-      {/* Summit dot. */}
-      <circle cx="27" cy="9" r="3" fill="#ffffff" />
     </svg>
   );
 }

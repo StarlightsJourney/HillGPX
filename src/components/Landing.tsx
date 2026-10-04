@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Route, Venue } from '../types';
-import { HEIGHT_LABEL, loadDataset, rankingHeight, venueHeight, type Dataset, venueKindLabel } from '../lib/venues';
-import { DESTINATIONS, boundsToHash, regionOf, type Destination } from '../lib/regions';
-import { countrySummaries, loadPeakPhotos, type CountrySummary, type PeakPhoto } from '../lib/worldPeaks';
+import { HEIGHT_LABEL, boundsOf, loadDataset, photoSrc, rankingHeight, townName, venueHeight, venueKindLabel, type Bounds, type Dataset } from '../lib/venues';
+import { DESTINATIONS, boundsToHash, geocodePlace, normalisePlace, regionBounds, regionOf } from '../lib/regions';
+import { countrySummaries, type CountrySummary } from '../lib/worldPeaks';
 import { SiteFooter, SiteHeader } from './SiteChrome';
 import { routeDifficulty, routeHasElevation } from '../lib/routes';
 import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from './icons';
@@ -10,7 +10,7 @@ import { RatingLabel } from './ResultsList';
 import { RouteThumb } from './RouteThumb';
 import { ActivityTag } from './ActivityIcon';
 import { routeActivity } from '../lib/routeAnalysis';
-import { PlaceArt, VenueThumb } from './VenueThumb';
+import { VenueThumb } from './VenueThumb';
 import { useUnits } from './UnitsContext';
 
 interface LandingProps {
@@ -19,10 +19,23 @@ interface LandingProps {
 
 type Mode = 'climbs' | 'routes';
 
-function openMap(mode: Mode, hash = '#map') {
+function rememberMode(mode: Mode) {
   sessionStorage.setItem('hillgpx:mode', mode);
+}
+
+function openMap(mode: Mode, hash = '#map') {
+  rememberMode(mode);
   window.location.hash = hash;
 }
+
+/** Where a row, its title and its "See all" card go: a real link, so it can be opened in a new tab too. */
+interface MapLink {
+  href: string;
+  mode: Mode;
+}
+
+const climbsIn = (bounds: Bounds): MapLink => ({ href: boundsToHash(bounds), mode: 'climbs' });
+const ROUTES_LINK: MapLink = { href: '#routes', mode: 'routes' };
 
 /**
  * The front door, modelled on Airbnb's home: a header with the two things you
@@ -30,22 +43,8 @@ function openMap(mode: Mode, hash = '#map') {
  * underneath. No hero copy to read — the rows are the pitch.
  */
 export function Landing({ onOpen }: LandingProps) {
-  const [mode, setMode] = useState<Mode>('climbs');
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  // Switching Climbs and Routes shows a brief loading state instead of the
-  // rows vanishing and reappearing in one frame.
-  const [switching, setSwitching] = useState(false);
-  const switchMode = (next: Mode) => {
-    if (next === mode) return;
-    setMode(next);
-    setSwitching(true);
-  };
-  useEffect(() => {
-    if (!switching) return;
-    const timer = window.setTimeout(() => setSwitching(false), 450);
-    return () => window.clearTimeout(timer);
-  }, [switching]);
 
   useEffect(() => {
     loadDataset().then(setDataset).catch((error: Error) => setLoadError(error.message));
@@ -57,11 +56,17 @@ export function Landing({ onOpen }: LandingProps) {
     [dataset],
   );
 
+  const placeRow = (row: RowSpec, half = false) => (
+    <Row key={row.title} half={half} title={row.title} link={climbsIn(row.bounds)} loading={!rows} collage={collageOf(row.venues)}>
+      {row.venues.map((venue, i) => <PlaceTile key={venue.slug} venue={venue} index={i} showKind={row.showKind} />)}
+    </Row>
+  );
+
   return (
     <div className="home">
-      <SiteHeader sticky center={<HomeSearch mode={mode} onModeChange={switchMode} onOpen={onOpen} />} />
+      <SiteHeader sticky center={<HomeSearch onOpen={onOpen} />} />
 
-      <HeroBlock mode={mode} />
+      <HeroBlock />
 
       <main className="home-shell home-main">
         {loadError && (
@@ -71,52 +76,19 @@ export function Landing({ onOpen }: LandingProps) {
             <button type="button" className="btn btn-light" onClick={() => window.location.reload()}>Try again</button>
           </section>
         )}
-        {!loadError && switching && (
+        {!loadError && (
           <>
-            <Row title="" action={() => undefined} loading>{null}</Row>
-            <Row title="" action={() => undefined} loading>{null}</Row>
-          </>
-        )}
-        {!loadError && !switching && (mode === 'routes' ? (
-          <>
-            <Row title="Routes worth running" action={() => openMap('routes', '#routes')} loading={!routes}>
+            <Row title="Routes worth running" link={ROUTES_LINK} loading={!routes}>
               {routes?.map((route, i) => <RouteTile key={route.slug} route={route} index={i} />)}
             </Row>
-          </>
-        ) : (
-          <>
-            {routes && routes.length > 0 && (
-              <Row title="Routes worth running" action={() => openMap('routes', '#routes')} loading={false}>
-                {routes.map((route, i) => <RouteTile key={route.slug} route={route} index={i} />)}
-              </Row>
-            )}
             {/* Singapore's two short rows read as one place: side by side, not two thin strips. */}
             <div className="home-row-pair">
-              {(rows ?? PLACEHOLDER_ROWS).slice(0, 2).map((row) => (
-                <Row
-                  key={row.title}
-                  half
-                  title={row.title}
-                  action={row.bounds ? () => openMap('climbs', boundsToHash(row.bounds!)) : onOpen}
-                  loading={!rows}
-                >
-                  {row.venues.map((venue, i) => <VenueTile key={venue.slug} venue={venue} index={i} />)}
-                </Row>
-              ))}
+              {(rows ?? PLACEHOLDER_ROWS).slice(0, 2).map((row) => placeRow(row, true))}
             </div>
-            {(rows ?? PLACEHOLDER_ROWS).slice(2).map((row) => (
-              <Row
-                key={row.title}
-                title={row.title}
-                action={row.bounds ? () => openMap('climbs', boundsToHash(row.bounds!)) : onOpen}
-                loading={!rows}
-              >
-                {row.venues.map((venue, i) => <VenueTile key={venue.slug} venue={venue} index={i} />)}
-              </Row>
-            ))}
+            {(rows ?? PLACEHOLDER_ROWS).slice(2).map((row) => placeRow(row))}
             <WorldRows />
           </>
-        ))}
+        )}
       </main>
 
       <SiteFooter />
@@ -126,11 +98,11 @@ export function Landing({ onOpen }: LandingProps) {
 
 /* ─── Hero ─────────────────────────────────────────────────────────────── */
 
-function HeroBlock({ mode }: { mode: Mode }) {
+function HeroBlock() {
   return (
     <section className="home-hero">
       <h1 className="visually-hidden">hillGPX: hills, mountains and GPX routes worldwide</h1>
-      <CountryMarquee mode={mode} />
+      <CountryMarquee mode="climbs" />
     </section>
   );
 }
@@ -161,7 +133,7 @@ function CountryMarquee({ mode }: { mode: Mode }) {
       className="marquee-chip"
       tabIndex={copy ? -1 : 0}
       aria-hidden={copy ? true : undefined}
-      onClick={() => openMap(mode, country.bounds ? boundsToHash(country.bounds) : '#map')}
+      onClick={() => openMap(mode, boundsToHash(country.bounds))}
     >
       <span>{country.name}</span>
       <small>{country.count.toLocaleString()}</small>
@@ -178,7 +150,11 @@ function CountryMarquee({ mode }: { mode: Mode }) {
 }
 
 const WORLD_SKIP = new Set(['SG', 'MY', 'TW', 'HK']);
+/** Countries revealed per scroll step, and the most the page will show. */
 const WORLD_BATCH = 4;
+const WORLD_MAX = 24;
+/** A row needs enough summits to scroll; tiny territories stay in the marquee and on the map. */
+const WORLD_MIN_PEAKS = 6;
 
 /**
  * More countries as you scroll, Airbnb-style: a skeleton row appears, then
@@ -186,21 +162,14 @@ const WORLD_BATCH = 4;
  */
 function WorldRows() {
   const countries = useCountries();
-  const [photos, setPhotos] = useState<Map<string, PeakPhoto> | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    void loadPeakPhotos().then((map) => {
-      if (!cancelled) setPhotos(map);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const [shown, setShown] = useState(WORLD_BATCH);
   const [loading, setLoading] = useState(false);
   const sentinel = useRef<HTMLDivElement>(null);
-  const list = useMemo(() => (countries ?? []).filter((c) => !WORLD_SKIP.has(c.code) && c.peaks.length >= 4), [countries]);
-  const done = shown >= Math.min(list.length, 24);
+  const list = useMemo(
+    () => (countries ?? []).filter((c) => !WORLD_SKIP.has(c.code) && c.peaks.length >= WORLD_MIN_PEAKS),
+    [countries],
+  );
+  const done = shown >= Math.min(list.length, WORLD_MAX);
 
   // Seeing the sentinel starts a short skeleton; the timer below then reveals
   // the next batch. Kept as two effects so starting the skeleton does not
@@ -231,52 +200,120 @@ function WorldRows() {
         <Row
           key={country.code}
           title={`Highest peaks in ${country.name}`}
-          action={() => openMap('climbs', country.bounds ? boundsToHash(country.bounds) : '#map')}
+          link={climbsIn(country.bounds)}
           loading={false}
+          collage={collageOf(country.peaks)}
         >
-          {country.peaks.map((venue, i) => <PeakTile key={venue.slug} venue={venue} country={country.name} index={i} photo={photos?.get(venue.slug)} />)}
+          {/* The title already says what and where, so the tiles carry just the name and height. */}
+          {country.peaks.map((venue, i) => <PlaceTile key={venue.slug} venue={venue} index={i} />)}
         </Row>
       ))}
-      {loading && <Row title="" action={() => undefined} loading>{null}</Row>}
+      {loading && <Row title="" link={null} loading>{null}</Row>}
       {!done && <div ref={sentinel} className="home-sentinel" aria-hidden="true" />}
     </>
   );
 }
 
-/** A landing summit: its Commons/Wikipedia photo when one exists, the shared drawn placeholder otherwise. */
-function PeakTile({ venue, country, index, photo }: { venue: Venue; country: string; index: number; photo?: PeakPhoto }) {
-  const units = useUnits();
-  const [failed, setFailed] = useState(false);
-  return (
-    <a className="tile" href={`#venue/${venue.slug}`} style={{ '--i': index } as React.CSSProperties}>
-      <span className="tile-media">
-        {photo && !failed ? (
-          <span className="card-thumb loading-shimmer"><img src={photo.url} alt={venue.name} loading="lazy" decoding="async" onError={() => setFailed(true)} /></span>
-        ) : (
-          <span className="card-thumb placeholder"><PlaceArt venue={venue} /></span>
-        )}
-        <span className="tile-badge">{units.height(venue.summitM ?? 0)}</span>
-      </span>
-      <span className="tile-top">
-        <span className="tile-name">{venue.name}</span>
-      </span>
-      <span className="tile-meta">{venueKindLabel(venue)} in {country}</span>
-    </a>
-  );
-}
-
 /* ─── Search ──────────────────────────────────────────────────────────── */
 
-function HomeSearch({ mode, onModeChange, onOpen }: { mode: Mode; onModeChange: (m: Mode) => void; onOpen: () => void }) {
+interface PlaceOption {
+  key: string;
+  name: string;
+  hint: string;
+  bounds: Bounds;
+  /** Other names people type for it ("usa", "uk"), normalised. */
+  aliases: string[];
+  /** Searched too, but a hit here ranks below any hit on a name. */
+  extra: string;
+  /** Tie-break: curated destinations first, then countries with more summits. */
+  weight: number;
+}
+
+/** Names Intl does not give but people type. Keyed by ISO code. */
+const COUNTRY_ALIASES: Record<string, string[]> = {
+  US: ['usa', 'us', 'america', 'united states of america'],
+  GB: ['uk', 'britain', 'great britain', 'england', 'scotland', 'wales'],
+  KR: ['korea'],
+  KP: ['north korea'],
+  CZ: ['czech republic'],
+  NL: ['holland'],
+  TR: ['turkey', 'turkiye'],
+  MM: ['burma'],
+  CI: ['ivory coast'],
+  AE: ['uae'],
+  CD: ['drc', 'democratic republic of the congo'],
+  SZ: ['swaziland'],
+  MK: ['macedonia'],
+  CV: ['cape verde'],
+  TL: ['east timor'],
+};
+
+const MAX_OPTIONS = 8;
+
+/** 0 exact, 1 name starts with it, 2 a word starts with it, 3 contains it, 4 only the hint does; null no match. */
+function matchScore(option: PlaceOption, q: string): number | null {
+  const names = [normalisePlace(option.name), ...option.aliases];
+  if (names.includes(q)) return 0;
+  if (names.some((n) => n.startsWith(q))) return 1;
+  if (names.some((n) => n.split(/[\s-]+/).some((word) => word.startsWith(q)))) return 2;
+  if (names.some((n) => n.includes(q))) return 3;
+  if (option.extra.includes(q)) return 4;
+  return null;
+}
+
+type Lookup = { state: 'idle' } | { state: 'searching' | 'missing' | 'failed'; query: string };
+
+/**
+ * The header search on pages without the venue list loaded (landing,
+ * training): countries, destinations and the geocoder. The same one-field
+ * "Where" pill as the map's SearchBar, so the header reads the same everywhere.
+ */
+export function HomeSearch({ onOpen }: { onOpen: () => void }) {
+  const mode: Mode = 'climbs';
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  const [lookup, setLookup] = useState<Lookup>({ state: 'idle' });
+  const lookupId = useRef(0);
   const rootRef = useRef<HTMLFormElement>(null);
+  const countries = useCountries();
 
+  const options = useMemo<PlaceOption[]>(() => {
+    const destinations = DESTINATIONS.map((d, i) => ({
+      key: `d:${d.name}`,
+      name: d.name,
+      hint: d.hint,
+      bounds: d.bounds,
+      aliases: [],
+      extra: normalisePlace(d.hint),
+      weight: 1e9 - i,
+    }));
+    // A curated destination wins a name clash: its box is hand-drawn.
+    const taken = new Set(DESTINATIONS.map((d) => normalisePlace(d.name)));
+    const fromIndex = (countries ?? [])
+      .filter((c) => !taken.has(normalisePlace(c.name)))
+      .map((c) => ({
+        key: `c:${c.code}`,
+        name: c.name,
+        hint: `Country · ${c.count.toLocaleString()} summits`,
+        bounds: c.bounds,
+        aliases: COUNTRY_ALIASES[c.code] ?? [],
+        extra: '',
+        weight: c.count,
+      }));
+    return [...destinations, ...fromIndex];
+  }, [countries]);
+
+  const q = normalisePlace(query);
   const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return q ? DESTINATIONS.filter((d) => `${d.name} ${d.hint}`.toLowerCase().includes(q)) : DESTINATIONS;
-  }, [query]);
+    if (!q) return options.filter((o) => o.key.startsWith('d:'));
+    return options
+      .map((option) => ({ option, score: matchScore(option, q) }))
+      .filter((m): m is { option: PlaceOption; score: number } => m.score !== null)
+      .sort((a, b) => a.score - b.score || b.option.weight - a.option.weight)
+      .slice(0, MAX_OPTIONS)
+      .map((m) => m.option);
+  }, [options, q]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -286,14 +323,44 @@ function HomeSearch({ mode, onModeChange, onOpen }: { mode: Mode; onModeChange: 
     return () => document.removeEventListener('mousedown', onDown);
   }, []);
 
-  const go = (destination?: Destination) => {
-    if (destination) openMap(mode, boundsToHash(destination.bounds));
-    else if (matches[0] && query.trim()) openMap(mode, boundsToHash(matches[0].bounds));
-    else {
-      sessionStorage.setItem('hillgpx:mode', mode);
+  /**
+   * Search always goes somewhere real: the highlighted (or best) country or
+   * destination, then the geocoder for anything else ("kyoto"). It never
+   * falls back to the default view, which is what made "japan" land on Singapore.
+   */
+  const submit = () => {
+    const text = query.trim();
+    if (!text) {
+      rememberMode(mode);
       onOpen();
+      return;
     }
+    const pick = (open ? matches[active] : undefined) ?? matches[0];
+    if (pick) {
+      openMap(mode, boundsToHash(pick.bounds));
+      return;
+    }
+    const id = ++lookupId.current;
+    setLookup({ state: 'searching', query: text });
+    setOpen(true);
+    geocodePlace(text)
+      .then((bounds) => {
+        if (id !== lookupId.current) return;
+        if (bounds) openMap(mode, boundsToHash(bounds));
+        else setLookup({ state: 'missing', query: text });
+      })
+      .catch(() => {
+        if (id === lookupId.current) setLookup({ state: 'failed', query: text });
+      });
   };
+
+  const status = lookup.state === 'searching'
+    ? `Looking for “${lookup.query}”…`
+    : lookup.state === 'missing'
+      ? `No place called “${lookup.query}” found. Try a country, a city or a mountain range.`
+      : lookup.state === 'failed'
+        ? 'Place search is not answering right now. Try a country name, or open the map.'
+        : null;
 
   return (
     <form
@@ -302,20 +369,23 @@ function HomeSearch({ mode, onModeChange, onOpen }: { mode: Mode; onModeChange: 
       role="search"
       onSubmit={(e) => {
         e.preventDefault();
-        go(open ? matches[active] : undefined);
+        submit();
       }}
     >
       <label className="home-search-field home-search-where">
         <span className="home-search-label">Where</span>
         <input
           value={query}
-          placeholder="Search destinations"
+          placeholder="Search countries, hills and towns"
+          aria-label="Search countries, hills and towns"
           autoComplete="off"
           onFocus={() => setOpen(true)}
           onChange={(e) => {
             setQuery(e.target.value);
             setActive(0);
             setOpen(true);
+            lookupId.current += 1;
+            setLookup({ state: 'idle' });
           }}
           onKeyDown={(e) => {
             if (e.key === 'ArrowDown') {
@@ -326,44 +396,31 @@ function HomeSearch({ mode, onModeChange, onOpen }: { mode: Mode; onModeChange: 
               setActive((i) => Math.max(0, i - 1));
             } else if (e.key === 'Escape') setOpen(false);
           }}
+          role="combobox"
           aria-autocomplete="list"
-          aria-expanded={open}
+          aria-expanded={open && matches.length > 0}
           aria-controls="home-search-list"
         />
       </label>
-      <span className="home-search-sep" aria-hidden="true" />
-      <div className="home-search-field home-search-what">
-        <span className="home-search-label">Looking for</span>
-        <div className="home-search-toggle" role="radiogroup" aria-label="Looking for">
-          {(['climbs', 'routes'] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={mode === value}
-              className={mode === value ? 'on' : ''}
-              onClick={() => onModeChange(value)}
-            >
-              {value === 'climbs' ? 'Climbs' : 'Routes'}
-            </button>
-          ))}
-        </div>
-      </div>
-      <button type="submit" className="home-search-go" aria-label="Search">
+      <button type="submit" className="home-search-go" aria-label="Search" disabled={lookup.state === 'searching'}>
         <SearchIcon size={16} />
         <span>Search</span>
       </button>
 
-      {open && matches.length > 0 && (
-        <ul className="home-search-list" id="home-search-list" role="listbox">
-          <li className="home-search-list-head">{query ? 'Destinations' : 'Popular places to train'}</li>
-          {matches.map((destination, i) => (
-            <li key={destination.name} role="option" aria-selected={i === active}>
+      {open && (matches.length > 0 || status) && (
+        <ul className="home-search-list" id="home-search-list" role="listbox" aria-label="Places">
+          {status ? (
+            <li className="home-search-list-head home-search-status" role="status">{status}</li>
+          ) : (
+            <li className="home-search-list-head" aria-hidden="true">{q ? 'Places' : 'Popular places to train'}</li>
+          )}
+          {!status && matches.map((option, i) => (
+            <li key={option.key} role="option" aria-selected={i === active}>
               <button
                 type="button"
                 className={i === active ? 'active' : ''}
                 onMouseEnter={() => setActive(i)}
-                onClick={() => go(destination)}
+                onClick={() => openMap(mode, boundsToHash(option.bounds))}
               >
                 <span className="home-search-pin" aria-hidden="true">
                   <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -372,8 +429,8 @@ function HomeSearch({ mode, onModeChange, onOpen }: { mode: Mode; onModeChange: 
                   </svg>
                 </span>
                 <span>
-                  <strong>{destination.name}</strong>
-                  <small>{destination.hint}</small>
+                  <strong>{option.name}</strong>
+                  <small>{option.hint}</small>
                 </span>
               </button>
             </li>
@@ -389,18 +446,24 @@ function HomeSearch({ mode, onModeChange, onOpen }: { mode: Mode; onModeChange: 
 interface RowSpec {
   title: string;
   venues: Venue[];
-  bounds?: { west: number; south: number; east: number; north: number };
+  bounds: Bounds;
+  /** Whether a tile should say what kind of place it is: only when the title does not. */
+  showKind: boolean;
 }
 
+const SINGAPORE = DESTINATIONS[0].bounds;
+
 const PLACEHOLDER_ROWS: RowSpec[] = [
-  { title: 'Hills and summits in Singapore', venues: [] },
-  { title: 'Stair training in Singapore', venues: [] },
-  { title: 'Summits across Malaysia', venues: [] },
+  { title: 'Hills and summits in Singapore', venues: [], bounds: SINGAPORE, showKind: true },
+  { title: 'Stair training in Singapore', venues: [], bounds: SINGAPORE, showKind: true },
+  { title: 'Summits across Malaysia', venues: [], bounds: DESTINATIONS[5].bounds, showKind: false },
 ];
 
 /** Photo first, then height: an empty grey tile in a row of photos reads as broken. */
 function showcase(venues: Venue[], limit = 12): Venue[] {
-  return [...venues]
+  return venues
+    // Some OSM summits are "named" with their height ("1762"); they read as a bug in a showcase row.
+    .filter((venue) => !/^[\d\s.,m]+$/i.test(venue.name))
     .sort((a, b) => Number(Boolean(b.photo)) - Number(Boolean(a.photo)) || rankingHeight(b) - rankingHeight(a))
     .slice(0, limit);
 }
@@ -408,26 +471,42 @@ function showcase(venues: Venue[], limit = 12): Venue[] {
 function buildRows(venues: Venue[]): RowSpec[] {
   const byRegion = new Map<string, Venue[]>();
   for (const venue of venues) {
-    const region = regionOf(venue.lng, venue.lat) ?? 'Elsewhere';
+    const region = regionOf(venue.lng, venue.lat);
+    // Anything outside the coarse boxes is covered by the world rows below.
+    if (!region) continue;
     const bucket = byRegion.get(region);
     if (bucket) bucket.push(venue);
     else byRegion.set(region, [venue]);
   }
+  // "See all" frames every place the row stands for, not just the dozen shown.
+  const boundsFor = (region: string, list: Venue[]): Bounds => boundsOf(list) ?? regionBounds(region) ?? SINGAPORE;
   const sg = byRegion.get('Singapore') ?? [];
+  const malaysia = byRegion.get('Malaysia') ?? [];
   const rows: RowSpec[] = [
-    { title: 'Hills and summits in Singapore', venues: showcase(sg.filter((v) => v.type === 'hill' || v.type === 'park')), bounds: DESTINATIONS[0].bounds },
-    { title: 'Stair training in Singapore', venues: showcase(sg.filter((v) => v.type === 'stairs' || v.type === 'hdb_block')), bounds: DESTINATIONS[0].bounds },
-    { title: 'Summits across Malaysia', venues: showcase(byRegion.get('Malaysia') ?? []), bounds: DESTINATIONS[5].bounds },
+    { title: 'Hills and summits in Singapore', venues: showcase(sg.filter((v) => v.type === 'hill' || v.type === 'park')), bounds: SINGAPORE, showKind: true },
+    { title: 'Stair training in Singapore', venues: showcase(sg.filter((v) => v.type === 'stairs' || v.type === 'hdb_block')), bounds: SINGAPORE, showKind: true },
+    { title: 'Summits across Malaysia', venues: showcase(malaysia), bounds: boundsFor('Malaysia', malaysia), showKind: false },
   ];
   for (const [region, list] of byRegion) {
     if (region === 'Singapore' || region === 'Malaysia' || list.length < 4) continue;
-    const destination = DESTINATIONS.find((d) => d.name === region);
-    rows.push({ title: `Peaks in ${region}`, venues: showcase(list), bounds: destination?.bounds });
+    rows.push({ title: `Peaks in ${region}`, venues: showcase(list), bounds: boundsFor(region, list), showKind: false });
   }
   return rows.filter((row) => row.venues.length > 0);
 }
 
-function Row({ title, action, loading, children, half = false }: { title: string; action: () => void; loading: boolean; children: React.ReactNode; half?: boolean }) {
+/** Up to three of a row's photos for its "See all" card. */
+function collageOf(venues: Venue[]): string[] {
+  return venues.flatMap((venue) => (venue.photo?.file ? [photoSrc(venue.photo)] : [])).slice(0, 3);
+}
+
+function Row({ title, link, loading, children, half = false, collage = [] }: {
+  title: string;
+  link: MapLink | null;
+  loading: boolean;
+  children: React.ReactNode;
+  half?: boolean;
+  collage?: string[];
+}) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ start: true, end: false });
 
@@ -446,12 +525,14 @@ function Row({ title, action, loading, children, half = false }: { title: string
   return (
     <section className={`home-row${half ? ' half' : ''}`}>
       <header className="home-row-head">
-        {title === '' ? <span className="sk-line sk-heading" aria-hidden="true" /> : (
-        <button type="button" className="home-row-title" onClick={action}>
-          {title}
-          <span className="home-row-see-all">See all</span>
-          <ChevronRightIcon size={14} />
-        </button>
+        {title === '' || !link ? <span className="sk-line sk-heading" aria-hidden="true" /> : (
+          // Airbnb's pattern: the title is the link, a chevron says so.
+          <h2 className="home-row-heading">
+            <a className="home-row-title" href={link.href} onClick={() => rememberMode(link.mode)}>
+              {title}
+              <ChevronRightIcon size={14} />
+            </a>
+          </h2>
         )}
         <div className="home-row-nav">
           <button type="button" aria-label="Previous" disabled={edges.start} onClick={() => page(-1)}>
@@ -471,18 +552,61 @@ function Row({ title, action, loading, children, half = false }: { title: string
                 <span className="sk-line" />
               </div>
             ))
-          : children}
+          : (
+            <>
+              {children}
+              {link && title && <SeeAllTile link={link} title={title} photos={collage} />}
+            </>
+          )}
       </div>
     </section>
   );
 }
 
-function VenueTile({ venue, index }: { venue: Venue; index: number }) {
+/** The card at the end of a row: the same place as the title link, for people who scrolled to the end. */
+function SeeAllTile({ link, title, photos }: { link: MapLink; title: string; photos: string[] }) {
+  return (
+    <a className="tile tile-see-all" href={link.href} onClick={() => rememberMode(link.mode)} aria-label={`See all: ${title}`}>
+      <span className="tile-media">
+        <span className="see-all-card">
+          {photos.length > 0 ? (
+            <span className={`see-all-stack n${photos.length}`} aria-hidden="true">
+              {photos.map((src, i) => (
+                <img key={src} src={src} alt="" loading="lazy" decoding="async" style={{ '--k': i } as React.CSSProperties} />
+              ))}
+            </span>
+          ) : (
+            <span className="see-all-arrow" aria-hidden="true"><ChevronRightIcon size={20} /></span>
+          )}
+          <span className="see-all-label">See all</span>
+        </span>
+      </span>
+    </a>
+  );
+}
+
+/** What a tile's middle line says, when it has something the row title does not. */
+function tileMeta(venue: Venue, showKind: boolean): string | null {
+  const parts: string[] = [];
+  if (showKind) parts.push(venueKindLabel(venue));
+  const town = townName(venue.town);
+  if (town) parts.push(town);
+  const routes = venue.routeSlugs.length;
+  if (routes > 0) parts.push(`${routes} route${routes === 1 ? '' : 's'}`);
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+/**
+ * One tile for every place on the landing — curated venues and world
+ * summits alike: photo, name and rating, an optional fact line, the height.
+ * Opens the place's page in a new tab so the row (and its scroll) stays put.
+ */
+function PlaceTile({ venue, index, showKind = false }: { venue: Venue; index: number; showKind?: boolean }) {
   const units = useUnits();
   const height = venueHeight(venue);
-  const region = regionOf(venue.lng, venue.lat);
+  const meta = tileMeta(venue, showKind);
   return (
-    <a className="tile" href={`#venue/${venue.slug}`} style={{ '--i': index } as React.CSSProperties}>
+    <a className="tile" href={`#venue/${venue.slug}`} target="_blank" rel="noopener" style={{ '--i': index } as React.CSSProperties}>
       <span className="tile-media">
         <VenueThumb venue={venue} />
       </span>
@@ -490,10 +614,7 @@ function VenueTile({ venue, index }: { venue: Venue; index: number }) {
         <span className="tile-name">{venue.name}</span>
         <RatingLabel rating={venue.rating} />
       </span>
-      <span className="tile-meta">
-        {venueKindLabel(venue)}
-        {region ? ` in ${region}` : ''}
-      </span>
+      {meta && <span className="tile-meta">{meta}</span>}
       {height && (
         <span className="tile-meta">
           <strong>{units.height(height.value)}</strong> {HEIGHT_LABEL[height.kind]}
@@ -531,4 +652,3 @@ function RouteTile({ route, index }: { route: Route; index: number }) {
     </button>
   );
 }
-

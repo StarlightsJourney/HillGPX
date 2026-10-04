@@ -12,7 +12,7 @@ import { downloadRoute } from './VenueCard';
 import { ChevronRightIcon, CloseIcon, DownloadIcon } from './icons';
 import type { RoutePhoto } from '../lib/api';
 import { RoutePhotoModal } from './RoutePhotoModal';
-import { ReportModal } from './ReportModal';
+import { FlagIcon, ReportModal } from './ReportModal';
 
 interface RoutePanelProps {
   route: Route;
@@ -68,8 +68,12 @@ export function InfoTip({ children, label = 'About these numbers' }: { children:
       onMouseEnter={() => hoverable() && setOpen(true)}
       onMouseLeave={() => hoverable() && setOpen(false)}
     >
-      <button type="button" className="info-tip-btn" aria-label={label} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        i
+      <button type="button" className="info-tip-btn" aria-label={label} aria-expanded={open} onClick={() => setOpen((v) => hoverable() || !v)}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 11v5.5" />
+          <circle cx="12" cy="7.8" r="0.6" fill="currentColor" />
+        </svg>
       </button>
       {open && <span className="info-tip-pop" role="tooltip">{children}</span>}
     </span>
@@ -138,12 +142,18 @@ function useTerrainFill(route: Route): { points: RoutePoint[]; gainM: number; lo
   }, [needsFill, ready, route, filled]);
 }
 
-/** The selected route, docked over the bottom of the map with its profile. */
+/**
+ * The selected route, over the map with its profile: a side sheet down the
+ * left of a wide map, a sheet along the bottom of a narrow one.
+ *
+ * Compact by default — title, the three numbers people compare routes by, and
+ * a short profile — so the route itself keeps most of the map. "More details"
+ * grows it into the full sheet (every stat, places passed, overlaps, photos).
+ */
 export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHoverIndex, onClose, spotlightSlug, onShowVenue, onShowRoute, routePhotos, onFocusPhoto, onPhotoAdded }: RoutePanelProps) {
   const [adding, setAdding] = useState(false);
   const [reporting, setReporting] = useState(false);
-  // Folded down to its title so the whole route is visible on a short map.
-  const [collapsed, setCollapsed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const units = useUnits();
   const elevation = useTerrainFill(route);
   const hasElevation = routeHasElevation(route) || elevation.fromTerrain;
@@ -157,7 +167,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
   const unavailable = elevation.pending ? 'Measuring…' : 'Unavailable';
 
   return (
-    <section className={`gpx-panel route-panel${collapsed ? ' collapsed' : ''}`} aria-label={`Route: ${route.name}`} key={route.slug}>
+    <section className={`gpx-panel route-panel ${expanded ? 'expanded' : 'compact'}`} aria-label={`Route: ${route.name}`} key={route.slug}>
       <header className="gpx-panel-head">
         <div className="route-panel-title">
           <h2>{route.name}</h2>
@@ -166,6 +176,10 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
             {hasElevation && <ElevationSourceLine source={elevation.fromTerrain ? 'terrain' : route.elevationSource ?? 'gps'} />}
             <span className="route-meta muted">{[ACTIVITY_LABEL[routeActivity(route)], region, route.loop ? 'Loop' : 'Point to point'].filter(Boolean).join(' · ')}</span>
             <RouteCredit route={route} />
+            <button type="button" className="info-tip-action" onClick={() => setReporting(true)}>
+              <FlagIcon />
+              Report an issue with this route
+            </button>
           </InfoTip>
         </div>
         <div className="gpx-panel-actions">
@@ -175,10 +189,10 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           <button
             type="button"
             className="gpx-icon-btn gpx-collapse"
-            onClick={() => setCollapsed((value) => !value)}
-            aria-expanded={!collapsed}
-            aria-label={collapsed ? 'Show route details' : 'Hide route details'}
-            data-tip={collapsed ? 'Show details' : 'Hide details'}
+            onClick={() => setExpanded((value) => !value)}
+            aria-expanded={expanded}
+            aria-label={expanded ? 'Show fewer route details' : 'Show more route details'}
+            data-tip={expanded ? 'Fewer details' : 'More details'}
           >
             <ChevronRightIcon size={15} />
           </button>
@@ -196,7 +210,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           ['Highest', hasElevation ? units.height(maxM) : unavailable],
           ['Lowest', hasElevation ? units.height(minM) : unavailable],
           ['EG / km', hasElevation ? units.height(elevation.gainM / km) : unavailable],
-        ].map(([label, value]) => (
+        ].slice(0, expanded ? undefined : 3).map(([label, value]) => (
           <div className="gpx-stat" key={label}>
             <strong>{value}</strong>
             <span>{label}</span>
@@ -204,7 +218,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
         ))}
       </div>
 
-      {touches.length > 0 && (
+      {expanded && touches.length > 0 && (
         <div className="gpx-touches">
           <strong>Passes</strong>
           {touches.map((venue) => (
@@ -222,32 +236,33 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
         </div>
       )}
 
-      <OverlapChips overlaps={overlaps} onShowRoute={onShowRoute} />
+      {expanded && <OverlapChips overlaps={overlaps} onShowRoute={onShowRoute} />}
 
-      <div className="route-photos">
-        <strong>Along the route</strong>
-        {routePhotos.map((photo) => (
-          <button type="button" key={photo.id} className={`route-photo-thumb ${photo.kind}`} onClick={() => onFocusPhoto(photo)} title={photo.caption || (photo.kind === 'hazard' ? 'Hazard' : 'Photo')}>
-            <img src={photo.url} alt="" loading="lazy" />
-            {photo.kind === 'hazard' && <span aria-label="Hazard">!</span>}
-            {photo.pending && <em className="route-photo-pending">Pending</em>}
+      {expanded && (
+        <div className="route-photos">
+          <strong>Along the route</strong>
+          {routePhotos.map((photo) => (
+            <button type="button" key={photo.id} className={`route-photo-thumb ${photo.kind}`} onClick={() => onFocusPhoto(photo)} title={photo.caption || (photo.kind === 'hazard' ? 'Hazard' : 'Photo')}>
+              <img src={photo.url} alt="" loading="lazy" />
+              {photo.kind === 'hazard' && <span aria-label="Hazard">!</span>}
+              {photo.pending && <em className="route-photo-pending">Pending</em>}
+            </button>
+          ))}
+          <button type="button" className="route-photo-add" onClick={() => setAdding(true)}>
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+            Photo or hazard
           </button>
-        ))}
-        <button type="button" className="route-photo-add" onClick={() => setAdding(true)}>
-          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
-          Photo or hazard
-        </button>
-      </div>
+        </div>
+      )}
 
       {hasElevation ? (
-        <ElevationProfile points={elevation.points} height={92} hoverIndex={hoverIndex} onHoverIndex={onHoverIndex} />
+        <ElevationProfile points={elevation.points} height={expanded ? 120 : 64} hoverIndex={hoverIndex} onHoverIndex={onHoverIndex} />
       ) : (
         <p className="route-elevation-unavailable">{elevation.pending ? 'Measuring elevation from terrain data…' : 'Elevation is unavailable for this route.'}</p>
       )}
 
       {adding && <RoutePhotoModal route={route} startIndex={hoverIndex ?? Math.floor(route.coordinates.length / 2)} onPreviewIndex={onHoverIndex} onClose={() => setAdding(false)} onAdded={onPhotoAdded} />}
       {reporting && <ReportModal targetType="route" targetSlug={route.slug} targetName={route.name} onClose={() => setReporting(false)} />}
-      <button type="button" className="plan-report route-report" onClick={() => setReporting(true)}>Report an issue with this route</button>
     </section>
   );
 }

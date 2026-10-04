@@ -11,6 +11,7 @@ import {
 import { useUnits } from './UnitsContext';
 import { ChartIcon, TargetIcon } from './icons';
 import { SiteFooter, SiteHeader } from './SiteChrome';
+import { HomeSearch } from './Landing';
 
 function TrashIconComp({ size = 16 }: { size?: number }) {
   return (
@@ -63,7 +64,7 @@ export function TrainingPanel({ onClose }: TrainingPanelProps) {
 
   return (
     <div className="training-page">
-    <SiteHeader onBack={onClose} />
+    <SiteHeader center={<HomeSearch onOpen={onClose} />} />
     <div className="training-panel">
       <header className="training-panel-head">
         <h1>Training balance</h1>

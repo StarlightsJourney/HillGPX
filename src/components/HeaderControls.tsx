@@ -1,22 +1,24 @@
 import { useUnits } from './UnitsContext';
 
 /**
- * Metres or feet, switched in one tap. It used to be a globe icon opening a
- * panel, which read as a language setting and hid a two-way choice behind a
- * click.
+ * Metres or feet. The whole pill is one button: a click anywhere on it swaps
+ * the units, and the thumb slides to show which one is on.
  */
 export function HeaderControls() {
   const units = useUnits();
   const imperial = units.units === 'imperial';
+  const label = imperial ? 'Units: feet. Switch to metres' : 'Units: metres. Switch to feet';
   return (
-    <div className="units-toggle" role="radiogroup" aria-label="Units">
+    <button
+      type="button"
+      className="units-toggle"
+      aria-label={label}
+      title={label}
+      onClick={() => units.setUnits(imperial ? 'metric' : 'imperial')}
+    >
       <span className={`units-thumb${imperial ? ' right' : ''}`} aria-hidden="true" />
-      <button type="button" role="radio" aria-checked={!imperial} className={!imperial ? 'on' : ''} onClick={() => units.setUnits('metric')} title="Metres and kilometres">
-        m
-      </button>
-      <button type="button" role="radio" aria-checked={imperial} className={imperial ? 'on' : ''} onClick={() => units.setUnits('imperial')} title="Feet and miles">
-        ft
-      </button>
-    </div>
+      <span className={`units-opt${imperial ? '' : ' on'}`} aria-hidden="true">m</span>
+      <span className={`units-opt${imperial ? ' on' : ''}`} aria-hidden="true">ft</span>
+    </button>
   );
 }

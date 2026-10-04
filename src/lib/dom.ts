@@ -41,3 +41,34 @@ export function textSpan(text: string, className: string): HTMLSpanElement {
   span.textContent = text;
   return span;
 }
+
+let scrollLocks = 0;
+
+/**
+ * Stop the page scrolling behind a dialog. Hiding the overflow also removes a
+ * classic (non-overlay) scrollbar, which shifted the whole page sideways by
+ * its width every time a dialog opened; the body is padded by that width
+ * while locked so nothing moves. Nested locks (a lightbox over a dialog)
+ * share one. Returns the unlock function.
+ */
+export function lockPageScroll(): () => void {
+  const { body, documentElement } = document;
+  if (scrollLocks++ === 0) {
+    const scrollbar = window.innerWidth - documentElement.clientWidth;
+    body.style.overflow = 'hidden';
+    if (scrollbar > 0) body.style.paddingRight = `${scrollbar}px`;
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    if (--scrollLocks === 0) {
+      body.style.overflow = '';
+      body.style.paddingRight = '';
+    }
+  };
+}
+
+export function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}

@@ -37,7 +37,7 @@ The one that helps most.
 3. Rebuild and commit:
 
 ```bash
-python scripts/build_data.py
+python3 scripts/build_data.py
 git add data/routes/ public/data/
 git commit -m "Add Bukit Timah summit loop"
 ```
@@ -81,7 +81,7 @@ Two numbers matter, and they're different:
 - **`summitM`** — height above sea level at the top.
 - **`gainM`** — what you actually climb from the normal starting point. This is the one people train by, and it's usually much smaller. Bukit Timah's summit is around 163 m, but nobody starts at sea level.
 
-A venue with both numbers `null` is dropped at build time and does not appear. Mount Faber, Marang Trail, Telok Blangah Hill Park, Kent Ridge Park, Bukit Gombak, Fort Canning Hill, Pearl's Hill City Park and Mount Emily Park are all invisible today. Verifying either number puts one on the map.
+A venue with both numbers `null` is dropped at build time and does not appear. Mount Faber, Marang Trail, Telok Blangah Hill Park, Kent Ridge Park, Fort Canning Hill, Pearl's Hill City Park and Mount Emily Park are all invisible today. Verifying either number puts one on the map.
 
 **Note:** until this is fixed in `build_data.py`, a curated entry with no height can also hide the OSM record for the same hill — Mount Faber is the current example.
 
@@ -89,7 +89,7 @@ To fix a curated venue:
 
 1. Find a real source, or measure it — a barometric watch on a still day, averaged over a few ascents, is good enough.
 2. Update the value, set `"elevationSource"` to `"verified"`, and say where the number came from in `notes`.
-3. `python scripts/build_data.py`, then commit.
+3. `python3 scripts/build_data.py`, then commit.
 
 Cite the source. An unsourced number is the thing we already have.
 
@@ -139,7 +139,7 @@ The **Add a place** and **Add a photo** issue forms cover the same ground for pe
 
 ## Photos
 
-Photos are not added to the repository by hand. Upload useful street-level imagery to [Mapillary](https://www.mapillary.com/), or put a Mapillary token in `.env.local` and run `python scripts/fetch_photos.py`. The script downloads and resizes the latest nearby image, and records its creator and image ID in `data/photos.json`; run `python scripts/build_data.py` afterwards to attach it to the venue.
+Photos are not added to the repository by hand. Upload useful street-level imagery to [Mapillary](https://www.mapillary.com/), or put a Mapillary token in `.env.local` and run `python3 scripts/fetch_photos.py`. The script downloads and resizes the latest nearby image, and records its creator and image ID in `data/photos.json`; run `python3 scripts/build_data.py` afterwards to attach it to the venue.
 
 Mapillary imagery is CC-BY-SA 4.0. Keep the creator credit and image ID intact — the app displays that attribution with every photo.
 
@@ -153,13 +153,81 @@ Branch, commit, open a pull request (the team workflow is in [CONTRIBUTING.md](.
 
 A few things worth preserving, because they're the point of the project rather than incidental:
 
-- **No backend.** The app is static files. If a feature seems to need a server, say so in an issue first — there's usually a way to keep it static, and the zero-setup clone is what makes this contributable.
-- **No API keys.** A fresh clone must run with no accounts and no config.
-- **Dropped GPX files never leave the browser.** People upload their training history here. It stays in their tab — or, if they choose to save it, in their own browser's `localStorage`.
-- **Never trust GPX altitude.** Re-sample against the terrain model wherever it has coverage. If you change `GAIN_THRESHOLD_M` or `SMOOTH_WINDOW` in `scripts/build_data.py`, change the defaults in `src/lib/elevation.ts` too — otherwise the app and the baked route data will quietly disagree.
+- **Static first.** The app is static files on GitHub Pages. The only backend is Supabase for community contributions (routes, photos, reviews, reports), reached through `src/lib/api.ts`. If a feature seems to need more server, open an issue first.
+- **No secret keys.** A fresh clone runs with no accounts and no config. The browser only carries Supabase's *publishable* key; row-level security limits it to inserting new rows and reading approved ones.
+- **Uploads are opt-in.** A dropped GPX is profiled in the browser and only leaves it when the person presses *Publish*. Heart-rate, cadence and other device data are stripped first.
+- **Honest elevation.** Uploaded GPX files keep the elevation the device recorded; terrain data only fills files that have none. Committed routes inside the Singapore terrain model are re-sampled by `scripts/build_data.py`. If you change `GAIN_THRESHOLD_M` or `SMOOTH_WINDOW` there, change the defaults in `src/lib/elevation.ts` too, or the app and the baked route data will quietly disagree.
 - **Never present `summitM` as a climb.** Go through `venueHeight()` for display and use `rankingHeight()` only for sorting.
 - **Build URLs from `import.meta.env.BASE_URL`.** Follow `DATA_BASE`; root-absolute paths break the GitHub Pages build under `/HillGPX/`.
 - **Map pins are HTML markers, not symbol layers.** `src/map/markers.ts` renders them as DOM elements so they share the app's font and CSS. If you ever add a MapLibre `symbol` layer, use exactly one font in `text-font`: a fallback list makes OpenFreeMap request a glyph stack that 404s, and labels silently disappear.
+
+## Checks before a pull request
+
+```bash
+npm run typecheck
+npm run lint
+npm test               # Vitest unit tests
+npm run test:e2e       # Playwright, against the dev server
+npm run build
+python3 scripts/build_data.py
+```
+
+After adding or changing a route, render its card image (a stored basemap with hillshade, so phones never draw a map per card):
+
+```bash
+node scripts/render_route_thumbs.ts          # only new or changed routes
+node scripts/render_route_thumbs.ts --force  # everything
+```
+
+## Deploying
+
+Pushing to `main` runs `.github/workflows/deploy.yml`, which builds with `VITE_BASE=/HillGPX/` and publishes `dist/` to GitHub Pages. To check a production build under the same sub-path:
+
+```bash
+VITE_BASE=/HillGPX/ npm run build
+npx vite preview --base /HillGPX/
+```
+
+MapLibre 6 looks for its web worker next to its own module and Vite does not copy that file, so `src/map/worker.ts` bundles it and registers it with `setWorkerUrl()`. Every module that creates a map imports it first; without it the map is blank on Pages but fine in `npm run dev`.
+
+## Data files
+
+- `data/venues/hills.json`: curated hills and mountains
+- `data/venues/peaks.json`: generated OpenStreetMap summits (do not hand-edit)
+- `data/venues/hdb-blocks.json`: Singapore HDB blocks
+- `data/routes/*.gpx`: committed routes, each with an optional `.json` sidecar
+- `data/photos.json`: photo attribution and source
+- `public/data/venues.json`, `public/data/routes.json`: generated by `build_data.py`
+- `public/data/peaks/`: worldwide GeoNames summits as 5° tiles plus `index.json` (country boxes, landing rows, zoomed-out highlights) and `photos.json` (Commons links)
+- `public/data/descriptions.json`: generated "About this place" text
+- `public/route-thumbs/*.jpg`: generated route card images
+- Supabase tables `routes`, `photos`, `route_photos`, `reviews`, `reports` and their buckets: community contributions (`supabase/migrations/`)
+
+## Data jobs
+
+```bash
+python3 scripts/fetch_world_peaks.py           # GeoNames summits -> public/data/peaks/ (keeps photos.json)
+python3 scripts/fetch_peak_photos.py           # Commons photos for the landing rows -> public/data/peaks/photos.json (links only)
+python3 scripts/fill_route_elevation.py        # terrain elevation for committed GPX files without <ele>
+python3 scripts/describe_venues.py --limit 50  # "About this place" text; needs GROQ_API_KEY (or FREELLMAPI_*) in .env.local
+```
+
+Free Groq keys can expire; replace the value in `.env.local` and re-run. Never commit a key or put one in `src/`.
+
+### How descriptions are written
+
+`describe_venues.py` writes every description in one format: two short sentences in simple words. The first says what the place is and names anything iconic; the second gives one useful fact for going there. No em dashes, semicolons or marketing words; the script rejects and retries anything that breaks the format. The landing's summits are described with `--world --facts-ok --limit 1400` (the Groq free tier allows about 1,000 requests a day; the script resumes).
+
+### How route difficulty is worked out
+
+Unless a sidecar sets `difficulty`, `routeDifficulty()` in `src/lib/routes.ts` uses an effort score (km + EG metres / 100) and a climb rate (EG per km):
+
+| Label | Effort score | or climb rate |
+|---|---|---|
+| Brutal | > 60 | > 80 m/km |
+| Hard | > 25 | > 40 m/km |
+| Moderate | > 10 | > 15 m/km |
+| Easy | otherwise | |
 
 ## Reporting things
 

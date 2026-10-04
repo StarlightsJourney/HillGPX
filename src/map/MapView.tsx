@@ -42,6 +42,7 @@ import './worker';
 import { MAP_STYLE_URL } from './constants';
 import { parseSvg, textSpan } from '../lib/dom';
 import { glyphSvg } from '../lib/venueGlyphs';
+import { frameableBounds, isFiniteBounds } from './camera';
 
 /**
  * Basemap tiles come from OpenFreeMap, which is free to use and needs no API
@@ -173,15 +174,83 @@ function boundsMeaningfullyChanged(
   );
 }
 
+function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 function flyToVenue(map: MlMap, center: LngLatLike) {
   map.flyTo({
     center,
-    duration: 900,
+    // Close enough to see the place and its neighbours, but never further out
+    // than you already were: a search from a whole-country view should not
+    // leave the pick as one dot among thousands.
+    zoom: Math.max(map.getZoom(), 12),
+    duration: prefersReducedMotion() ? 0 : 900,
     essential: true,
-    // Keep the current zoom and just pad the camera so the popup has room to
-    // open above the marker rather than forcing the user into street level.
+    // Pad the camera so the popup has room to open above the marker.
     padding: { top: 220, bottom: 64, left: 64, right: 64 },
   });
+}
+
+/** Camera padding with every side given, unlike MapLibre's all-optional PaddingOptions. */
+interface Padding {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+/**
+ * Something the camera was asked to frame — an area from search or a link, or
+ * the open route — kept so it can be framed again when the map changes size
+ * (the list folding away, the window resizing, the style finishing loading)
+ * until the person moves the map themselves.
+ */
+interface FrameTarget {
+  bounds: Bounds;
+  maxZoom: number;
+  padding: (map: MlMap) => Padding;
+}
+
+/** Padding that still leaves at least a 40 px window, so fitBounds never gives up. */
+function safePadding(map: MlMap, padding: Padding): Padding {
+  const container = map.getContainer();
+  const fit = (a: number, b: number, size: number) => {
+    const room = Math.max(0, size - 40);
+    return a + b <= room ? [a, b] : [(a / (a + b)) * room, (b / (a + b)) * room];
+  };
+  const [left, right] = fit(padding.left, padding.right, container.clientWidth);
+  const [top, bottom] = fit(padding.top, padding.bottom, container.clientHeight);
+  return { top, bottom, left, right };
+}
+
+/**
+ * Maps whose style has finished loading at least once. `map.loaded()` is no
+ * use for this: it is false whenever any tile is still arriving, which is most
+ * of the time while browsing, so every move between routes jumped instead of
+ * flying.
+ */
+const startedMaps = new WeakSet<MlMap>();
+
+/** `durationMs` is a wish: start-up and reduced motion both jump instead. */
+function frameTo(map: MlMap, target: FrameTarget, durationMs: number) {
+  if (!isFiniteBounds(target.bounds)) return;
+  const { west, south, east, north } = frameableBounds(target.bounds);
+  map.fitBounds(
+    [
+      [west, south],
+      [east, north],
+    ],
+    {
+      padding: safePadding(map, target.padding(map)),
+      maxZoom: target.maxZoom,
+      // Before the style loads, resize() during start-up calls stop() and
+      // would cancel an animation half-way — which is how a landing-page link
+      // used to end up parked on Singapore. Jump instead.
+      duration: startedMaps.has(map) && !prefersReducedMotion() ? durationMs : 0,
+      essential: true,
+    },
+  );
 }
 
 class ExpandControl {
@@ -298,19 +367,29 @@ class TerrainControl {
 }
 
 /**
- * Bottom padding that keeps a framed route above the docked route panel. It
- * is measured, not fixed: a fixed 320 px was taller than the whole map on a
- * short window, so MapLibre could not fit the route and it ended up under the
- * panel. Capped so the visible strip is never squeezed to nothing.
+ * Padding that keeps a framed route clear of the route panel. On a wide map
+ * the panel is a side sheet down the left, so the route is framed to its
+ * right; on a narrow one it is docked along the bottom, so the route sits
+ * above it. Measured, not fixed: a fixed 320 px was taller than the whole map
+ * on a short window, so MapLibre could not fit the route and it ended up under
+ * the panel. Capped so the visible area is never squeezed to nothing.
  */
-function panelClearance(map: MlMap, fallback: number): number {
+function panelClearance(map: MlMap, base: Padding): Padding {
   const container = map.getContainer();
   const panel = container.parentElement?.querySelector<HTMLElement>('.gpx-panel');
-  if (!panel) return fallback;
-  // offsetHeight, not the bounding box: the panel is mid slide-in animation
-  // when a route is first framed. Its gap to the map edge is the CSS `bottom`.
-  const below = panel.offsetHeight + (parseFloat(getComputedStyle(panel).bottom) || 16);
-  return Math.max(fallback, Math.min(below + 16, container.clientHeight * 0.6));
+  if (!panel) return base;
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+  // Offsets, not bounding boxes: the panel is mid slide-in animation when a
+  // route is first framed. Panel and map share .map-wrap as offset parent.
+  const left = panel.offsetLeft - container.offsetLeft;
+  const top = panel.offsetTop - container.offsetTop;
+  if (panel.offsetWidth < width * 0.6) {
+    const clear = left + panel.offsetWidth + 24;
+    return { ...base, left: Math.max(base.left, Math.min(clear, width * 0.6)) };
+  }
+  const clear = height - top + 16;
+  return { ...base, bottom: Math.max(base.bottom, Math.min(clear, height * 0.6)) };
 }
 
 export function MapView({
@@ -397,6 +476,19 @@ export function MapView({
   const expandControlRef = useRef<ExpandControl | null>(null);
   const routePanelOpenRef = useRef(routePanelOpen);
   routePanelOpenRef.current = routePanelOpen;
+  const lastFrameRef = useRef<FrameTarget | null>(null);
+  const geolocateLockedRef = useRef(false);
+
+  /**
+   * Programmatic camera moves must win over "follow my location". MapLibre's
+   * GeolocateControl only drops its lock on a move that does not zoom, and a
+   * search that frames a country zooms — so with tracking on, the next GPS fix
+   * snapped the camera straight back to the person's position. A no-op jump
+   * first is a non-zooming move, which releases the lock (the blue dot stays).
+   */
+  const releaseGeolocate = useCallback((map: MlMap) => {
+    if (geolocateLockedRef.current) map.jumpTo({ center: map.getCenter() });
+  }, []);
 
   // The viewport and marker bounds are tracked separately because list updates
   // and the 6 × 4 marker shortlist use different thresholds.
@@ -454,6 +546,14 @@ export function MapView({
       trackUserLocation: true,
     });
     geolocate.on('geolocate', () => onLocateHintRef.current?.(null));
+    geolocate.on('trackuserlocationstart', () => {
+      geolocateLockedRef.current = true;
+      // Following your location replaces whatever was framed before it.
+      lastFrameRef.current = null;
+    });
+    geolocate.on('trackuserlocationend', () => {
+      geolocateLockedRef.current = false;
+    });
     geolocate.on('error', (e: GeolocateErrorEvent) => {
       const code = e.code;
       onLocateHintRef.current?.(
@@ -625,6 +725,14 @@ export function MapView({
     refreshMarkersRef.current = refreshMarkers;
 
     const layoutMarkers = () => markersRef.current?.layout();
+    // A pan or zoom by hand means the person has taken the camera; stop
+    // re-framing whatever was framed for them last.
+    map.on('movestart', (event: MapMovementEvent) => {
+      if (event.originalEvent) lastFrameRef.current = null;
+    });
+    map.on('load', () => {
+      if (lastFrameRef.current) frameTo(map, lastFrameRef.current, 0);
+    });
     map.on('moveend', () => reportViewport());
     map.on('moveend', () => refreshMarkers());
     map.on('moveend', () => layoutMarkers());
@@ -654,16 +762,28 @@ export function MapView({
     map.on('dataloading', markBusy);
     map.on('idle', markIdle);
 
+    // The container changes size when the list folds away for a route, when
+    // the window resizes, and while the stage animates. Keep whatever was last
+    // framed on screen, once the size has settled.
+    let refitTimer: ReturnType<typeof setTimeout> | undefined;
     const observer = new ResizeObserver(() => {
       map.resize();
       map.redraw();
+      clearTimeout(refitTimer);
+      refitTimer = setTimeout(() => {
+        if (lastFrameRef.current) frameTo(map, lastFrameRef.current, 400);
+      }, 180);
     });
     observer.observe(containerRef.current);
     const settle = setTimeout(() => map.resize(), 0);
-    map.on('load', () => map.resize());
+    map.on('load', () => {
+      map.resize();
+      startedMaps.add(map);
+    });
 
     return () => {
       clearTimeout(settle);
+      clearTimeout(refitTimer);
       cancelAnimationFrame(routeHoverFrame);
       if (showTimer) clearTimeout(showTimer);
       observer.disconnect();
@@ -706,26 +826,29 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !focus) return;
+    lastFrameRef.current = null;
+    releaseGeolocate(map);
     flyToVenue(map, [focus.lng, focus.lat]);
-  }, [focus]);
+  }, [focus, releaseGeolocate]);
 
+  // Runs on mount too, so a #map/w,s,e,n link frames its area straight away,
+  // before the style has loaded, and again on 'load' in case the container
+  // was still settling its size.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !focusBounds) return;
-    const { west, south, east, north } = focusBounds.bounds;
-    map.fitBounds(
-      [
-        [west, south],
-        [east, north],
-      ],
-      {
-        padding: { top: 180, bottom: 64, left: 64, right: 64 },
-        maxZoom: 16,
-        duration: 900,
-        essential: true,
-      },
-    );
-  }, [focusBounds]);
+    const target: FrameTarget = {
+      bounds: focusBounds.bounds,
+      maxZoom: 16,
+      padding: (m) =>
+        routePanelOpenRef.current
+          ? panelClearance(m, { top: 96, bottom: 64, left: 64, right: 64 })
+          : { top: 96, bottom: 64, left: 64, right: 64 },
+    };
+    lastFrameRef.current = target;
+    releaseGeolocate(map);
+    frameTo(map, target, 900);
+  }, [focusBounds, releaseGeolocate]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -761,26 +884,36 @@ export function MapView({
   // The camera does not need the basemap style, so frame the route straight
   // away. Waiting for `ready` left the map parked on Singapore for seconds
   // after opening a route from the landing page, which read as "not working".
+  const routeFrameRef = useRef<FrameTarget | null>(null);
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    // A closed route must not be re-framed when the list comes back.
+    if (lastFrameRef.current && lastFrameRef.current === routeFrameRef.current) lastFrameRef.current = null;
+    routeFrameRef.current = null;
     if (activeRoute && activeRoute.length > 1) {
-      const bounds = activeRoute.reduce(
+      const box = activeRoute.reduce(
         (b, [lng, lat]) => b.extend([lng, lat]),
         new LngLatBounds(
           [activeRoute[0][0], activeRoute[0][1]],
           [activeRoute[0][0], activeRoute[0][1]],
         ),
       );
-      map.fitBounds(bounds, {
-        padding: { top: 80, bottom: routePanelOpenRef.current ? panelClearance(map, 80) : 80, left: 80, right: 80 },
+      const target: FrameTarget = {
+        bounds: { west: box.getWest(), south: box.getSouth(), east: box.getEast(), north: box.getNorth() },
         maxZoom: 15,
-        // Before load, resize() during start-up calls stop() and would cancel
-        // an animation half-way; jump instead.
-        duration: map.loaded() ? 900 : 0,
-      });
+        padding: (m) => {
+          const base = { top: 80, bottom: 80, left: 80, right: 80 };
+          return routePanelOpenRef.current ? panelClearance(m, base) : base;
+        },
+      };
+      lastFrameRef.current = target;
+      routeFrameRef.current = target;
+      releaseGeolocate(map);
+      // A flight, not a cut: zoom out, travel, settle on the next route.
+      frameTo(map, target, 1400);
     }
-  }, [activeRoute]);
+  }, [activeRoute, releaseGeolocate]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -803,9 +936,17 @@ export function MapView({
     const map = mapRef.current;
     const marker = photoFocus ? photoMarkersRef.current.get(photoFocus.id) : undefined;
     if (!map || !marker) return;
-    map.flyTo({ center: marker.getLngLat(), zoom: Math.max(map.getZoom(), 14), duration: 800, padding: { top: 120, bottom: routePanelOpenRef.current ? panelClearance(map, 64) : 64, left: 40, right: 40 } });
+    const base = { top: 120, bottom: 64, left: 40, right: 40 };
+    lastFrameRef.current = null;
+    releaseGeolocate(map);
+    map.flyTo({
+      center: marker.getLngLat(),
+      zoom: Math.max(map.getZoom(), 14),
+      duration: prefersReducedMotion() ? 0 : 800,
+      padding: safePadding(map, routePanelOpenRef.current ? panelClearance(map, base) : base),
+    });
     if (!marker.getPopup()?.isOpen()) marker.togglePopup();
-  }, [photoFocus]);
+  }, [photoFocus, releaseGeolocate]);
 
   const overlapKey = (overlapSlugs ?? []).join('|');
   useEffect(() => {
@@ -819,18 +960,21 @@ export function MapView({
     if (!map || !ready || !spotlight) return;
     const { venue } = spotlight;
     const marker = spotlightMarker(venue).addTo(map);
+    const base = { top: 64, bottom: 64, left: 64, right: 64 };
+    lastFrameRef.current = null;
+    releaseGeolocate(map);
     map.flyTo({
       center: [venue.lng, venue.lat],
       zoom: Math.max(map.getZoom(), 14),
-      duration: 900,
+      duration: prefersReducedMotion() ? 0 : 900,
       essential: true,
-      // Keep the pin clear of the route panel docked over the bottom of the map.
-      padding: { top: 64, bottom: routePanelOpenRef.current ? panelClearance(map, 64) : 64, left: 64, right: 64 },
+      // Keep the pin clear of the route panel.
+      padding: safePadding(map, routePanelOpenRef.current ? panelClearance(map, base) : base),
     });
     return () => {
       marker.remove();
     };
-  }, [spotlight, ready]);
+  }, [spotlight, ready, releaseGeolocate]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -918,7 +1062,8 @@ function spotlightMarker(venue: Venue): Marker {
   pin.append(glyph, textSpan(venue.name, 'pin-label'));
   pin.addEventListener('click', (event) => {
     event.stopPropagation();
-    window.location.hash = `#venue/${venue.slug}`;
+    // Venue pages open in their own tab, like the cards.
+    window.open(`#venue/${venue.slug}`, '_blank', 'noopener');
   });
   anchor.appendChild(pin);
   return new Marker({ element: anchor, anchor: 'center' }).setLngLat([venue.lng, venue.lat]);

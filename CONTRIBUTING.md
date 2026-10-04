@@ -96,10 +96,10 @@ Supabase plan).
 - **Donate.** A donation page is being set up. Until then, open an issue titled
   "Support" and the maintainer will reply. Every cent and every expense will be
   published.
-- **Share the milestones.** The bar under the header shows the community's
-  progress, from *First tracks* at 10 routes to *Every hill* at 5,000. When we
-  reach one, share it with your running club or hiking group. New people bring
-  new routes.
+- **Share the goals.** The strip at the top of every page shows how many GPX
+  routes have been shared and how many more reach the next goal (10, 25, 50,
+  100 and up). When we reach one, share it with your running club or hiking
+  group. New people bring new routes.
 - **Tell your group about it.** One message in a club chat can bring more
   routes than anything else.
 

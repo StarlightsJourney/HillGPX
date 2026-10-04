@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { CloseIcon } from './icons';
+import { lockPageScroll } from '../lib/dom';
 
 interface ModalProps {
   title: string;
@@ -26,11 +27,10 @@ export function Modal({ title, onClose, children, footer, wide = false }: ModalP
     document.addEventListener('keydown', onKey);
     const previous = document.activeElement as HTMLElement | null;
     cardRef.current?.focus();
-    const { overflow } = document.body.style;
-    document.body.style.overflow = 'hidden';
+    const unlock = lockPageScroll();
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = overflow;
+      unlock();
       previous?.focus?.();
     };
   }, [onClose]);

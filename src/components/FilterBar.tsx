@@ -12,6 +12,7 @@ import {
 import { createPortal } from 'react-dom';
 import { useUnits } from './UnitsContext';
 import { CloseIcon } from './icons';
+import { lockPageScroll } from '../lib/dom';
 import type { Route, Venue, VenueType } from '../types';
 import {
   NO_FILTERS,
@@ -19,9 +20,10 @@ import {
   activeFilterCount,
   filterVenues,
   rankingHeight,
+  type Bounds,
   type VenueFilters,
 } from '../lib/venues';
-import { NO_ROUTE_FILTERS, ROUTE_CATEGORIES, filterRoutes, type RouteCategory, type RouteFilters } from '../lib/routes';
+import { NO_ROUTE_FILTERS, ROUTE_CATEGORIES, filterRoutes, routeIntersects, type RouteCategory, type RouteFilters } from '../lib/routes';
 import { ACTIVITY_PATHS } from '../lib/activityGlyphs';
 import { VENUE_GLYPH_PATH } from '../lib/venueGlyphs';
 
@@ -42,6 +44,8 @@ interface FilterBarProps {
 }
 
 interface CategoryBarProps extends FilterBarProps {
+  /** The map's current view, so route chips can grey out like climb chips. */
+  viewport: Bounds | null;
   mode: BrowseMode;
   onModeChange: (mode: BrowseMode) => void;
   routes: Route[];
@@ -111,6 +115,7 @@ function CategoryIcon({ id }: { id: string }) {
  * climbs and routes instead of homes.
  */
 function CategoryBarInner({
+  viewport,
   mode,
   onModeChange,
   routes,
@@ -122,9 +127,23 @@ function CategoryBarInner({
   const routeOpenerRef = useRef<HTMLButtonElement>(null);
   const routeFilterCount = (routeFilters.minGainM != null ? 1 : 0) + (routeFilters.maxDistanceM != null ? 1 : 0);
 
+  // Routes the list would show for this view: the ones crossing it, or every
+  // route when none do (the list falls back to "everywhere" rather than going
+  // blank, so the chips must agree with it).
+  const routePool = useMemo(() => {
+    const inView = viewport ? routes.filter((route) => routeIntersects(route, viewport)) : routes;
+    return inView.length > 0 ? inView : routes;
+  }, [routes, viewport]);
+  const savedRoutes = useMemo(() => filterRoutes(routes, { ...NO_ROUTE_FILTERS, category: 'saved' }).length, [routes]);
+  const routeSlots = ROUTE_CATEGORIES.filter((category) => category.id !== 'saved' || savedRoutes > 0).length;
+  // All, one per type, With photos, and Saved once something is hearted.
+  const climbSlots = 2 + climbProps.types.length + (climbProps.savedCount > 0 || climbProps.filters.savedOnly ? 1 : 0);
+
   return (
     <div className="filterbar">
-      <div className="filterbar-row">
+      {/* One slot count for both modes, so the centred row is the same width
+          in Climbs and Routes and nothing shifts when you switch. */}
+      <div className="filterbar-row" style={{ '--category-slots': Math.max(routeSlots, climbSlots) } as React.CSSProperties}>
         <div className="mode-switch" role="tablist" aria-label="Browse">
           {(['climbs', 'routes'] as const).map((value) => (
             <button
@@ -149,16 +168,19 @@ function CategoryBarInner({
           <>
             <div className="categories" role="tablist" aria-label="Route type">
               {ROUTE_CATEGORIES.map((category) => {
-                const count = filterRoutes(routes, { ...NO_ROUTE_FILTERS, category: category.id }).length;
-                if (category.id === 'saved' && count === 0) return null;
+                if (category.id === 'saved' && savedRoutes === 0) return null;
+                const active = routeFilters.category === category.id;
+                // Routes on this device can be anywhere; the list shows them all.
+                const pool = category.id === 'saved' ? routes : routePool;
+                const count = filterRoutes(pool, { ...NO_ROUTE_FILTERS, category: category.id }).length;
                 return (
                   <CategoryButton
                     key={category.id}
                     id={category.id}
                     label={category.label}
                     shortLabel={category.shortLabel}
-                    active={routeFilters.category === category.id}
-                    disabled={count === 0}
+                    active={active}
+                    unavailable={!active && count === 0}
                     onClick={() => onRouteFiltersChange({ ...routeFilters, category: category.id as RouteCategory })}
                   />
                 );
@@ -191,19 +213,24 @@ function CategoryBarInner({
   );
 }
 
+/**
+ * One icon category. `unavailable` greys it out and stops it being picked when
+ * nothing of its kind is in the area on screen, as Airbnb greys out a category
+ * with no homes; the tooltip says why rather than leaving a dead button.
+ */
 function CategoryButton({
   id,
   label,
   shortLabel,
   active,
-  disabled = false,
+  unavailable = false,
   onClick,
 }: {
   id: string;
   label: string;
   shortLabel?: string;
   active: boolean;
-  disabled?: boolean;
+  unavailable?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -211,9 +238,10 @@ function CategoryButton({
       type="button"
       role="tab"
       aria-selected={active}
-      aria-label={label}
+      aria-label={unavailable ? `${label} (none in this area)` : label}
+      title={unavailable ? `${label}: none in this area. Move the map to find some.` : undefined}
       className={`category${active ? ' on' : ''}`}
-      disabled={disabled}
+      disabled={unavailable}
       onClick={onClick}
     >
       <CategoryIcon id={id} />
@@ -354,6 +382,18 @@ function ClimbCategories({ types, visibleVenues, filters, onChange, savedCount }
       savedOnly: category === 'liked',
     });
 
+  // What the area on screen actually holds, before any filter. A chip for a
+  // kind that is not here (HDB blocks outside Singapore) is greyed out rather
+  // than offered and answered with an empty list.
+  const present = useMemo(() => {
+    const kinds = new Set<ClimbCategory>(['all', 'liked']);
+    for (const venue of visibleVenues) {
+      kinds.add(venue.type);
+      if (venue.photo) kinds.add('photo');
+    }
+    return kinds;
+  }, [visibleVenues]);
+
   const categories: { id: ClimbCategory; label: string; shortLabel?: string }[] = [
     { id: 'all', label: 'All' },
     ...types.map((type) => ({
@@ -375,6 +415,10 @@ function ClimbCategories({ types, visibleVenues, filters, onChange, savedCount }
             label={category.label}
             shortLabel={category.shortLabel}
             active={active === category.id}
+            // A chip already on stays on and clickable when you pan somewhere
+            // without any: the list says none are here, and panning back finds
+            // them again. Clearing it behind your back would lose the choice.
+            unavailable={active !== category.id && !present.has(category.id)}
             onClick={() => pick(category.id)}
           />
         ))}
@@ -487,15 +531,14 @@ function FilterModal({
 
   useEffect(() => {
     const opener = returnFocusTo.current;
-    const previousOverflow = document.body.style.overflow;
     const root = document.getElementById('root');
     const wasInert = root?.inert ?? false;
     if (root) root.inert = true;
-    document.body.style.overflow = 'hidden';
+    const unlock = lockPageScroll();
     closeRef.current?.focus();
     return () => {
       if (root) root.inert = wasInert;
-      document.body.style.overflow = previousOverflow;
+      unlock();
       // Sending focus back to the button that opened this is what makes the
       // dialog dismissable from the keyboard without losing your place — after
       // Escape the caret would otherwise fall back to the top of the document.

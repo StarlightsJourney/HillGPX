@@ -35,6 +35,12 @@ const KINDS: { value: ReportKind; label: string; hint: string }[] = [
   { value: 'other', label: 'Something else', hint: '' },
 ];
 
+/** Hints that read better for a route than the place-oriented defaults. */
+const ROUTE_HINTS: Partial<Record<ReportKind, string>> = {
+  wrong_details: 'Name, distance, EG or the track itself is off',
+  closed: 'Closed trail, private land, path no longer there',
+};
+
 /** One small form for everything a visitor might want a maintainer to look at. */
 export function ReportModal({ targetType, targetSlug, targetName, onClose }: { targetType: 'venue' | 'route'; targetSlug: string; targetName: string; onClose: () => void }) {
   const [kind, setKind] = useState<ReportKind>('wrong_details');
@@ -85,7 +91,7 @@ export function ReportModal({ targetType, targetSlug, targetName, onClose }: { t
                 onClick={() => setKind(option.value)}
               >
                 <strong>{option.label}</strong>
-                {option.hint && <span>{option.hint}</span>}
+                {option.hint && <span>{(targetType === 'route' && ROUTE_HINTS[option.value]) || option.hint}</span>}
               </button>
             ))}
           </div>

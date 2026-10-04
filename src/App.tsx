@@ -35,7 +35,6 @@ import { logSession } from './lib/training';
 import { TrainingPanel } from './components/TrainingPanel';
 import { UnitsProvider } from './components/UnitsContext';
 import { Modal } from './components/Modal';
-import { CoveragePill } from './components/Coverage';
 import { SiteFooter, SiteHeader } from './components/SiteChrome';
 import { OpenSourceNotice } from './components/OpenSourceNotice';
 import { fetchCommunityRoutes, fetchRoutePhotos, type RoutePhoto } from './lib/api';
@@ -87,7 +86,7 @@ export default function App() {
       ) : (
         <MapApp />
       )}
-      {view !== 'training' && <OpenSourceNotice raised={view === 'map'} />}
+      {view !== 'training' && <OpenSourceNotice badge={view === 'landing'} />}
     </UnitsProvider>
   );
 }
@@ -139,7 +138,6 @@ function MapApp() {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [activeRouteSlug, setActiveRouteSlug] = useState<string | null>(null);
   const [detailSlug, setDetailSlug] = useState(detailSlugFromHash);
-  const cameFromMapRef = useRef(false);
   const [hoveredSlug, setHoveredSlug] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(loadFavorites);
   const [localRoutes, setLocalRoutes] = useState<Route[]>(loadLocalRoutes);
@@ -149,7 +147,14 @@ function MapApp() {
   const [focusBounds, setFocusBounds] = useState<{ bounds: Bounds; nonce: number } | null>(null);
   const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null);
   const [locateHint, setLocateHint] = useState<string | null>(null);
+  // Wide screens only: the map takes the whole width. Chosen with the expand
+  // control while browsing; with a route open the map is full width unless
+  // the person asked for the list back (listOverRoute), so a route gets the
+  // room it needs without a click and returns the list when it closes.
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [listOverRoute, setListOverRoute] = useState(false);
+  // Where the list was scrolled before a route folded it away.
+  const listScrollRef = useRef(0);
   // Small screens switch between full list and full map; wide screens show both.
   const [listOpen, setListOpen] = useState(true);
   const [gpxOpen, setGpxOpen] = useState(() => window.location.hash === '#import');
@@ -194,6 +199,12 @@ function MapApp() {
 
   useEffect(() => {
     const onHash = () => {
+      // The footer's "Routes" link while the map is already open.
+      if (window.location.hash === '#routes') {
+        setMode('routes');
+        setSelectedSlug(null);
+        return;
+      }
       if (window.location.hash !== '#import') return;
       setGpxOpen(true);
       history.replaceState(null, '', '#map');
@@ -227,10 +238,7 @@ function MapApp() {
   }, [detailSlug]);
 
   useEffect(() => {
-    const syncDetail = (event: HashChangeEvent) => {
-      if (event.oldURL.endsWith('#map')) cameFromMapRef.current = true;
-      setDetailSlug(detailSlugFromHash());
-    };
+    const syncDetail = () => setDetailSlug(detailSlugFromHash());
     window.addEventListener('hashchange', syncDetail);
     return () => window.removeEventListener('hashchange', syncDetail);
   }, []);
@@ -242,15 +250,6 @@ function MapApp() {
   useEffect(() => {
     sessionStorage.setItem('hillgpx:mode', mode);
   }, [mode]);
-
-  // A landing-page destination arrives as #map/w,s,e,n. Frame it once, then
-  // tidy the hash so a refresh does not keep yanking the camera back.
-  useEffect(() => {
-    const bounds = boundsFromHash(window.location.hash);
-    if (!bounds) return;
-    setFocusBounds({ bounds, nonce: Date.now() });
-    history.replaceState(null, '', '#map');
-  }, []);
 
   // Hearted world summits are kept loaded so "Saved" shows them wherever the map is.
   const [savedPeaks, setSavedPeaks] = useState<Venue[]>(NO_VENUES);
@@ -277,10 +276,13 @@ function MapApp() {
   }, [dataset, worldPeaks, savedPeaks]);
   const venueBySlug = useMemo(() => {
     const map = new Map(dataset?.bySlug ?? []);
+    // Saved summits too, so one picked from search or the Saved chip while its
+    // tile is off screen can still be selected and flown to.
+    for (const peak of savedPeaks) map.set(peak.slug, peak);
     for (const peak of worldPeaks) map.set(peak.slug, peak);
     if (linkedPeak) map.set(linkedPeak.slug, linkedPeak);
     return map;
-  }, [dataset, worldPeaks, linkedPeak]);
+  }, [dataset, worldPeaks, savedPeaks, linkedPeak]);
 
   const venueTypes = useMemo(() => presentVenueTypes(allVenues), [allVenues]);
 
@@ -294,10 +296,6 @@ function MapApp() {
     [allVenues, filters, savedForFilter],
   );
 
-  const visibleVenues = useMemo(
-    () => (viewport ? venuesInBounds(venues, viewport) : venues),
-    [venues, viewport],
-  );
   const viewportVenues = useMemo(
     () => (viewport ? venuesInBounds(allVenues, viewport) : allVenues),
     [allVenues, viewport],
@@ -347,16 +345,39 @@ function MapApp() {
     return allRoutes.find((route) => route.slug === activeRouteSlug)?.coordinates ?? null;
   }, [droppedGpx, selectedRoute, activeRouteSlug, allRoutes]);
 
-  const selectRoute = useCallback((slug: string | null) => {
-    setSelectedRouteSlug(slug);
-    setRouteHoverIndex(null);
-    setSpotlight(null);
-    if (slug) {
-      setSelectedSlug(null);
-      setDroppedGpx(null);
-      setListOpen(false);
-    }
+  /**
+   * Opening a route folds the list away on wide screens (the map takes the full
+   * width, as Airbnb's expanded map does); closing it brings the list back
+   * where it was scrolled to.
+   */
+  const rememberListScroll = useCallback(() => {
+    // Only the first route opened from the list: switching between routes
+    // happens with the list already folded, at the top of the page.
+    if (window.scrollY > 0) listScrollRef.current = window.scrollY;
   }, []);
+  const restoreListScroll = useCallback(() => {
+    const top = listScrollRef.current;
+    listScrollRef.current = 0;
+    if (top > 0) requestAnimationFrame(() => window.scrollTo({ top }));
+  }, []);
+
+  const selectRoute = useCallback(
+    (slug: string | null) => {
+      setSelectedRouteSlug(slug);
+      setRouteHoverIndex(null);
+      setSpotlight(null);
+      if (slug) {
+        rememberListScroll();
+        setSelectedSlug(null);
+        setDroppedGpx(null);
+        setListOpen(false);
+        setListOverRoute(false);
+      } else {
+        restoreListScroll();
+      }
+    },
+    [rememberListScroll, restoreListScroll],
+  );
 
   const frameRoutes = useCallback((routes: Route[]) => {
     const boxes = routes.map(routeBounds).filter((b): b is Bounds => Boolean(b));
@@ -400,9 +421,9 @@ function MapApp() {
     [venueBySlug],
   );
 
+  // The venue page is its own tab: leaving it is a step forward to the map, never history.back().
   const closeDetail = useCallback(() => {
-    if (cameFromMapRef.current) history.back();
-    else window.location.hash = '#map';
+    window.location.hash = '#map';
   }, []);
 
   const showDetailOnMap = useCallback(
@@ -495,11 +516,63 @@ function MapApp() {
     setFocusBounds({ bounds, nonce: Date.now() });
   }, []);
 
+  // A landing-page destination arrives as #map/w,s,e,n — on first load, or as
+  // a hash change while the map is already open. Frame it, then tidy the hash
+  // so a refresh does not keep yanking the camera back. MapView frames it
+  // before the style has loaded and again once it has.
+  useEffect(() => {
+    const frameHash = () => {
+      const bounds = boundsFromHash(window.location.hash);
+      if (!bounds) return;
+      showArea(bounds);
+      history.replaceState(null, '', '#map');
+    };
+    frameHash();
+    window.addEventListener('hashchange', frameHash);
+    return () => window.removeEventListener('hashchange', frameHash);
+  }, [showArea]);
+
+  /**
+   * A venue picked by name from search, wherever it is. Search covers every
+   * loaded venue rather than only what is on screen, so the pick may be one the
+   * current chips hide: the filters are cleared rather than leaving the camera
+   * on a pin that is not drawn (the chips visibly reset, so nothing is hidden
+   * from the person). Asking for a place by name outranks a category chip.
+   */
+  const pickFromSearch = useCallback(
+    (slug: string) => {
+      if (mode === 'routes') {
+        setMode('climbs');
+        setSelectedRouteSlug(null);
+      }
+      if (!venues.some((venue) => venue.slug === slug)) setFilters(NO_FILTERS);
+      selectVenue(slug, true);
+    },
+    [mode, venues, selectVenue],
+  );
+
+  const routeOpen = Boolean(droppedGpx || selectedRoute);
+  const mapFullWidth = routeOpen ? !listOverRoute : mapExpanded;
+
+  // The sticky header and category bar are measured so the sticky map below
+  // them can be exactly as tall as the rest of the window.
+  const topRef = useRef<HTMLDivElement>(null);
+  const [topHeight, setTopHeight] = useState(0);
+  useEffect(() => {
+    const el = topRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => setTopHeight(el.offsetHeight));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const handleLocate = useCallback(() => {
-    if (!navigator.geolocation || allVenues.length === 0) {
+    if (!navigator.geolocation) {
       setLocateHint('This browser does not support location sharing.');
       return;
     }
+    // Nothing to measure "nearest" against until the data has loaded.
+    if (allVenues.length === 0) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
@@ -533,38 +606,42 @@ function MapApp() {
   }, [allVenues]);
 
   return (
-    <div className="app">
-      {/* Search runs over what is currently on screen. Finding a hill you have
-          filtered out or panned away from would land you on a blank patch of
-          map with nothing to click, which reads as a broken map rather than
-          as a chip you left on. */}
-      <SiteHeader center={<SearchBar venues={visibleVenues} onPick={(slug) => selectVenue(slug, true)} onFitBounds={showArea} />} />
+    <div className="app map-page" style={{ '--map-top': `${topHeight}px` } as React.CSSProperties}>
+      {/* Header and category bar stay put while the page scrolls the list. */}
+      <div className="map-top" ref={topRef}>
+        <SiteHeader center={<SearchBar venues={allVenues} onPick={pickFromSearch} onFitBounds={showArea} />} />
 
-      <FilterBar
-        types={venueTypes}
-        visibleVenues={viewportVenues}
-        filters={filters}
-        savedCount={favorites.size}
-        onChange={(next) => {
-          // Saved places can be anywhere in the world: frame them all when the chip is picked.
-          if (next.savedOnly && !filters.savedOnly) {
-            const bounds = boundsOf(allVenues.filter((venue) => favorites.has(venue.slug)));
-            if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
-          }
-          setFilters(next);
-        }}
-        mode={mode}
-        onModeChange={(next) => {
-          setMode(next);
-          setSelectedSlug(null);
-          if (next === 'climbs') setSelectedRouteSlug(null);
-        }}
-        routes={allRoutes}
-        routeFilters={routeFilters}
-        onRouteFiltersChange={setRouteFilters}
-      />
+        <div className={`map-filters${routeOpen && mapFullWidth ? ' folded' : ''}`} aria-hidden={routeOpen && mapFullWidth ? true : undefined}>
+        <div>
+        <FilterBar
+          types={venueTypes}
+          visibleVenues={viewportVenues}
+          viewport={viewport}
+          filters={filters}
+          savedCount={favorites.size}
+          onChange={(next) => {
+            // Saved places can be anywhere in the world: frame them all when the chip is picked.
+            if (next.savedOnly && !filters.savedOnly) {
+              const bounds = boundsOf(allVenues.filter((venue) => favorites.has(venue.slug)));
+              if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
+            }
+            setFilters(next);
+          }}
+          mode={mode}
+          onModeChange={(next) => {
+            setMode(next);
+            setSelectedSlug(null);
+            if (next === 'climbs') selectRoute(null);
+          }}
+          routes={allRoutes}
+          routeFilters={routeFilters}
+          onRouteFiltersChange={setRouteFilters}
+        />
+        </div>
+        </div>
+      </div>
 
-      <main className={`stage${mapExpanded ? ' map-expanded' : ''}`}>
+      <main className={`stage${mapFullWidth ? ' map-expanded' : ''}${listOpen ? ' list-open' : ''}`}>
         {/* Wide screens start split and can expand the map; small screens toggle views. */}
         <div className={`list-pane${listOpen ? ' open' : ''}`}>
           {!dataset && !loadError && <ListSkeleton />}
@@ -593,9 +670,6 @@ function MapApp() {
               onShowAll={frameRoutes}
             />
           )}
-          {/* As on Airbnb: the footer waits at the end of the list instead of
-              taking a strip off the bottom of the map. */}
-          {dataset && <SiteFooter />}
         </div>
 
         {loadError ? (
@@ -626,8 +700,8 @@ function MapApp() {
                 onHover={setHoveredSlug}
                 focus={focus}
                 focusBounds={focusBounds}
-                mapExpanded={mapExpanded}
-                onToggleExpand={() => setMapExpanded((value) => !value)}
+                mapExpanded={mapFullWidth}
+                onToggleExpand={() => (routeOpen ? setListOverRoute((value) => !value) : setMapExpanded((value) => !value))}
                 injectedVenueSlugs={droppedGpx?.venueSlugs ?? []}
                 hoverPoint={gpxHoverPoint ?? routeHoverPoint}
                 onRouteHover={droppedGpx ? setGpxHoverIndex : setRouteHoverIndex}
@@ -654,8 +728,6 @@ function MapApp() {
                 }}
               />
             </Suspense>
-
-            {!droppedGpx && !selectedRoute && !selectedVenue && <CoveragePill onUpload={openImport} className="on-map" />}
 
             {mapError && <div className="map-error small">The map failed to load: {mapError}</div>}
 
@@ -715,6 +787,7 @@ function MapApp() {
                   setPublishedRoute(null);
                   setGpxHoverIndex(null);
                   setSpotlight(null);
+                  restoreListScroll();
                 }}
                 onPublished={onPublished}
                 published={publishedRoute}
@@ -744,7 +817,6 @@ function MapApp() {
           <VenueDetail
             venue={detailVenue}
             routes={detailRoutes}
-            onClose={closeDetail}
             onShowOnMap={showDetailOnMap}
             isFavorite={favorites.has(detailVenue.slug)}
             onToggleFavorite={() => toggleFavorite(detailVenue.slug)}
@@ -764,6 +836,8 @@ function MapApp() {
                 selectRoute(slug);
               }}
               onLoaded={(loaded) => {
+                if (!droppedGpx && !selectedRoute) rememberListScroll();
+                setListOverRoute(false);
                 setSelectedRouteSlug(null);
                 setSelectedSlug(null);
                 setPublishedRoute(null);
@@ -779,6 +853,10 @@ function MapApp() {
         )}
 
       </main>
+
+      {/* As on Airbnb: below the list and the map together, full width, reached
+          by scrolling past the end of the list while the map stays beside it. */}
+      {dataset && <SiteFooter />}
     </div>
   );
 }

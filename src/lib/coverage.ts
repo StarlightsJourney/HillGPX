@@ -64,3 +64,26 @@ export function compactCount(n: number): string {
   if (n >= 10_000) return `${Math.round(n / 1000)}k`;
   return n.toLocaleString();
 }
+
+/**
+ * Community goals: plain round numbers of shared GPX routes. Past the last
+ * one, the next goal is the next multiple of it.
+ */
+export const ROUTE_GOALS = [10, 25, 50, 100, 250, 500, 1000, 5000] as const;
+
+export interface RouteGoal {
+  /** Routes shared so far. */
+  routes: number;
+  /** The next round number to reach. */
+  goal: number;
+  /** Routes still needed to reach `goal`. */
+  remaining: number;
+  /** routes / goal, 0–1: the bar is filled out of the whole goal, not the step. */
+  share: number;
+}
+
+export function routeGoal(routes: number): RouteGoal {
+  const last = ROUTE_GOALS[ROUTE_GOALS.length - 1];
+  const goal = ROUTE_GOALS.find((count) => routes < count) ?? (Math.floor(routes / last) + 1) * last;
+  return { routes, goal, remaining: goal - routes, share: Math.min(1, Math.max(0, routes / goal)) };
+}

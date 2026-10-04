@@ -158,7 +158,7 @@ Neither is considered authoritative for the public dataset. To publish a route, 
 ### Find a place to train
 
 1. The landing page shows three representative places per geographic or training category instead of an exhaustive wall of cards.
-2. The user opens a place directly or chooses **See all** to frame that region on the map.
+2. The user opens a place (in a new tab) or follows a row's title or its end-of-row *See all* card to frame that country or region on the map.
 3. Map pills distinguish the venue types present in the dataset with visible glyphs; route pills show distance. The current generated data contains hills and HDB blocks, while the schema is ready for stairs, parks, carparks, and bridges as those datasets are curated.
 4. Selecting a pill opens a concise summary. Opening the detail page reveals access notes, linked routes, photos, attribution, nearby venues, and the location map.
 5. The primary next actions are **Show on map**, **Download GPX** when available, save, share, or report incorrect data.

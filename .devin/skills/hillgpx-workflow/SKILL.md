@@ -91,7 +91,7 @@ Do not commit generated fixtures or scratch GPX files.
 2. **Rebuild datasets.**
 
    ```bash
-   python scripts/build_data.py
+   python3 scripts/build_data.py
    ```
 
    Confirm `public/data/venues.json` and `public/data/routes.json` are updated and no Python exceptions are raised.
@@ -164,7 +164,7 @@ For each acceptance criterion, report one status:
 
 Required criteria:
 
-- [ ] `python scripts/build_data.py` exits 0.
+- [ ] `python3 scripts/build_data.py` exits 0.
 - [ ] `npm run typecheck` exits 0.
 - [ ] `npm run build` exits 0.
 - [ ] Map loads and venue pills render.

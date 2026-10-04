@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import type { Route } from '../types';
 import { THUMB_H as H, THUMB_W as W, thumbPath, thumbView } from '../lib/thumbView';
 import { communityThumbUrl, uploadRouteThumb } from '../lib/api';
@@ -10,29 +10,38 @@ import { communityThumbUrl, uploadRouteThumb } from '../lib/api';
  * about which route this is. The trace is the one picture that is unique to
  * it, so the card draws it over the real terrain it crosses — a basemap
  * rendered once by `scripts/render_route_thumbs.ts` and stored, not rendered
- * per card — and its elevation silhouette. Routes saved in this browser have
- * no stored image and fall back to a plain grid.
+ * per card — and its elevation silhouette. Routes without a stored image get
+ * one rendered in the browser (see liveThumb); the plain grid only shows while
+ * that render is under way or if it fails.
  */
-/** Community routes whose card image is being (re)rendered this session, so it happens once. */
-const repairing = new Map<string, Promise<boolean>>();
+/** Basemaps rendered in this browser this session, one per route and view, as object URLs. */
+const liveThumbs = new Map<string, Promise<string | null>>();
+/** One render at a time: each spins up a hidden MapLibre map and a WebGL context. */
+let renderQueue: Promise<unknown> = Promise.resolve();
 
 /**
- * A community route uploaded before card images existed (or whose render
- * failed) has no stored basemap. The first card to notice renders one in this
- * browser, uploads it, and every later visitor gets the stored image.
+ * Any route with a trace gets a map behind it. Routes saved on this device
+ * have no stored image, and a stored one can be missing (a community upload
+ * from before card images existed, a committed route changed since the last
+ * `render_route_thumbs.ts` run). The card then renders the basemap here, the
+ * same way the stored ones are made; a community route's render is also
+ * uploaded, so later visitors get the stored image.
  */
-function repairThumb(route: Route): Promise<boolean> {
-  let pending = repairing.get(route.slug);
+function liveThumb(route: Route, key: string): Promise<string | null> {
+  const id = `${route.slug}-${key}`;
+  let pending = liveThumbs.get(id);
   if (!pending) {
-    pending = import('../map/renderThumb')
+    pending = renderQueue
+      .then(() => import('../map/renderThumb'))
       .then(({ renderRouteThumb }) => renderRouteThumb(route))
-      .then(async (thumb) => {
-        if (!thumb) return false;
-        await uploadRouteThumb(route.slug, thumb.key, thumb.blob);
-        return true;
+      .then((thumb) => {
+        if (!thumb) return null;
+        if (route.source === 'community' && route.gpxUrl) void uploadRouteThumb(route.slug, thumb.key, thumb.blob).catch(() => undefined);
+        return URL.createObjectURL(thumb.blob);
       })
-      .catch(() => false);
-    repairing.set(route.slug, pending);
+      .catch(() => null);
+    renderQueue = pending;
+    liveThumbs.set(id, pending);
   }
   return pending;
 }
@@ -40,8 +49,7 @@ function repairThumb(route: Route): Promise<boolean> {
 export function RouteThumb({ route, animate = true }: { route: Route; animate?: boolean }) {
   const id = useId();
   const [imageFailed, setImageFailed] = useState(false);
-  const [version, setVersion] = useState(0);
-  const isCommunity = route.source === 'community' && Boolean(route.gpxUrl);
+  const [live, setLive] = useState<{ id: string; url: string } | null>(null);
   const shape = useMemo(() => {
     const pts = route.coordinates;
     const view = thumbView(pts);
@@ -67,11 +75,26 @@ export function RouteThumb({ route, animate = true }: { route: Route; animate?: 
     const image = route.source === 'community' && route.gpxUrl
       ? communityThumbUrl(route.slug, view.key)
       : `${import.meta.env.BASE_URL}${thumbPath(route.slug, view)}`;
-    return { line, profile, start: proj[0], end: proj[proj.length - 1], image };
+    return { line, profile, start: proj[0], end: proj[proj.length - 1], image, viewKey: view.key, key: `${route.slug}-${view.key}` };
   }, [route.coordinates, route.slug, route.source, route.gpxUrl]);
 
+  // No stored image to show: render one here.
+  const needsLive = Boolean(shape) && (route.source === 'local' || imageFailed);
+  useEffect(() => {
+    if (!needsLive || !shape) return;
+    let cancelled = false;
+    void liveThumb(route, shape.viewKey).then((url) => {
+      if (!cancelled && url) setLive({ id: shape.key, url });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsLive, shape, route]);
+
   if (!shape) return <span className="route-thumb" />;
-  const showImage = route.source !== 'local' && !imageFailed;
+  const liveUrl = live?.id === shape.key ? live.url : null;
+  const href = liveUrl ?? (route.source !== 'local' && !imageFailed ? shape.image : null);
+  const showImage = Boolean(href);
 
   return (
     <span className={`route-thumb${animate ? ' animate' : ''}${showImage ? ' has-map' : ''}`}>
@@ -85,20 +108,16 @@ export function RouteThumb({ route, animate = true }: { route: Route; animate?: 
             <stop offset="1" stopColor="var(--accent)" stopOpacity={showImage ? 0.15 : 0.04} />
           </linearGradient>
         </defs>
-        {showImage ? (
+        {href ? (
           <image
-            href={version ? `${shape.image}?v=${version}` : shape.image}
+            key={href}
+            href={href}
             width={W}
             height={H}
             preserveAspectRatio="none"
+            className="route-thumb-map"
             onError={() => {
-              setImageFailed(true);
-              if (!isCommunity || version) return;
-              void repairThumb(route).then((ok) => {
-                if (!ok) return;
-                setVersion(Date.now());
-                setImageFailed(false);
-              });
+              if (!liveUrl) setImageFailed(true);
             }}
           />
         ) : (

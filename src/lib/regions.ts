@@ -45,6 +45,70 @@ export const DESTINATIONS: Destination[] = [
   { name: 'Taiwan', hint: 'Yushan and the Central Range', bounds: COUNTRIES[2].bounds },
 ];
 
+/** The coarse box of a region named by regionOf(), so a row titled with it can open there. */
+export function regionBounds(name: string): Bounds | null {
+  return COUNTRIES.find((country) => country.name === name)?.bounds ?? null;
+}
+
+/** Lower-case, accents off, so "Sao Tome" finds "São Tomé" and "zurich" finds "Zürich". */
+export function normalisePlace(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+const PHOTON = 'https://photon.komoot.io/api/';
+
+interface PhotonResponse {
+  features?: {
+    geometry?: { coordinates?: [number, number] };
+    properties?: { extent?: [number, number, number, number] };
+  }[];
+}
+
+/**
+ * A box for any place name, from Photon (OpenStreetMap data, keyless, CORS).
+ * Used only when someone submits a search that matches nothing we know.
+ * Resolves to null when nothing is found; rejects on a network failure or
+ * after 8 s, so callers can tell "no such place" from "could not ask".
+ *
+ * Photon's `extent` is [west, north, east, south]. A place that circles the
+ * globe in it (Fiji: -180…180) or has none (a peak, a hut) is framed around
+ * its point instead.
+ */
+export async function geocodePlace(query: string, signal?: AbortSignal): Promise<Bounds | null> {
+  const q = query.trim();
+  if (!q) return null;
+  const timeout = new AbortController();
+  const timer = window.setTimeout(() => timeout.abort(), 8000);
+  const abort = () => timeout.abort();
+  signal?.addEventListener('abort', abort);
+  try {
+    const response = await fetch(`${PHOTON}?q=${encodeURIComponent(q)}&limit=1&lang=en`, { signal: timeout.signal });
+    if (!response.ok) throw new Error(`Place search failed (${response.status})`);
+    const feature = ((await response.json()) as PhotonResponse).features?.[0];
+    if (!feature) return null;
+    const extent = feature.properties?.extent;
+    if (extent && extent.every(Number.isFinite)) {
+      const [w, n, e, s] = extent;
+      const west = Math.min(w, e);
+      const east = Math.max(w, e);
+      if (east - west < 300) return { west, south: Math.min(s, n), east, north: Math.max(s, n) };
+    }
+    const point = feature.geometry?.coordinates;
+    if (!point || !point.every(Number.isFinite)) return null;
+    const pad = extent ? 2 : 0.08;
+    const [lng, lat] = point;
+    return { west: lng - pad, south: lat - pad, east: lng + pad, north: lat + pad };
+  } finally {
+    window.clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
+  }
+}
+
+/**
+ * The map's hash for a box. `east` may be above 180 when the box crosses the
+ * antimeridian (a country box from the peak index, e.g. Fiji 177…181);
+ * MapLibre's fitBounds reads that as "carry on east".
+ */
 export function boundsToHash(b: Bounds): string {
   return `#map/${[b.west, b.south, b.east, b.north].map((n) => n.toFixed(4)).join(',')}`;
 }

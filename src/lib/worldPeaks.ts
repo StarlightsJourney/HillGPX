@@ -17,8 +17,13 @@ export interface PeakIndex {
   tile: number;
   total: number;
   countries: number;
-  /** ISO code → [summit count, west, south, east, north]. */
+  /**
+   * ISO code → [summit count, west, south, east, north]: the tight box round
+   * the globe, so `east` exceeds 180 for a country across the antimeridian.
+   */
   byCountry?: Record<string, [number, number, number, number, number]>;
+  /** ISO code → geonameids of its landing row (tallest distinct summits, highest first), all in `top`. */
+  rows?: Record<string, number[]>;
   cells: Record<string, number>;
   top: PeakRow[];
 }
@@ -101,18 +106,19 @@ export async function peaksInView(view: Bounds): Promise<Venue[]> {
   const index = await loadPeakIndex();
   if (!index) return [];
   const size = index.tile;
-  const keys: string[] = [];
+  const keys = new Set<string>();
   for (let s = Math.floor(view.south / size) * size; s < view.north; s += size) {
     for (let w = Math.floor(view.west / size) * size; w < view.east; w += size) {
-      const key = `${s}_${w}`;
-      if (index.cells[key]) keys.push(key);
+      // A view across the antimeridian runs past ±180; tiles are keyed within it.
+      const key = `${s}_${(((w + 180) % 360) + 360) % 360 - 180}`;
+      if (index.cells[key]) keys.add(key);
     }
   }
-  if (keys.length > MAX_TILES) {
+  if (keys.size > MAX_TILES) {
     const photos = await loadPeakPhotos();
     return index.top.map((row) => toVenue(row, size, photos));
   }
-  return (await Promise.all(keys.map((key) => loadTile(key, size)))).flat();
+  return (await Promise.all([...keys].map((key) => loadTile(key, size)))).flat();
 }
 
 /** Find one summit by slug (for links and favourites), loading just its tile. */
@@ -129,9 +135,9 @@ export interface CountrySummary {
   code: string;
   name: string;
   count: number;
-  /** Null when the country straddles the antimeridian and a box would span the globe. */
-  bounds: Bounds | null;
-  /** Its tallest summits from the index highlights, highest first. */
+  /** Where its summits are; `east` exceeds 180 for a country across the antimeridian. */
+  bounds: Bounds;
+  /** Its tallest distinct summits, highest first, with their stored photo when one exists. */
   peaks: Venue[];
 }
 
@@ -147,26 +153,44 @@ export function countryName(code: string): string {
   }
 }
 
-/** Every country with mapped summits, most summits first, for the banner and the landing rows. */
-export async function countrySummaries(): Promise<CountrySummary[]> {
-  const index = await loadPeakIndex();
-  if (!index?.byCountry) return [];
-  const peaksBy = new Map<string, Venue[]>();
-  for (const row of index.top) {
-    const list = peaksBy.get(row[6]);
-    const venue = toVenue(row, index.tile);
-    if (list) list.push(venue);
-    else peaksBy.set(row[6], [venue]);
-  }
-  return Object.entries(index.byCountry)
-    .map(([code, [count, west, south, east, north]]) => ({
-      code,
-      name: countryName(code),
-      count,
-      bounds: east - west > 180 ? null : { west, south, east, north },
-      peaks: (peaksBy.get(code) ?? []).sort((a, b) => (b.summitM ?? 0) - (a.summitM ?? 0)).slice(0, 12),
-    }))
-    .sort((a, b) => b.count - a.count);
+let summariesPromise: Promise<CountrySummary[]> | null = null;
+
+/**
+ * Every country with mapped summits, most summits first, for the banner, the
+ * landing rows and the searches. Peaks carry the same stored photo as on the
+ * map (toVenue), so a summit looks the same everywhere.
+ */
+export function countrySummaries(): Promise<CountrySummary[]> {
+  summariesPromise ??= Promise.all([loadPeakIndex(), loadPeakPhotos()]).then(([index, photos]) => {
+    if (!index?.byCountry) {
+      summariesPromise = null;
+      return [];
+    }
+    const rowsBy = new Map<string, PeakRow[]>();
+    const byId = new Map<number, PeakRow>();
+    for (const row of index.top) {
+      byId.set(row[0], row);
+      const list = rowsBy.get(row[6]);
+      if (list) list.push(row);
+      else rowsBy.set(row[6], [row]);
+    }
+    const landingRow = (code: string): PeakRow[] => {
+      const ids = index.rows?.[code];
+      if (ids) return ids.map((id) => byId.get(id)).filter((row): row is PeakRow => Boolean(row));
+      // An index from before `rows`: its tallest highlights.
+      return (rowsBy.get(code) ?? []).sort((a, b) => b[4] - a[4]).slice(0, 12);
+    };
+    return Object.entries(index.byCountry)
+      .map(([code, [count, west, south, east, north]]) => ({
+        code,
+        name: countryName(code),
+        count,
+        bounds: { west, south, east, north },
+        peaks: landingRow(code).map((row) => toVenue(row, index.tile, photos)),
+      }))
+      .sort((a, b) => b.count - a.count);
+  });
+  return summariesPromise;
 }
 
 export interface PeakPhoto {

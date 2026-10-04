@@ -1,122 +1,82 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { compactCount, formatShare } from '../lib/coverage';
-import { useCoverage } from './Coverage';
-import { REPO_URL } from '../lib/contribute';
+import { compactCount, routeGoal } from '../lib/coverage';
+import { prefersReducedMotion } from '../lib/dom';
+import { CoverageModal, useCountUp, useCoverage } from './Coverage';
+import { ChevronRightIcon } from './icons';
+
+const TICK_MS = 4200;
 
 /**
- * Community GPX milestones. Each tier is a shared achievement: the whole
- * community unlocks it together, so every upload visibly moves the bar.
- */
-export const MILESTONES: { count: number; name: string }[] = [
-  { count: 10, name: 'First tracks' },
-  { count: 25, name: 'Trailhead' },
-  { count: 50, name: 'Ridge line' },
-  { count: 100, name: 'Summit push' },
-  { count: 250, name: 'Range' },
-  { count: 500, name: 'Expedition' },
-  { count: 1000, name: 'World map' },
-  { count: 5000, name: 'Every hill' },
-];
-
-function progressOf(routes: number) {
-  const index = MILESTONES.findIndex((m) => routes < m.count);
-  const next = index === -1 ? null : MILESTONES[index];
-  const previous = index <= 0 ? 0 : MILESTONES[index - 1].count;
-  const share = next ? (routes - previous) / (next.count - previous) : 1;
-  return { next, index: index === -1 ? MILESTONES.length : index, share: Math.max(0, Math.min(1, share)) };
-}
-
-function Medal({ unlocked }: { unlocked: boolean }) {
-  return (
-    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" className={unlocked ? 'medal on' : 'medal'}>
-      <path d="M4.5 1h3l.7 3.4H5.6zM8.5 1h3l-.9 3.4H7.8z" fill="currentColor" opacity="0.55" />
-      <circle cx="8" cy="10" r="4.6" fill="currentColor" />
-      <path d="m8 7.6.8 1.5 1.7.3-1.2 1.2.3 1.7L8 11.5l-1.6.8.3-1.7-1.2-1.2 1.7-.3z" fill="#fff" opacity="0.9" />
-    </svg>
-  );
-}
-
-const ROTATE_MS = 4200;
-
-/**
- * The community's progress, on every page: a slim strip under the header.
- * It cycles through a few live facts (always leading with how much is mapped
- * and how little has a GPX), and hovering or tapping drops down the full
- * milestone ladder.
+ * The top strip on every page: how many GPX routes the community has shared
+ * out of the next round-number goal, as a filled bar. On arrival the count
+ * runs up and the bar fills; then the line beside it rolls through a few
+ * short facts (the goal, what is left, how much of the map has a GPX, an
+ * invitation). It pauses while hovered or focused and stays on the first
+ * line under reduced motion. Nothing opens on hover; a click opens
+ * "What's mapped".
+ *
+ * Fixed height (`--goal-bar-h`), loading included, so the sticky landing
+ * header never changes size.
  */
 export function MilestoneBar() {
   const coverage = useCoverage();
   const [open, setOpen] = useState(false);
-  const [slide, setSlide] = useState(0);
+  const [tick, setTick] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const shared = useCountUp(coverage?.routes ?? 0, 1100);
 
   useEffect(() => {
-    if (open || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const timer = window.setInterval(() => setSlide((n) => n + 1), ROTATE_MS);
+    if (!coverage || paused || open || prefersReducedMotion()) return;
+    const timer = window.setInterval(() => setTick((n) => n + 1), TICK_MS);
     return () => window.clearInterval(timer);
-  }, [open]);
+  }, [coverage, paused, open]);
 
-  if (!coverage) return <div className="mile-bar loading" aria-hidden="true" />;
-  const { next, index, share } = progressOf(coverage.routes);
-  const remaining = next ? next.count - coverage.routes : 0;
-  // Plain statements of fact, one at a time.
-  const messages: ReactNode[] = [
-    <><strong>{coverage.summits.toLocaleString()}</strong> hills on the map. <strong>{coverage.placesWithRoutes.toLocaleString()}</strong> have a GPX.</>,
-    next ? <><strong>{remaining}</strong> more {remaining === 1 ? 'route' : 'routes'} to reach <em>{next.name}</em>.</> : <>All milestones reached.</>,
-    <><strong>{coverage.routes}</strong> routes shared in <strong>{coverage.countries}</strong> countries.</>,
-    <><strong>{coverage.placesWithPhotos.toLocaleString()}</strong> places have a photo.</>,
-    <>hillGPX is free and <strong>open source</strong>.</>,
+  if (!coverage) return <div className="goal-bar loading" aria-hidden="true" />;
+
+  const { goal, remaining, share } = routeGoal(coverage.routes);
+  const lines: ReactNode[] = [
+    <>
+      <strong>
+        {shared.toLocaleString()} of {goal.toLocaleString()}
+      </strong>{' '}
+      GPX routes shared
+    </>,
+    <>
+      <strong>{remaining.toLocaleString()} to go</strong> to the next goal of {goal.toLocaleString()}
+    </>,
+    <>
+      <strong>{compactCount(coverage.summits)}</strong> hills mapped, <strong>{coverage.placesWithRoutes.toLocaleString()}</strong> with a GPX
+    </>,
+    <>
+      Ran one? <strong>Share the GPX</strong>, free for everyone
+    </>,
   ];
-  // The headline fact comes round every other slide.
-  const current = slide % 2 === 0 ? 0 : 1 + (Math.floor(slide / 2) % (messages.length - 1));
+  const index = tick % lines.length;
 
   return (
-    <div className={`mile-bar${open ? ' open' : ''}`} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-      <div className="mile-bar-row">
-        <button type="button" className="mile-bar-main" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-          <Medal unlocked={index > 0} />
-          <span className="mile-bar-ticker" aria-live="polite">
-            <span key={current} className="mile-bar-text">{messages[current]}</span>
+    <div className="goal-bar">
+      <button
+        type="button"
+        className="goal-bar-main"
+        aria-haspopup="dialog"
+        aria-label={`${coverage.routes} of ${goal} GPX routes shared, ${remaining} to go to the next goal. Open what's mapped.`}
+        onClick={() => setOpen(true)}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onFocus={() => setPaused(true)}
+        onBlur={() => setPaused(false)}
+      >
+        <span className="goal-bar-ticker" aria-hidden="true">
+          <span key={index} className="goal-bar-line">
+            {lines[index]}
           </span>
-          <span className="mile-bar-track" aria-hidden="true">
-            <span style={{ width: `${Math.max(share * 100, 4)}%` }} />
-          </span>
-          <span className="mile-bar-count">{coverage.routes}/{next?.count ?? coverage.routes}</span>
-        </button>
-      </div>
-
-      {open && (
-        <div className="mile-bar-drop">
-          <div className="mile-bar-panel">
-            <div className="mile-bar-headline">
-              <div>
-                <strong>{compactCount(coverage.summits)}</strong>
-                <span>hills in {coverage.countries} countries</span>
-              </div>
-              <div>
-                <strong>{coverage.placesWithRoutes.toLocaleString()}</strong>
-                <span>with a GPX ({formatShare(coverage.gpxShare)})</span>
-              </div>
-              <div>
-                <strong>{coverage.placesWithPhotos.toLocaleString()}</strong>
-                <span>with a photo ({formatShare(coverage.photoShare)})</span>
-              </div>
-            </div>
-            <ol className="mile-steps">
-              {MILESTONES.map((milestone, i) => (
-                <li key={milestone.count} className={i < index ? 'done' : i === index ? 'current' : ''}>
-                  <Medal unlocked={i < index} />
-                  <span>{milestone.name}</span>
-                  <small>{milestone.count.toLocaleString()}</small>
-                </li>
-              ))}
-            </ol>
-            <p className="mile-bar-oss">
-              hillGPX is free and open source. Anyone can add data or improve it on{' '}
-              <a href={REPO_URL} target="_blank" rel="noreferrer">GitHub</a>.
-            </p>
-          </div>
-        </div>
-      )}
+        </span>
+        <span className="goal-bar-track" aria-hidden="true">
+          <span style={{ '--goal-share': share } as React.CSSProperties} />
+        </span>
+        <ChevronRightIcon size={12} />
+      </button>
+      {open && <CoverageModal coverage={coverage} onClose={() => setOpen(false)} />}
     </div>
   );
 }

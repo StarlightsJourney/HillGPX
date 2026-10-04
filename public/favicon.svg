@@ -1,4 +1,4 @@
-<!-- Keep in sync with the Mark component in src/components/icons.tsx. -->
+<!-- Keep in sync with the Mark component in src/components/icons.tsx. An H whose crossbar peaks like a summit. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
@@ -8,8 +8,5 @@
     </linearGradient>
   </defs>
   <rect width="32" height="32" rx="7" fill="url(#g)"/>
-  <path d="M5 26 L13 12 L19 18 L27 6 L27 26 Z" fill="#ffffff" fill-opacity="0.08"/>
-  <path d="M5 25 L13 17 L19 20 L27 9" fill="none" stroke="#7e2e1b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/>
-  <path d="M5 25 L13 17 L19 20 L27 9" fill="none" stroke="#ffffff" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="27" cy="9" r="3" fill="#ffffff"/>
+  <path d="M9.75 7.5h2A1.25 1.25 0 0 1 13 8.75V15l3-3.25 3 3.25V8.75a1.25 1.25 0 0 1 1.25-1.25h2a1.25 1.25 0 0 1 1.25 1.25v14.5a1.25 1.25 0 0 1-1.25 1.25h-2A1.25 1.25 0 0 1 19 23.25V19H13v4.25a1.25 1.25 0 0 1-1.25 1.25h-2A1.25 1.25 0 0 1 8.5 23.25V8.75A1.25 1.25 0 0 1 9.75 7.5z" fill="#ffffff"/>
 </svg>

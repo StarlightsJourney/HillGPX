@@ -31,7 +31,7 @@ export interface GeneratedDescription {
 const WIKI = 'https://en.wikipedia.org';
 const COMMONS = 'https://commons.wikimedia.org/w/api.php';
 
-const STOPWORDS = /\b(mount|mt|gunung|bukit|bt|pulau|hill|peak|puncak|pico|monte|mont|berg|san|shan|yama|san|dake)\b/g;
+const STOPWORDS = /\b(mount|mt|gunung|bukit|bt|pulau|hill|peak|puncak|pico|monte|mont|berg|san|shan|yama|dake)\b/g;
 const core = (name: string) =>
   name.toLowerCase().replace(/\(.*?\)/g, ' ').replace(STOPWORDS, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
 

@@ -50,7 +50,14 @@ export function Landing({ onOpen }: LandingProps) {
     loadDataset().then(setDataset).catch((error: Error) => setLoadError(error.message));
   }, []);
 
-  const rows = useMemo(() => (dataset ? buildRows(dataset.venues) : null), [dataset]);
+  const countries = useCountries();
+  const worldList = useMemo(() => worldRowCountries(countries), [countries]);
+  // A country with its own "Highest peaks in …" row further down does not
+  // also get a "Peaks in …" row from the local data: one row per country.
+  const rows = useMemo(
+    () => (dataset && countries ? buildRows(dataset.venues, new Set(worldList.map((c) => normalisePlace(c.name)))) : null),
+    [dataset, countries, worldList],
+  );
   const routes = useMemo(
     () => (dataset ? [...dataset.routes].sort((a, b) => b.gainM - a.gainM) : null),
     [dataset],
@@ -86,7 +93,7 @@ export function Landing({ onOpen }: LandingProps) {
               {(rows ?? PLACEHOLDER_ROWS).slice(0, 2).map((row) => placeRow(row, true))}
             </div>
             {(rows ?? PLACEHOLDER_ROWS).slice(2).map((row) => placeRow(row))}
-            <WorldRows />
+            {countries && <WorldRows list={worldList} />}
           </>
         )}
       </main>
@@ -156,20 +163,20 @@ const WORLD_MAX = 24;
 /** A row needs enough summits to scroll; tiny territories stay in the marquee and on the map. */
 const WORLD_MIN_PEAKS = 6;
 
+/** The countries that get a "Highest peaks in …" row, in page order. */
+function worldRowCountries(countries: CountrySummary[] | null): CountrySummary[] {
+  return (countries ?? []).filter((c) => !WORLD_SKIP.has(c.code) && c.peaks.length >= WORLD_MIN_PEAKS).slice(0, WORLD_MAX);
+}
+
 /**
  * More countries as you scroll, Airbnb-style: a skeleton row appears, then
  * the next countries' tallest summits fill in.
  */
-function WorldRows() {
-  const countries = useCountries();
+function WorldRows({ list }: { list: CountrySummary[] }) {
   const [shown, setShown] = useState(WORLD_BATCH);
   const [loading, setLoading] = useState(false);
   const sentinel = useRef<HTMLDivElement>(null);
-  const list = useMemo(
-    () => (countries ?? []).filter((c) => !WORLD_SKIP.has(c.code) && c.peaks.length >= WORLD_MIN_PEAKS),
-    [countries],
-  );
-  const done = shown >= Math.min(list.length, WORLD_MAX);
+  const done = shown >= list.length;
 
   // Seeing the sentinel starts a short skeleton; the timer below then reveals
   // the next batch. Kept as two effects so starting the skeleton does not
@@ -193,7 +200,6 @@ function WorldRows() {
     return () => window.clearTimeout(timer);
   }, [loading]);
 
-  if (!countries) return null;
   return (
     <>
       {list.slice(0, shown).map((country) => (
@@ -468,7 +474,7 @@ function showcase(venues: Venue[], limit = 12): Venue[] {
     .slice(0, limit);
 }
 
-function buildRows(venues: Venue[]): RowSpec[] {
+function buildRows(venues: Venue[], worldRows: ReadonlySet<string>): RowSpec[] {
   const byRegion = new Map<string, Venue[]>();
   for (const venue of venues) {
     const region = regionOf(venue.lng, venue.lat);
@@ -488,7 +494,7 @@ function buildRows(venues: Venue[]): RowSpec[] {
     { title: 'Summits across Malaysia', venues: showcase(malaysia), bounds: boundsFor('Malaysia', malaysia), showKind: false },
   ];
   for (const [region, list] of byRegion) {
-    if (region === 'Singapore' || region === 'Malaysia' || list.length < 4) continue;
+    if (region === 'Singapore' || region === 'Malaysia' || list.length < 4 || worldRows.has(normalisePlace(region))) continue;
     rows.push({ title: `Peaks in ${region}`, venues: showcase(list), bounds: boundsFor(region, list), showKind: false });
   }
   return rows.filter((row) => row.venues.length > 0);

@@ -74,7 +74,7 @@ const CLIMB_PATHS: Record<string, string> = {
   carpark: 'M4 21V4h16v17 M9 16V8h3.5a2.5 2.5 0 0 1 0 5H9',
 };
 
-function CategoryIcon({ id }: { id: string }) {
+export function CategoryIcon({ id }: { id: string }) {
   if (id in CLIMB_PATHS) {
     return (
       <svg width="24" height="24" viewBox="0 0 24 24" {...STROKE} aria-hidden="true">
@@ -101,6 +101,7 @@ function CategoryIcon({ id }: { id: string }) {
     run: <path d={ACTIVITY_PATHS.run} />,
     trail: <path d={ACTIVITY_PATHS.trail} />,
     cycle: <path d={ACTIVITY_PATHS.cycle} />,
+    globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z" /></>,
   };
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" {...STROKE} aria-hidden="true">

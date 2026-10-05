@@ -36,8 +36,9 @@ jobs:
       - run: npm run build
         env:
           # GitHub Pages serves a project site under /<repo>/, so asset URLs
-          # need that prefix. Drop this if you move to a custom domain.
-          VITE_BASE: /${{ github.event.repository.name }}/
+          # need that prefix. With a custom domain (public/CNAME present) the
+          # site lives at the root, so the prefix is dropped automatically.
+          VITE_BASE: ${{ hashFiles('public/CNAME') != '' && '/' || format('/{0}/', github.event.repository.name) }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

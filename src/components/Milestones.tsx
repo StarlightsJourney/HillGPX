@@ -68,13 +68,13 @@ export function MilestoneBar() {
       >
         <span className="goal-bar-ticker" aria-hidden="true">
           <span key={index} className="goal-bar-line">
-            {lines[index]}
+            <span className="goal-bar-copy">{lines[index]}</span>
+            <ChevronRightIcon size={12} />
           </span>
         </span>
         <span className="goal-bar-track" aria-hidden="true">
           <span style={{ '--goal-share': share } as React.CSSProperties} />
         </span>
-        <ChevronRightIcon size={12} />
       </button>
       {open && <CoverageModal coverage={coverage} onClose={() => setOpen(false)} />}
     </div>

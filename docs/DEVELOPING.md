@@ -181,7 +181,7 @@ node scripts/render_route_thumbs.ts --force  # everything
 
 ## Deploying
 
-Pushing to `main` runs `.github/workflows/deploy.yml`, which builds with `VITE_BASE=/HillGPX/` and publishes `dist/` to GitHub Pages. To check a production build under the same sub-path:
+Pushing to `main` runs `.github/workflows/deploy.yml`, which builds with `VITE_BASE=/HillGPX/` (or `/` once `public/CNAME` exists for a custom domain; see the README's "Hosting and a custom domain") and publishes `dist/` to GitHub Pages. To check a production build under the same sub-path:
 
 ```bash
 VITE_BASE=/HillGPX/ npm run build

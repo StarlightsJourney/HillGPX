@@ -280,6 +280,11 @@ class ExpandControl {
     this.button = null;
   }
 
+  /** Pulse while a route is open on the split view, so the bigger map is easy to find. */
+  setInvite(invite: boolean): void {
+    this.button?.parentElement?.classList.toggle('invite', invite);
+  }
+
   update(expanded: boolean): void {
     this.expanded = expanded;
     if (!this.button) return;
@@ -821,7 +826,8 @@ export function MapView({
 
   useEffect(() => {
     expandControlRef.current?.update(mapExpanded);
-  }, [mapExpanded]);
+    expandControlRef.current?.setInvite(routePanelOpen && !mapExpanded);
+  }, [mapExpanded, routePanelOpen]);
 
   useEffect(() => {
     const map = mapRef.current;

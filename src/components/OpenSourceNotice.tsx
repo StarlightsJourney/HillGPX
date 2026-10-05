@@ -29,18 +29,81 @@ function markSeen() {
   }
 }
 
-function Point({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
+interface Point {
+  id: string;
+  icon: ReactNode;
+  title: string;
+  detail: ReactNode;
+}
+
+const POINTS: Point[] = [
+  {
+    id: 'download',
+    icon: <DownloadIcon size={24} />,
+    title: 'Free to download',
+    detail: 'Take any GPX straight to your watch, phone or bike computer. No sign-up, no paywall.',
+  },
+  {
+    id: 'share',
+    icon: <UploadIcon size={24} />,
+    title: 'Built from real runs',
+    detail: 'Share a GPX and it goes on the map for everyone, with the elevation your device recorded.',
+  },
+  {
+    id: 'open',
+    icon: <GitHubIcon size={22} />,
+    title: 'Open code and data',
+    detail: 'Everything lives on GitHub, so anyone can check how it works, copy it or make it better.',
+  },
+  {
+    id: 'community',
+    icon: <HeartIcon size={22} />,
+    title: 'Run by its users',
+    detail: (
+      <>
+        <a href={`${REPO_URL}/issues/new?template=feedback.yml`} target="_blank" rel="noreferrer">Suggest a fix</a>, add a missing hill, or{' '}
+        <a href={`${REPO_URL}/blob/HEAD/docs/COMMUNITY.md`} target="_blank" rel="noreferrer">help with hosting costs</a>.
+      </>
+    ),
+  },
+];
+
+/**
+ * Four tiles, one line each; hovering, focusing or tapping a tile shows its
+ * detail in the panel underneath, which keeps one fixed height so nothing
+ * below moves.
+ */
+function Points() {
+  const [active, setActive] = useState(POINTS[0].id);
+  const current = POINTS.find((point) => point.id === active) ?? POINTS[0];
   return (
-    <li className="oss-point">
-      <span className="oss-point-icon" aria-hidden="true">{icon}</span>
-      <div>
-        <strong>{title}</strong>
-        <p>{children}</p>
+    <div className="oss-points">
+      <div className="oss-point-tiles" role="tablist" aria-label="How it works">
+        {POINTS.map((point) => (
+          <button
+            key={point.id}
+            type="button"
+            role="tab"
+            aria-selected={point.id === active}
+            aria-controls="oss-point-detail"
+            className={`oss-point${point.id === active ? ' on' : ''}`}
+            onMouseEnter={() => setActive(point.id)}
+            onFocus={() => setActive(point.id)}
+            onClick={() => setActive(point.id)}
+          >
+            <span className="oss-point-icon" aria-hidden="true">{point.icon}</span>
+            <strong>{point.title}</strong>
+          </button>
+        ))}
       </div>
-    </li>
+      <p id="oss-point-detail" className="oss-point-detail" role="tabpanel" key={current.id}>
+        {current.detail}
+      </p>
+    </div>
   );
 }
 
+/** The why, in three short lines: the problem, the fix, the hope. */
 function CreatorNote() {
   const [photoFailed, setPhotoFailed] = useState(false);
   return (
@@ -48,28 +111,18 @@ function CreatorNote() {
       {photoFailed ? (
         <span className="oss-creator-photo initial" aria-hidden="true">M</span>
       ) : (
-        <img
-          className="oss-creator-photo"
-          src={CREATOR.photo}
-          alt={`${CREATOR.name} holding a trail shoe, in a running vest and cap`}
-          width={120}
-          height={120}
-          loading="lazy"
-          onError={() => setPhotoFailed(true)}
-        />
+        <img className="oss-creator-photo" src={CREATOR.photo} alt="" width={64} height={64} loading="lazy" onError={() => setPhotoFailed(true)} />
       )}
-      <blockquote className="oss-creator-quote">
-        <p>
-          I study data science at NUS and run trail ultras. The GPX for a good climb is usually buried in someone's watch, a forum
-          thread or behind a paywall. hillGPX is my attempt to put every route up every hill in one open place, a click away from
-          your watch.
-        </p>
-      </blockquote>
-      <figcaption>
-        <strong>{CREATOR.name}</strong>
-        <span>Built hillGPX</span>
-        <a href={CREATOR.url} target="_blank" rel="noreferrer">More about me</a>
-      </figcaption>
+      <div className="oss-creator-body">
+        <dl className="oss-creator-why">
+          <div><dt>The problem</dt><dd>The GPX for a good climb is buried in watches, forums and paywalls.</dd></div>
+          <div><dt>The fix</dt><dd>One open map of every hill, with its routes a click away.</dd></div>
+          <div><dt>The hope</dt><dd>Every runner adds theirs, so nobody trains blind.</dd></div>
+        </dl>
+        <figcaption>
+          <a href={CREATOR.url} target="_blank" rel="noreferrer">{CREATOR.name}</a>, who started hillGPX
+        </figcaption>
+      </div>
     </figure>
   );
 }
@@ -94,28 +147,36 @@ export function OpenSourceDialog({ onClose }: { onClose: () => void }) {
     >
       <div className="oss-dialog">
         <header className="oss-hero">
-          <Mark size={56} />
-          <h3>Free and open source</h3>
-          <p className="oss-lead">No ads and no accounts. The code and data are public under the MIT licence.</p>
+          <Mark size={44} />
+          <div>
+            <h3>Free and open source</h3>
+            <p className="oss-lead">No ads and no accounts. The code and data are public under the MIT licence.</p>
+          </div>
         </header>
-        <ul className="oss-points">
-          <Point icon={<DownloadIcon size={24} />} title="Every route is free to download">
-            Take any GPX straight to your watch, phone or bike computer. No sign-up, no paywall.
-          </Point>
-          <Point icon={<UploadIcon size={24} />} title="Built from runners' own files">
-            Share a GPX and it goes on the map for everyone, with the elevation your device recorded.
-          </Point>
-          <Point icon={<GitHubIcon size={22} />} title="Open code and data">
-            Everything lives on GitHub. Anyone can check how it works, copy it or make it better.
-          </Point>
-          <Point icon={<HeartIcon size={22} />} title="Kept going by the people who use it">
-            <a href={`${REPO_URL}/issues/new?template=feedback.yml`} target="_blank" rel="noreferrer">Suggest a fix</a>, add a missing
-            hill, or <a href={`${REPO_URL}/blob/HEAD/docs/COMMUNITY.md`} target="_blank" rel="noreferrer">help with hosting costs</a>.
-          </Point>
-        </ul>
+        <Points />
         <CreatorNote />
       </div>
     </Modal>
+  );
+}
+
+/**
+ * The "Free and open source" pill that opens the dialog, on every page:
+ * bottom centre on the landing page, on the map itself (bottom left) on the
+ * map page, and bottom left of the window elsewhere. Away from the landing
+ * page it hides on phones, where the bottom belongs to the map toggle and the
+ * venue bar.
+ */
+export function OpenSourceBadge({ placement }: { placement: 'landing' | 'corner' | 'on-map' }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className={`oss-badge${placement === 'landing' ? '' : ` ${placement}`}`} onClick={() => setOpen(true)} aria-haspopup="dialog">
+        <Mark size={18} />
+        Free and open source
+      </button>
+      {open && <OpenSourceDialog onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
@@ -124,11 +185,11 @@ export function OpenSourceDialog({ onClose }: { onClose: () => void }) {
  * Airbnb's "one price, all fees included" pop-up. The brand mark, one
  * sentence, one "Got it". "How it works" opens the full dialog.
  *
- * With `badge`, a small "Free and open source" pill stays at the bottom of the
- * screen once the card is dismissed (the landing page), opening the same
- * dialog.
+ * Shown on the landing page only: venue pages open in new tabs, which do not
+ * share this tab's session, so the card would greet people again on every
+ * place they opened. The badge covers every other page.
  */
-export function OpenSourceNotice({ badge = false }: { badge?: boolean }) {
+export function OpenSourceNotice() {
   const [visible, setVisible] = useState(() => !seenThisSession());
   const [details, setDetails] = useState(false);
   const titleId = useId();
@@ -188,12 +249,6 @@ export function OpenSourceNotice({ badge = false }: { badge?: boolean }) {
           </div>,
           document.body,
         )}
-      {badge && !visible && (
-        <button type="button" className="oss-badge" onClick={() => setDetails(true)} aria-haspopup="dialog">
-          <Mark size={18} />
-          Free and open source
-        </button>
-      )}
       {details && <OpenSourceDialog onClose={() => setDetails(false)} />}
     </>
   );

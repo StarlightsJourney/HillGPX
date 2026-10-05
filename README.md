@@ -20,8 +20,9 @@ Good vertical training spots are local knowledge: the stairwell to the 40th floo
 - Search any country, town, hill or street; the map frames it.
 - Open a route for its trace, EG/EL profile, the places it passes and routes it overlaps. Download any route as GPX.
 - **Upload a GPX** without an account (up to 60 MB). It is checked for duplicates, keeps your device's elevation, is classified as road run, trail or cycling, and is published under CC BY 4.0. Heart-rate and other device data are stripped first.
-- Add photos, rate places, pin hazards along a route, report mistakes, and save places with the heart.
-- See the community's progress toward the next goal (a number of shared routes) in the strip at the top of every page.
+- **Add photos** (up to 12 at once, dragged in or picked), **rate and review** places, pin hazards along a route, report mistakes, and save places with the heart. Reviews and ratings go live straight away; photos appear once a volunteer has checked them.
+- See the community's progress toward the next goal (a number of shared routes) in the strip at the top of every page; it opens "What's mapped", with the goal ladder and how much of the map has a GPX or photo.
+- Read how it works from the "Free and open source" badge on every page.
 
 ## Contributing
 
@@ -51,6 +52,19 @@ The app opens at http://localhost:5180 (the port is strict). It needs no keys or
 **Stack:** Vite, React, TypeScript, MapLibre GL with [OpenFreeMap](https://openfreemap.org) tiles and [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/), [Supabase](https://supabase.com) for community contributions, a Python data pipeline, GitHub Pages.
 
 The browser uses Supabase's *publishable* key, which is public by design: row-level security only allows inserting new rows and reading approved ones. A fork can point at its own project with `VITE_SUPABASE_URL` and `VITE_SUPABASE_KEY`.
+
+## Hosting and a custom domain
+
+The site is fully static, so any static host works; the repo deploys to GitHub Pages on every push to `main` (`.github/workflows/deploy.yml`).
+
+To serve it from your own domain:
+
+1. Add `public/CNAME` containing just the domain (for example `hillgpx.org`). The deploy workflow sees the file and builds for the site root instead of `/HillGPX/`.
+2. At your DNS provider, point the apex domain at GitHub Pages with four `A` records (`185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`) and `www` with a `CNAME` to `starlightsjourney.github.io`.
+3. In the repository's **Settings → Pages**, enter the domain, wait for the DNS check, then tick **Enforce HTTPS**.
+4. Update the live-site link at the top of this README, `docs/DEVELOPING.md` and any links shared elsewhere.
+
+Contributions (GPX, photos, reviews, ratings, reports) work from the first visit on any domain: they go straight from the browser to Supabase with the publishable key, and row-level security allows only inserting new rows and reading approved ones. Moderation (photos, route photos and reports start as `pending`) happens in the Supabase dashboard's Table Editor. Before a launch, check the Supabase plan's storage and egress limits, and revisit Open-Meteo's non-commercial terms if the site ever carries sponsorship.
 
 ## Why the GPX limit is 60 MB
 

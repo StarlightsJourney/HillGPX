@@ -1292,9 +1292,158 @@
   height: 40px;
   font-size: 14px;
 }
+/* Venue page route cards: the map is the card. The name sits on it over a
+   soft shade, Show on map and Download are round icons at the top right, and
+   hovering (or focusing, or tapping) lifts the numbers and profile up over
+   the map. */
+.venue-route-card {
+  position: relative;
+  min-width: 0;
+  padding: 0 !important;
+  overflow: hidden;
+  border: none !important;
+  border-radius: 16px !important;
+  aspect-ratio: 4 / 3;
+  background: var(--bg-raised);
+  cursor: default;
+  outline: none;
+}
+.venue-route-card:focus-visible {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink);
+}
 .venue-route-card .route-thumb {
-  margin-bottom: 10px;
-  border-radius: 10px;
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  border-radius: 0;
+  aspect-ratio: auto;
+  height: 100%;
+}
+.venue-route-caption {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 36px 16px 14px;
+  background: linear-gradient(to top, rgb(0 0 0 / 62%), rgb(0 0 0 / 0%));
+  color: #fff;
+  transition: opacity 0.25s ease;
+}
+.venue-route-caption h3 {
+  margin: 0 0 2px !important;
+  overflow: hidden;
+  color: #fff;
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px rgb(0 0 0 / 35%);
+}
+.venue-route-caption p {
+  margin: 0;
+  color: rgb(255 255 255 / 85%);
+  font-size: 13px;
+}
+.venue-route-tools {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+}
+.venue-route-tool {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 94%);
+  color: var(--ink);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
+  cursor: pointer;
+  transition: transform 0.15s var(--ease-out), background 0.15s ease;
+}
+.venue-route-tool:hover {
+  background: #fff;
+  transform: scale(1.06);
+}
+.venue-route-tool[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  font: 600 12px/1 var(--font-sans);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.15s ease, transform 0.15s var(--ease-out);
+  pointer-events: none;
+}
+.venue-route-tool:hover::after,
+.venue-route-tool:focus-visible::after {
+  opacity: 1;
+  transform: none;
+}
+.venue-route-details {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  left: 10px;
+  z-index: 2;
+  padding: 12px 14px 10px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.25s ease, transform 0.3s var(--ease-out);
+  pointer-events: none;
+}
+.venue-route-details dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 6px;
+}
+.venue-route-details dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.venue-route-details dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.venue-route-details p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.venue-route-card:hover .venue-route-details,
+.venue-route-card:focus-within .venue-route-details {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.venue-route-card:hover .venue-route-caption,
+.venue-route-card:focus-within .venue-route-caption {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .venue-route-details,
+  .venue-route-caption {
+    transition: none;
+  }
 }
 
 .rate-summary {
@@ -4416,46 +4565,62 @@
   outline: 2px solid #fff;
   outline-offset: -4px;
 }
-/* A fixed-width window the lines roll through, so the bar beside it never
-   shifts as the text changes length. */
+/* The line rolls through a box the full width of the strip, centred on the
+   page with its chevron right after the words. */
 .goal-bar-ticker {
   position: relative;
   display: block;
-  flex: none;
-  width: 340px;
+  flex: 1;
+  min-width: 0;
   height: 18px;
   overflow: hidden;
-  text-align: right;
 }
 .goal-bar-line {
   position: absolute;
   inset: 0;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   color: rgb(255 255 255 / 78%);
   line-height: 18px;
-  text-overflow: ellipsis;
   white-space: nowrap;
   animation: goal-line-in 0.5s var(--ease-out) both;
+}
+.goal-bar-copy {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .goal-bar-line strong {
   color: #fff;
   font-weight: 700;
 }
-.goal-bar-track {
-  position: relative;
+.goal-bar-line svg {
   flex: none;
-  width: 160px;
-  height: 6px;
+  opacity: 0.7;
+  transition: transform 0.2s var(--ease-out), opacity 0.2s ease;
+}
+.goal-bar-main:hover .goal-bar-line svg {
+  opacity: 1;
+  transform: translateX(2px);
+}
+/* Progress: a thin line along the bottom edge, routes / goal of the width. */
+.goal-bar-track {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
   overflow: hidden;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 18%);
+  background: rgb(255 255 255 / 10%);
 }
 .goal-bar-track span {
   position: absolute;
   inset: 0 auto 0 0;
   width: calc(var(--goal-share, 0) * 100%);
   overflow: hidden;
-  border-radius: inherit;
+  border-radius: 0 999px 999px 0;
   background: linear-gradient(90deg, #c1502e, #f08a62);
   animation: goal-fill 1.1s var(--ease-out) both;
   transform-origin: left center;
@@ -4468,15 +4633,6 @@
   background: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 70%) 50%, transparent 100%);
   transform: translateX(-100%);
   animation: goal-glint 3.6s ease-in-out 1.2s infinite;
-}
-.goal-bar-main > svg {
-  flex: none;
-  opacity: 0.7;
-  transition: transform 0.2s var(--ease-out), opacity 0.2s ease;
-}
-.goal-bar-main:hover > svg {
-  opacity: 1;
-  transform: translateX(2px);
 }
 @keyframes goal-line-in {
   from {
@@ -4511,15 +4667,6 @@
     gap: 10px;
     padding: 0 12px;
     font-size: 12px;
-  }
-  .goal-bar-ticker {
-    flex: 1;
-    width: auto;
-    min-width: 0;
-    text-align: left;
-  }
-  .goal-bar-track {
-    width: 64px;
   }
 }
 
@@ -4626,12 +4773,14 @@
   line-height: 1.45;
 }
 
+/* Milestones: one track, the leg into the next goal filled as far as the
+   count has got, the goal itself marked with a small "Next goal" tag. */
 .cov-steps {
   display: grid;
   grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
-  margin: 0 0 24px;
-  padding: 0;
+  margin: 0 0 20px;
+  padding: 0 0 4px;
   list-style: none;
 }
 .cov-steps li {
@@ -4639,7 +4788,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
@@ -4647,18 +4797,21 @@
   animation: rise-in 0.4s var(--ease-out) both;
   animation-delay: calc(var(--i, 0) * 60ms + 150ms);
 }
-/* The line to the previous milestone. */
 .cov-steps li + li::before {
   content: '';
   position: absolute;
-  top: 10px;
-  right: 50%;
-  left: -50%;
-  height: 2px;
+  top: 8px;
+  right: calc(50% + 9px);
+  left: calc(-50% + 9px);
+  height: 3px;
+  border-radius: 999px;
   background: var(--hairline);
 }
 .cov-steps li.done + li::before {
   background: var(--accent);
+}
+.cov-steps li.current::before {
+  background: linear-gradient(90deg, var(--accent) var(--leg), var(--hairline) var(--leg));
 }
 .cov-step-dot {
   position: relative;
@@ -4666,12 +4819,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: 2px solid var(--hairline);
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
   border-radius: 50%;
   background: #fff;
   color: #fff;
+}
+.cov-steps li.done {
+  color: var(--ink);
 }
 .cov-steps li.done .cov-step-dot {
   border-color: var(--accent);
@@ -4679,21 +4835,20 @@
 }
 .cov-steps li.current {
   color: var(--ink);
+  font-weight: 700;
 }
 .cov-steps li.current .cov-step-dot {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 0 rgb(193 80 46 / 40%);
+  border: 5px solid var(--accent);
   animation: step-pulse 2s ease-out infinite;
 }
-.cov-steps li.current .cov-step-dot::after {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-.cov-steps li.done {
-  color: var(--ink);
+.cov-step-tag {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgb(193 80 46 / 10%);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 @keyframes step-pulse {
   0% {
@@ -4701,44 +4856,77 @@
   }
   70%,
   100% {
-    box-shadow: 0 0 0 10px rgb(193 80 46 / 0%);
+    box-shadow: 0 0 0 9px rgb(193 80 46 / 0%);
   }
 }
 
+/* Three tiles, icon beside the number, sized to fit any width without
+   scrolling sideways. */
 .cov-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 24px;
+  gap: 8px;
+  margin-bottom: 20px;
 }
 .cov-stats > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 14px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 10px;
+  min-width: 0;
+  padding: 12px;
   border: 1px solid var(--hairline);
-  border-radius: 16px;
+  border-radius: 14px;
 }
 .cov-stat-icon {
+  grid-row: 1 / 3;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 36px;
   height: 36px;
-  margin-bottom: 8px;
   border-radius: 50%;
   background: var(--bg-raised);
   color: var(--ink);
 }
+.cov-stat-icon svg {
+  width: 20px;
+  height: 20px;
+}
 .cov-stats strong {
-  font-size: clamp(18px, 4vw, 22px);
+  min-width: 0;
+  overflow: hidden;
+  font-size: 17px;
   font-weight: 700;
+  line-height: 1.2;
   letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .cov-stats > div > span:last-child {
+  overflow: hidden;
   color: var(--muted);
   font-size: 12px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.modal-body:has(.cov-hero) {
+  overflow-x: hidden;
+}
+@media (max-width: 520px) {
+  .cov-stats > div {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 10px;
+  }
+  .cov-stat-icon {
+    grid-row: auto;
+    width: 30px;
+    height: 30px;
+    margin-bottom: 6px;
+  }
 }
 .coverage-meter {
   margin-bottom: 18px;
@@ -4955,7 +5143,9 @@
   }
 }
 
-/* Landing: the notice, folded into a pill that stays at the bottom. */
+/* The "Free and open source" pill: on every page, in ink with the brand
+   mark, so it reads as the project's own badge rather than a control.
+   Bottom centre on the landing page, bottom left elsewhere. */
 .oss-badge {
   position: fixed;
   bottom: calc(20px + env(safe-area-inset-bottom));
@@ -4964,27 +5154,36 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 40px;
-  padding: 0 16px 0 11px;
-  border: 1px solid var(--hairline);
+  height: 38px;
+  padding: 0 16px 0 10px;
+  border: 1px solid rgb(255 255 255 / 12%);
   border-radius: 999px;
-  background: rgb(255 255 255 / 96%);
-  color: var(--ink);
+  background: linear-gradient(135deg, #2b2523 0%, #1d1d1d 100%);
+  color: #fff;
   font: 600 13px/1 var(--font-sans);
   white-space: nowrap;
-  box-shadow: 0 6px 20px rgb(0 0 0 / 14%);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 22%);
   cursor: pointer;
   transform: translateX(-50%);
   animation: oss-badge-in 0.4s var(--ease-out) both;
-  transition: box-shadow 0.15s ease, transform 0.15s var(--ease-out);
-  backdrop-filter: blur(8px);
+  transition: box-shadow 0.15s ease, transform 0.15s var(--ease-out), background 0.15s ease;
 }
 .oss-badge:hover {
-  box-shadow: 0 8px 24px rgb(0 0 0 / 20%);
+  box-shadow: 0 8px 26px rgb(193 80 46 / 35%);
   transform: translateX(-50%) translateY(-1px);
 }
 .oss-badge:active {
   transform: translateX(-50%) scale(0.97);
+}
+.oss-badge.corner {
+  left: 20px;
+  transform: none;
+}
+.oss-badge.corner:hover {
+  transform: translateY(-1px);
+}
+.oss-badge.corner:active {
+  transform: scale(0.97);
 }
 .oss-badge .mark {
   border-radius: 5px;
@@ -4992,104 +5191,152 @@
 @keyframes oss-badge-in {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(16px);
+    translate: 0 16px;
+  }
+}
+/* On the map page it sits on the map, clear of the list. */
+.oss-badge.on-map {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  z-index: 4;
+  transform: none;
+}
+.oss-badge.on-map:hover {
+  transform: translateY(-1px);
+}
+.oss-badge.on-map:active {
+  transform: scale(0.97);
+}
+@media (max-width: 899px) {
+  .oss-badge.corner,
+  .oss-badge.on-map {
+    display: none;
   }
 }
 /* Room under the footer, so the badge never sits over its last line. */
-.home .site-footer {
+.home .site-footer,
+.venue-detail .site-footer,
+.map-page .site-footer,
+.training-page .site-footer {
   padding-bottom: 72px;
 }
 
+/* The explainer fits without scrolling: mark and promise in one row, four
+   one-line tiles whose details show in a fixed-height panel, and the why in
+   three short lines. */
 .oss-dialog {
   display: flex;
   flex-direction: column;
+  gap: 18px;
 }
 .oss-hero {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--hairline);
+  align-items: center;
+  gap: 16px;
 }
 .oss-hero .mark {
-  margin-bottom: 6px;
-  filter: drop-shadow(0 8px 16px rgb(193 80 46 / 28%));
+  flex: none;
+  filter: drop-shadow(0 6px 14px rgb(193 80 46 / 28%));
 }
 .oss-hero h3 {
-  margin: 0;
-  font-size: 30px;
+  margin: 0 0 2px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1.15;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
 }
 .oss-lead {
   margin: 0;
-  color: var(--ink-2);
-  font-size: 16px;
-  line-height: 1.5;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
 }
 .oss-points {
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  margin: 0;
-  padding: 24px 0;
-  border-bottom: 1px solid var(--hairline);
-  list-style: none;
+  gap: 10px;
+}
+.oss-point-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 .oss-point {
   display: flex;
-  align-items: flex-start;
-  gap: 18px;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 6px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s var(--ease-out);
+}
+.oss-point:hover,
+.oss-point.on {
+  border-color: var(--ink);
+}
+.oss-point.on {
+  box-shadow: 0 0 0 1px var(--ink);
+}
+.oss-point:active {
+  transform: scale(0.97);
 }
 .oss-point-icon {
   display: inline-flex;
-  flex: none;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
-  color: var(--ink);
+  transition: transform 0.25s var(--ease-spring), color 0.15s ease;
+}
+.oss-point.on .oss-point-icon {
+  color: var(--accent);
+  transform: translateY(-2px) scale(1.08);
 }
 .oss-point strong {
-  display: block;
-  margin-bottom: 2px;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
+  line-height: 1.25;
 }
-.oss-point p {
+.oss-point-detail {
+  box-sizing: border-box;
+  min-height: 64px;
   margin: 0;
-  color: var(--muted);
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: var(--bg-raised);
+  color: var(--ink-2);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.45;
+  animation: fade-in 0.2s ease both;
 }
-.oss-point a {
+.oss-point-detail a {
   color: var(--ink);
   font-weight: 600;
 }
 .oss-creator {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-areas:
-    'photo quote'
-    'photo caption';
-  align-items: center;
-  gap: 4px 20px;
-  margin: 24px 0 0;
-  padding: 20px;
-  border-radius: 20px;
-  background: var(--bg-raised);
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--hairline);
 }
 .oss-creator-photo {
-  grid-area: photo;
-  width: 120px;
-  height: 120px;
+  flex: none;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   background: linear-gradient(160deg, #fbe3d8 0%, #f4c4ae 100%);
   object-fit: cover;
   object-position: 50% 12%;
-  box-shadow: 0 0 0 4px #fff, 0 8px 20px rgb(0 0 0 / 12%);
 }
 .oss-creator-photo.initial {
   display: inline-flex;
@@ -5097,42 +5344,39 @@
   justify-content: center;
   background: var(--accent-grad);
   color: #fff;
-  font-size: 40px;
+  font-size: 26px;
   font-weight: 700;
 }
-.oss-creator-quote {
-  grid-area: quote;
+.oss-creator-body {
+  min-width: 0;
+}
+.oss-creator-why {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   margin: 0;
 }
-.oss-creator-quote p {
+.oss-creator-why > div {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.oss-creator-why dt {
+  color: var(--accent);
+  font-weight: 700;
+}
+.oss-creator-why dd {
   margin: 0;
   color: var(--ink);
-  font-size: 15px;
-  line-height: 1.55;
-}
-.oss-creator-quote p::before {
-  content: '“';
-}
-.oss-creator-quote p::after {
-  content: '”';
 }
 .oss-creator figcaption {
-  grid-area: caption;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
   margin-top: 8px;
-  font-size: 14px;
-}
-.oss-creator figcaption strong {
-  font-weight: 700;
-}
-.oss-creator figcaption span {
   color: var(--muted);
+  font-size: 13px;
 }
 .oss-creator figcaption a {
-  margin-left: auto;
   color: var(--ink);
   font-weight: 600;
 }
@@ -5141,24 +5385,20 @@
 }
 @media (max-width: 520px) {
   .oss-hero h3 {
-    font-size: 26px;
+    font-size: 21px;
   }
-  .oss-creator {
+  .oss-point-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .oss-point {
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 10px;
+    text-align: left;
+  }
+  .oss-creator-why > div {
     grid-template-columns: 1fr;
-    grid-template-areas:
-      'photo'
-      'quote'
-      'caption';
-    justify-items: center;
-    gap: 14px;
-    text-align: center;
-  }
-  .oss-creator figcaption {
-    justify-content: center;
-    margin-top: 0;
-  }
-  .oss-creator figcaption a {
-    margin-left: 0;
+    gap: 0;
   }
   .oss-foot-btn {
     flex: 1;
@@ -5359,9 +5599,17 @@
   color: inherit;
 }
 
-/* The last grid cell says how many more photos the viewer holds. */
+/* The last grid cell says how many more photos the viewer holds. Cells
+   shimmer until their (sharp, slow-to-arrive) Commons photo covers them. */
 .venue-photo-cell {
   position: relative;
+  background: linear-gradient(100deg, var(--bg-raised) 30%, #fafafa 50%, var(--bg-raised) 70%) 0 0 / 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .venue-photo-cell {
+    animation: none;
+  }
 }
 .venue-photo-more {
   position: absolute;
@@ -5749,21 +5997,25 @@
   transform: rotate(90deg);
 }
 
-@container mapwrap (min-width: 720px) {
-  /* Down the left of the map, so the route is framed beside it rather than
-     under it; expanded, it runs the map's full height. */
+@container mapwrap (min-width: 600px) {
+  /* Down the left of the map, centred top to bottom, so the route is framed
+     beside it rather than under it. Top and bottom insets with auto margins
+     and a content height centre it without a transform (the slide-in
+     animation owns transform). */
   .map-wrap > .gpx-panel {
-    top: 40px;
+    top: 32px;
     right: auto;
-    bottom: auto;
-    left: 40px;
-    width: 380px;
-    max-height: calc(100% - 80px);
+    bottom: 32px;
+    left: 32px;
+    width: min(380px, 52cqw);
+    height: fit-content;
+    max-height: calc(100% - 64px);
+    margin: auto 0;
   }
   /* Expanded, the sheet grows with its content and scrolls past the map's
      height; it used to be pinned to the bottom, leaving a tall empty card. */
   .map-wrap > .gpx-panel.route-panel.expanded {
-    max-height: calc(100% - 80px);
+    max-height: calc(100% - 64px);
   }
   .gpx-panel .gpx-stats {
     flex-wrap: wrap;
@@ -5849,27 +6101,174 @@
   color: var(--ink);
 }
 
-/* With a route open the category bar folds up, so the map gets its height
-   too; it unfolds when the route closes. */
-.map-filters {
-  display: grid;
-  grid-template-rows: 1fr;
-  transition: grid-template-rows 0.3s var(--ease-out);
-}
-.map-filters > div {
-  min-height: 0;
-  overflow: hidden;
-}
+/* With a route open on the expanded map the category bar folds away, so the
+   map gets its height too, and comes back when the route closes. The height
+   changes in one step and only the bar's contents animate: animating the
+   height resized the map on every frame, which shook the page. */
 .map-filters.folded {
-  grid-template-rows: 0fr;
+  display: none;
 }
-.map-filters.folded > div {
-  visibility: hidden;
-  transition: visibility 0s 0.3s;
+.map-filters:not(.folded) > div {
+  animation: filters-in 0.32s var(--ease-out) both;
+}
+@keyframes filters-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .map-filters {
-    transition: none;
+  .map-filters:not(.folded) > div {
+    animation: none;
+  }
+}
+
+/* One-line marquee (Marquee.tsx): still when it fits, drifting in a loop
+   when it does not. */
+.marquee-line {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.marquee-line-track {
+  display: inline-flex;
+  gap: 48px;
+}
+.marquee-line-item {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+.marquee-line.moving,
+.marquee-line.clipped {
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent 100%);
+}
+.marquee-line.moving .marquee-line-track {
+  animation: marquee-line var(--marquee-s, 12s) linear 1.2s infinite;
+}
+.marquee-line.moving:hover .marquee-line-track,
+.marquee-line.moving:focus-within .marquee-line-track {
+  animation-play-state: paused;
+}
+@keyframes marquee-line {
+  to {
+    transform: translateX(calc(-50% - 24px));
+  }
+}
+
+/* Route panel: one-line name and Passes, no inner scrollbar gutter (it made
+   the right margin wider than the left), and a light that runs twice round
+   the edge when a route opens. */
+.gpx-panel.route-panel {
+  scrollbar-gutter: auto;
+  scrollbar-width: thin;
+}
+.route-panel .route-panel-title h2 {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  -webkit-line-clamp: unset;
+}
+.route-panel .route-panel-title {
+  align-items: center;
+}
+.route-panel .route-panel-title .info-tip {
+  margin-top: 0;
+}
+.route-panel .gpx-panel-head {
+  align-items: center;
+}
+.route-passes {
+  flex-wrap: nowrap !important;
+  align-items: center;
+  min-width: 0;
+}
+.route-passes > strong {
+  flex: none;
+}
+.route-passes-line {
+  flex: 1;
+}
+.route-passes-line button {
+  flex: none;
+}
+@property --orbit {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.route-panel-orbit {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  padding: 2px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--orbit), transparent 0deg 318deg, rgb(240 138 98 / 60%) 340deg, var(--accent) 356deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: route-orbit 1.5s linear 2, route-orbit-fade 3s ease forwards;
+  pointer-events: none;
+}
+@keyframes route-orbit {
+  to {
+    --orbit: 360deg;
+  }
+}
+@keyframes route-orbit-fade {
+  0%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+/* The (i) card floats over everything, placed by InfoTip under its button. */
+.info-tip-pop.floating {
+  position: fixed;
+  z-index: 70;
+  max-width: calc(100vw - 24px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-line.moving .marquee-line-track,
+  .route-panel-orbit {
+    animation: none;
+  }
+  .route-panel-orbit {
+    display: none;
+  }
+}
+
+/* Switching Climbs and Routes swaps the icon row: each category pops in a
+   beat after the one before, then Filters. */
+.filterbar .categories .category,
+.filterbar .filter-open {
+  animation: category-pop 0.42s var(--ease-spring) both;
+}
+.filterbar .categories .category:nth-child(2) { animation-delay: 40ms; }
+.filterbar .categories .category:nth-child(3) { animation-delay: 80ms; }
+.filterbar .categories .category:nth-child(4) { animation-delay: 120ms; }
+.filterbar .categories .category:nth-child(5) { animation-delay: 160ms; }
+.filterbar .categories .category:nth-child(6) { animation-delay: 200ms; }
+.filterbar .categories .category:nth-child(n + 7) { animation-delay: 240ms; }
+.filterbar .filter-open {
+  animation-delay: 220ms;
+}
+@keyframes category-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.86);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .filterbar .categories .category,
+  .filterbar .filter-open {
+    animation: none;
   }
 }
 

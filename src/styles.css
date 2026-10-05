@@ -1868,6 +1868,42 @@ button {
 .map-expand-ctrl svg {
   display: block;
 }
+/* The expand control in the brand colour, and pulsing while a route is open
+   beside the list: the bigger view is one click away. */
+.maplibregl-ctrl-group.map-expand-ctrl {
+  position: relative;
+  overflow: visible;
+}
+.maplibregl-ctrl-group.map-expand-ctrl button {
+  color: var(--accent);
+}
+.maplibregl-ctrl-group.map-expand-ctrl button[aria-pressed='true'] {
+  color: var(--ink);
+}
+.map-expand-ctrl.invite::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 rgb(193 80 46 / 55%);
+  animation: expand-pulse 1.8s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes expand-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(193 80 46 / 55%);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 12px rgb(193 80 46 / 0%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-expand-ctrl.invite::after {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+}
 
 @media (max-width: 899px) {
   .map-expand-ctrl {
@@ -1899,7 +1935,8 @@ button {
 .filter-scrim {
   position: fixed;
   inset: 0;
-  z-index: 20;
+  /* Above the sticky header and category bar (30) and the badge (40). */
+  z-index: 60;
   display: flex;
   align-items: center;
   justify-content: center;

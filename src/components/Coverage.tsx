@@ -4,7 +4,8 @@ import { ROUTE_GOALS, computeCoverage, formatShare, routeGoal, type Coverage } f
 import { prefersReducedMotion } from '../lib/dom';
 import { loadDataset } from '../lib/venues';
 import { loadPeakIndex } from '../lib/worldPeaks';
-import { CheckIcon, GlobeIcon, UploadIcon } from './icons';
+import { CheckIcon, UploadIcon } from './icons';
+import { CategoryIcon } from './FilterBar';
 import { Modal } from './Modal';
 
 /** Coverage numbers, loaded once and shared by everything that shows them. */
@@ -47,23 +48,6 @@ function CountUp({ value }: { value: number }) {
   return <>{useCountUp(value).toLocaleString()}</>;
 }
 
-function MountainGlyph() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m3 20 6.5-11 4 6.5 2.5-4L21 20z" />
-      <path d="m7.6 12.2 1.9 1.3 1.6-1.4" />
-    </svg>
-  );
-}
-
-function StairsGlyph() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 20h5v-4h4v-4h4V8h5" />
-      <path d="M3 20V4" opacity="0.35" />
-    </svg>
-  );
-}
 
 /** The share of the current goal as a ring, the count in the middle. */
 function GoalRing({ routes, goal, share }: { routes: number; goal: number; share: number }) {
@@ -98,21 +82,32 @@ function GoalRing({ routes, goal, share }: { routes: number; goal: number; share
   );
 }
 
-/** The goals around where the community is now: the last one reached, the next, and a few beyond. */
+/**
+ * The goals around where the community is now, as one track: the last goal
+ * reached, the next (with the line into it filled as far as the count has
+ * got), and a few beyond.
+ */
 function GoalSteps({ routes, goal }: { routes: number; goal: number }) {
   const ladder: number[] = ROUTE_GOALS.includes(goal as (typeof ROUTE_GOALS)[number]) ? [...ROUTE_GOALS] : [...ROUTE_GOALS, goal];
   const at = ladder.indexOf(goal);
   const start = Math.max(0, Math.min(at - 1, ladder.length - 5));
   const steps = ladder.slice(start, start + 5);
+  const previous = at > 0 ? ladder[at - 1] : 0;
+  const leg = Math.min(1, Math.max(0, (routes - previous) / (goal - previous)));
   return (
-    <ol className="cov-steps" aria-label="Goals">
+    <ol className="cov-steps" aria-label="Route goals">
       {steps.map((count, i) => {
         const state = routes >= count ? 'done' : count === goal ? 'current' : 'next';
         return (
-          <li key={count} className={state} style={{ '--i': i } as React.CSSProperties}>
+          <li
+            key={count}
+            className={state}
+            style={{ '--i': i, '--leg': `${leg * 100}%` } as React.CSSProperties}
+            aria-label={`${count.toLocaleString()} routes${state === 'done' ? ', reached' : state === 'current' ? ', next goal' : ''}`}
+          >
             <span className="cov-step-dot" aria-hidden="true">{state === 'done' && <CheckIcon size={10} />}</span>
-            <span className="cov-step-label">{count.toLocaleString()}</span>
-            <span className="visually-hidden">{state === 'done' ? ' routes, reached' : state === 'current' ? ' routes, next goal' : ' routes'}</span>
+            <span className="cov-step-label" aria-hidden="true">{count.toLocaleString()}</span>
+            {state === 'current' && <span className="cov-step-tag" aria-hidden="true">Next goal</span>}
           </li>
         );
       })}
@@ -185,17 +180,17 @@ export function CoverageModal({ coverage, onClose, onUpload }: { coverage: Cover
 
       <div className="cov-stats">
         <div>
-          <span className="cov-stat-icon"><MountainGlyph /></span>
+          <span className="cov-stat-icon"><CategoryIcon id="hill" /></span>
           <strong><CountUp value={coverage.summits} /></strong>
-          <span>hills and mountains</span>
+          <span>summits</span>
         </div>
         <div>
-          <span className="cov-stat-icon"><GlobeIcon size={20} /></span>
+          <span className="cov-stat-icon"><CategoryIcon id="globe" /></span>
           <strong><CountUp value={coverage.countries} /></strong>
           <span>countries</span>
         </div>
         <div>
-          <span className="cov-stat-icon"><StairsGlyph /></span>
+          <span className="cov-stat-icon"><CategoryIcon id="hdb_block" /></span>
           <strong><CountUp value={coverage.builtClimbs} /></strong>
           <span>stairs and blocks</span>
         </div>

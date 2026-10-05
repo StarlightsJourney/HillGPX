@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Marquee } from './Marquee';
 import type { Route, RoutePoint, Venue } from '../types';
 import { computeGain, totalDistanceM } from '../lib/elevation';
 import { routeHasElevation } from '../lib/routes';
@@ -47,35 +49,83 @@ export function RecordedLine({ recordedAt }: { recordedAt: string | null | undef
   );
 }
 
-/** Secondary facts (when it was recorded, where EG/EL came from) behind an (i), not in the way. */
+const TIP_W = 290;
+
+/**
+ * Secondary facts (when it was recorded, where EG/EL came from) behind an (i),
+ * not in the way. The card floats over the page in a portal, placed under the
+ * button: inside the panel it was clipped by the panel's own scrolling edge.
+ */
 export function InfoTip({ children, label = 'About these numbers' }: { children: React.ReactNode; label?: string }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLSpanElement>(null);
+  const closeTimer = useRef<number | undefined>(undefined);
+  const open = pos !== null;
+
+  const show = () => {
+    window.clearTimeout(closeTimer.current);
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const left = Math.min(Math.max(12, rect.left + rect.width / 2 - 24), window.innerWidth - TIP_W - 12);
+    setPos({ top: rect.bottom + 8, left });
+  };
+  const hide = () => {
+    window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => setPos(null), 140);
+  };
+
   useEffect(() => {
     if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    const outside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!buttonRef.current?.contains(target) && !popRef.current?.contains(target)) setPos(null);
     };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
+    // The button moves with the map panel; a floating card left behind would point at nothing.
+    const away = () => setPos(null);
+    document.addEventListener('mousedown', outside);
+    window.addEventListener('resize', away);
+    window.addEventListener('scroll', away, true);
+    return () => {
+      document.removeEventListener('mousedown', outside);
+      window.removeEventListener('resize', away);
+      window.removeEventListener('scroll', away, true);
+    };
   }, [open]);
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+
   // Hover shows it on a mouse; a tap toggles it on touch screens.
   const hoverable = () => window.matchMedia('(hover: hover)').matches;
   return (
-    <span
-      className="info-tip"
-      ref={ref}
-      onMouseEnter={() => hoverable() && setOpen(true)}
-      onMouseLeave={() => hoverable() && setOpen(false)}
-    >
-      <button type="button" className="info-tip-btn" aria-label={label} aria-expanded={open} onClick={() => setOpen((v) => hoverable() || !v)}>
+    <span className="info-tip" onMouseEnter={() => hoverable() && show()} onMouseLeave={() => hoverable() && hide()}>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="info-tip-btn"
+        aria-label={label}
+        aria-expanded={open}
+        onClick={() => (open && !hoverable() ? setPos(null) : show())}
+      >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
           <circle cx="12" cy="12" r="9" />
           <path d="M12 11v5.5" />
           <circle cx="12" cy="7.8" r="0.6" fill="currentColor" />
         </svg>
       </button>
-      {open && <span className="info-tip-pop" role="tooltip">{children}</span>}
+      {pos &&
+        createPortal(
+          <span
+            ref={popRef}
+            className="info-tip-pop floating"
+            role="tooltip"
+            style={{ top: pos.top, left: pos.left, width: TIP_W }}
+            onMouseEnter={() => window.clearTimeout(closeTimer.current)}
+            onMouseLeave={() => hoverable() && hide()}
+          >
+            {children}
+          </span>,
+          document.body,
+        )}
     </span>
   );
 }
@@ -168,9 +218,13 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
 
   return (
     <section className={`gpx-panel route-panel ${expanded ? 'expanded' : 'compact'}`} aria-label={`Route: ${route.name}`} key={route.slug}>
+      {/* A light runs once round the card's edge when a route opens. */}
+      <span className="route-panel-orbit" aria-hidden="true" />
       <header className="gpx-panel-head">
         <div className="route-panel-title">
-          <h2>{route.name}</h2>
+          <h2 title={route.name}>
+            <Marquee>{route.name}</Marquee>
+          </h2>
           <InfoTip>
             <RecordedLine recordedAt={route.recordedAt} />
             {hasElevation && <ElevationSourceLine source={elevation.fromTerrain ? 'terrain' : route.elevationSource ?? 'gps'} />}
@@ -219,20 +273,22 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
       </div>
 
       {expanded && touches.length > 0 && (
-        <div className="gpx-touches">
+        <div className="gpx-touches route-passes">
           <strong>Passes</strong>
-          {touches.map((venue) => (
-            <button
-              type="button"
-              key={venue.slug}
-              className={venue.slug === spotlightSlug ? 'on' : undefined}
-              aria-pressed={venue.slug === spotlightSlug}
-              onClick={() => onShowVenue(venue.slug)}
-            >
-              <TypeGlyph type={venue.type} />
-              {venue.name}
-            </button>
-          ))}
+          <Marquee className="route-passes-line" speed={30}>
+            {touches.map((venue) => (
+              <button
+                type="button"
+                key={venue.slug}
+                className={venue.slug === spotlightSlug ? 'on' : undefined}
+                aria-pressed={venue.slug === spotlightSlug}
+                onClick={() => onShowVenue(venue.slug)}
+              >
+                <TypeGlyph type={venue.type} />
+                {venue.name}
+              </button>
+            ))}
+          </Marquee>
         </div>
       )}
 

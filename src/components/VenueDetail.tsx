@@ -17,7 +17,7 @@ import {
 import { useUnits } from './UnitsContext';
 import { ElevationProfile } from './ElevationProfile';
 import { PlaceArt, VenueThumb } from './VenueThumb';
-import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, HeartIcon, MapIcon, StarIcon, UploadIcon } from './icons';
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon, HeartIcon, MapIcon, StarIcon, UploadIcon } from './icons';
 import { FlagIcon, LinkIcon, PlusIcon, ReportModal } from './ReportModal';
 import { useReveal } from './useReveal';
 import { SiteFooter, SiteHeader } from './SiteChrome';
@@ -27,6 +27,7 @@ import { directionsUrl, venueConditions, type Conditions } from '../lib/conditio
 import { downloadRoute } from './VenueCard';
 import { RouteThumb } from './RouteThumb';
 import { Modal } from './Modal';
+import { OpenSourceBadge } from './OpenSourceNotice';
 import {
   type CommunityPhoto,
   type Review,
@@ -716,6 +717,39 @@ function RouteGlyph() {
   );
 }
 
+/**
+ * A nearby place's cover. With no stored photo, a hill gets the same picture
+ * its own page leads with (its summit photo, else the first open-licence
+ * photo taken nearby), so the card and the page agree. Both lookups are
+ * cached, so opening the place afterwards costs nothing.
+ */
+function NearbyThumb({ venue }: { venue: Venue }) {
+  const [cover, setCover] = useState<{ slug: string; url: string } | null>(null);
+  const needsLookup = venuePhotos(venue).length === 0 && !BUILT_TYPES.has(venue.type);
+  useEffect(() => {
+    if (!needsLookup) return;
+    let cancelled = false;
+    const lead = isWorldPeakSlug(venue.slug) ? loadPeakPhotos().then((photos) => photos.get(venue.slug)?.url) : Promise.resolve(undefined);
+    lead
+      .then((url) => url ?? commonsPhotos(venue).then((photos) => photos[0]?.url))
+      .then((url) => {
+        if (!cancelled && url) setCover({ slug: venue.slug, url });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [needsLookup, venue]);
+  if (cover?.slug === venue.slug) {
+    return (
+      <span className="card-thumb">
+        <img src={cover.url} alt={venue.name} loading="lazy" decoding="async" onError={() => setCover(null)} />
+      </span>
+    );
+  }
+  return <VenueThumb venue={venue} />;
+}
+
 function aboutFallback(venue: Venue, typeLabel: string, area: string | null, heightText: string, routeCount: number): string {
   const where = area ? ` in ${area}` : '';
   if (venue.type === 'hdb_block') {
@@ -925,20 +959,36 @@ function VenueDetailInner({
               {routes.length > 0 ? (
                   <div className="venue-route-grid">
                     {routes.map((route) => (
-                      <article className="venue-route-card" key={route.slug}>
+                      <article className="venue-route-card" key={route.slug} tabIndex={0} aria-label={route.name}>
                         <RouteThumb route={route} />
-                        {routeHasElevation(route) && <div className="venue-route-profile"><ElevationProfile points={route.coordinates} height={64} /></div>}
-                        <h3>{route.name}</h3>
-                        <p>
-                          {ACTIVITY_LABEL[routeActivity(route)]} · {units.distance(route.distanceM)}
-                          {routeHasElevation(route) ? ` · ${units.height(route.gainM)} EG` : ''}
-                          {route.loop ? ' · loop' : ''}
-                        </p>
-                        {route.source === 'local' && <span className="local-route-tag">Saved on this device</span>}
-                        <div className="venue-route-actions">
-                          <button type="button" onClick={() => onShowOnMap(route.slug)}>Show on map</button>
-                          <button type="button" onClick={() => downloadRoute(route)}>Download</button>
-                          {route.source === 'local' && <button type="button" className="muted" onClick={() => onRemoveLocalRoute(route.slug)}>Remove</button>}
+                        <div className="venue-route-tools">
+                          <button type="button" className="venue-route-tool" aria-label="Show on map" data-tip="Show on map" onClick={() => onShowOnMap(route.slug)}>
+                            <MapIcon size={15} />
+                          </button>
+                          <button type="button" className="venue-route-tool" aria-label="Download GPX" data-tip="Download GPX" onClick={() => downloadRoute(route)}>
+                            <DownloadIcon size={15} />
+                          </button>
+                          {route.source === 'local' && (
+                            <button type="button" className="venue-route-tool" aria-label="Remove from this device" data-tip="Remove" onClick={() => onRemoveLocalRoute(route.slug)}>
+                              <CloseIcon size={12} />
+                            </button>
+                          )}
+                        </div>
+                        <div className="venue-route-caption">
+                          <h3>{route.name}</h3>
+                          <p>
+                            {ACTIVITY_LABEL[routeActivity(route)]} · {units.distance(route.distanceM)}
+                            {route.source === 'local' ? ' · on this device' : ''}
+                          </p>
+                        </div>
+                        {/* Hover (or focus, or a tap on touch screens) lifts the details over the map. */}
+                        <div className="venue-route-details">
+                          <dl>
+                            <div><dt>Distance</dt><dd>{units.distance(route.distanceM)}</dd></div>
+                            <div><dt>EG</dt><dd>{routeHasElevation(route) ? units.height(route.gainM) : '—'}</dd></div>
+                            <div><dt>EL</dt><dd>{routeHasElevation(route) ? units.height(route.lossM) : '—'}</dd></div>
+                          </dl>
+                          {routeHasElevation(route) && <ElevationProfile points={route.coordinates} height={44} />}
                         </div>
                       </article>
                     ))}
@@ -963,7 +1013,13 @@ function VenueDetailInner({
                 <div className="nearby-grid">
                   {nearby.map(({ venue: item }) => {
                     const itemHeight = venueHeight(item);
-                    return <a className="nearby-card" href={`#venue/${item.slug}`} target="_blank" rel="noopener" key={item.slug}><VenueThumb venue={item} /><strong>{item.name}</strong><span>{venueKindLabel(item)}{itemHeight ? ` · ${units.height(itemHeight.value)} ${HEIGHT_LABEL[itemHeight.kind]}` : ''}</span></a>;
+                    return (
+                      <a className="nearby-card" href={`#venue/${item.slug}`} target="_blank" rel="noopener" key={item.slug}>
+                        <NearbyThumb venue={item} />
+                        <strong>{item.name}</strong>
+                        <span>{venueKindLabel(item)}{itemHeight ? ` · ${units.height(itemHeight.value)} ${HEIGHT_LABEL[itemHeight.kind]}` : ''}</span>
+                      </a>
+                    );
                   })}
                 </div>
               </section>
@@ -991,6 +1047,7 @@ function VenueDetailInner({
         <a className="venue-mobile-primary" href={directionsUrl(venue)} target="_blank" rel="noreferrer"><MapIcon size={16} />Directions</a>
       </div>
 
+      <OpenSourceBadge placement="corner" />
       {addingPhotos && <AddPhotosModal venue={venue} onClose={() => setAddingPhotos(false)} />}
       {reporting && <ReportModal targetType="venue" targetSlug={venue.slug} targetName={venue.name} onClose={() => setReporting(false)} />}
     </div>,

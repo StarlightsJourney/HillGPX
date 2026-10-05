@@ -36,7 +36,7 @@ import { TrainingPanel } from './components/TrainingPanel';
 import { UnitsProvider } from './components/UnitsContext';
 import { Modal } from './components/Modal';
 import { SiteFooter, SiteHeader } from './components/SiteChrome';
-import { OpenSourceNotice } from './components/OpenSourceNotice';
+import { OpenSourceBadge, OpenSourceNotice } from './components/OpenSourceNotice';
 import { fetchCommunityRoutes, fetchRoutePhotos, type RoutePhoto } from './lib/api';
 import { findOverlaps } from './lib/routeAnalysis';
 import { isWorldPeakSlug, peaksInView, worldPeakBySlug } from './lib/worldPeaks';
@@ -86,7 +86,8 @@ export default function App() {
       ) : (
         <MapApp />
       )}
-      {view !== 'training' && <OpenSourceNotice badge={view === 'landing'} />}
+      {view === 'landing' && <OpenSourceNotice />}
+      {view !== 'map' && <OpenSourceBadge placement={view === 'landing' ? 'landing' : 'corner'} />}
     </UnitsProvider>
   );
 }
@@ -147,13 +148,11 @@ function MapApp() {
   const [focusBounds, setFocusBounds] = useState<{ bounds: Bounds; nonce: number } | null>(null);
   const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null);
   const [locateHint, setLocateHint] = useState<string | null>(null);
-  // Wide screens only: the map takes the whole width. Chosen with the expand
-  // control while browsing; with a route open the map is full width unless
-  // the person asked for the list back (listOverRoute), so a route gets the
-  // room it needs without a click and returns the list when it closes.
+  // Wide screens only: the map takes the whole width, chosen with the expand
+  // control. Opening a route keeps the list beside the map; the control
+  // pulses while a route is open so the bigger view is easy to find.
   const [mapExpanded, setMapExpanded] = useState(false);
-  const [listOverRoute, setListOverRoute] = useState(false);
-  // Where the list was scrolled before a route folded it away.
+  // Where the list was scrolled before the expanded map folded it away.
   const listScrollRef = useRef(0);
   // Small screens switch between full list and full map; wide screens show both.
   const [listOpen, setListOpen] = useState(true);
@@ -346,13 +345,11 @@ function MapApp() {
   }, [droppedGpx, selectedRoute, activeRouteSlug, allRoutes]);
 
   /**
-   * Opening a route folds the list away on wide screens (the map takes the full
-   * width, as Airbnb's expanded map does); closing it brings the list back
-   * where it was scrolled to.
+   * Expanding the map folds the list away on wide screens (as Airbnb's
+   * expanded map does); bringing it back returns the list to where it was
+   * scrolled to.
    */
   const rememberListScroll = useCallback(() => {
-    // Only the first route opened from the list: switching between routes
-    // happens with the list already folded, at the top of the page.
     if (window.scrollY > 0) listScrollRef.current = window.scrollY;
   }, []);
   const restoreListScroll = useCallback(() => {
@@ -367,16 +364,12 @@ function MapApp() {
       setRouteHoverIndex(null);
       setSpotlight(null);
       if (slug) {
-        rememberListScroll();
         setSelectedSlug(null);
         setDroppedGpx(null);
         setListOpen(false);
-        setListOverRoute(false);
-      } else {
-        restoreListScroll();
       }
     },
-    [rememberListScroll, restoreListScroll],
+    [],
   );
 
   const frameRoutes = useCallback((routes: Route[]) => {
@@ -552,7 +545,7 @@ function MapApp() {
   );
 
   const routeOpen = Boolean(droppedGpx || selectedRoute);
-  const mapFullWidth = routeOpen ? !listOverRoute : mapExpanded;
+  const mapFullWidth = mapExpanded;
 
   // The sticky header and category bar are measured so the sticky map below
   // them can be exactly as tall as the rest of the window.
@@ -701,7 +694,11 @@ function MapApp() {
                 focus={focus}
                 focusBounds={focusBounds}
                 mapExpanded={mapFullWidth}
-                onToggleExpand={() => (routeOpen ? setListOverRoute((value) => !value) : setMapExpanded((value) => !value))}
+                onToggleExpand={() => {
+                  if (mapExpanded) restoreListScroll();
+                  else rememberListScroll();
+                  setMapExpanded(!mapExpanded);
+                }}
                 injectedVenueSlugs={droppedGpx?.venueSlugs ?? []}
                 hoverPoint={gpxHoverPoint ?? routeHoverPoint}
                 onRouteHover={droppedGpx ? setGpxHoverIndex : setRouteHoverIndex}
@@ -728,6 +725,8 @@ function MapApp() {
                 }}
               />
             </Suspense>
+
+            {!routeOpen && <OpenSourceBadge placement="on-map" />}
 
             {mapError && <div className="map-error small">The map failed to load: {mapError}</div>}
 
@@ -787,7 +786,6 @@ function MapApp() {
                   setPublishedRoute(null);
                   setGpxHoverIndex(null);
                   setSpotlight(null);
-                  restoreListScroll();
                 }}
                 onPublished={onPublished}
                 published={publishedRoute}
@@ -836,8 +834,6 @@ function MapApp() {
                 selectRoute(slug);
               }}
               onLoaded={(loaded) => {
-                if (!droppedGpx && !selectedRoute) rememberListScroll();
-                setListOverRoute(false);
                 setSelectedRouteSlug(null);
                 setSelectedSlug(null);
                 setPublishedRoute(null);

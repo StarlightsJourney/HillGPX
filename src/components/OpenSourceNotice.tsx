@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { REPO_URL } from '../lib/contribute';
 import { Modal } from './Modal';
-import { CloseIcon, DownloadIcon, GitHubIcon, HeartIcon, Mark, UploadIcon } from './icons';
+import { CloseIcon, DownloadIcon, GitHubIcon, Mark, UploadIcon } from './icons';
 
 const SEEN_KEY = 'hillgpx:openSourceNoticeSeen';
 
@@ -39,39 +39,33 @@ interface Point {
 const POINTS: Point[] = [
   {
     id: 'download',
-    icon: <DownloadIcon size={24} />,
-    title: 'Free to download',
-    detail: 'Take any GPX straight to your watch, phone or bike computer. No sign-up, no paywall.',
-  },
-  {
-    id: 'share',
-    icon: <UploadIcon size={24} />,
-    title: 'Built from real runs',
-    detail: 'Share a GPX and it goes on the map for everyone, with the elevation your device recorded.',
+    icon: <DownloadIcon size={22} />,
+    title: 'Free GPX',
+    detail: 'Every route can be downloaded to a watch, phone or bike computer, at no cost.',
   },
   {
     id: 'open',
-    icon: <GitHubIcon size={22} />,
-    title: 'Open code and data',
-    detail: 'Everything lives on GitHub, so anyone can check how it works, copy it or make it better.',
+    icon: <GitHubIcon size={20} />,
+    title: 'Open code',
+    detail: 'The code and the data are on GitHub, so anyone can see how it works or improve it.',
   },
   {
     id: 'community',
-    icon: <HeartIcon size={22} />,
-    title: 'Run by its users',
+    icon: <UploadIcon size={22} />,
+    title: 'Built by runners',
     detail: (
       <>
-        <a href={`${REPO_URL}/issues/new?template=feedback.yml`} target="_blank" rel="noreferrer">Suggest a fix</a>, add a missing hill, or{' '}
-        <a href={`${REPO_URL}/blob/HEAD/docs/COMMUNITY.md`} target="_blank" rel="noreferrer">help with hosting costs</a>.
+        The map grows from GPX files people share. You can also{' '}
+        <a href={`${REPO_URL}/issues/new?template=feedback.yml`} target="_blank" rel="noreferrer">suggest a fix</a> or{' '}
+        <a href={`${REPO_URL}/blob/HEAD/docs/COMMUNITY.md`} target="_blank" rel="noreferrer">help with costs</a>.
       </>
     ),
   },
 ];
 
 /**
- * Four tiles, one line each; hovering, focusing or tapping a tile shows its
- * detail in the panel underneath, which keeps one fixed height so nothing
- * below moves.
+ * Three short tiles; hovering, focusing or tapping one shows its line in the
+ * panel underneath, which keeps one height so nothing below moves.
  */
 function Points() {
   const [active, setActive] = useState(POINTS[0].id);
@@ -103,7 +97,7 @@ function Points() {
   );
 }
 
-/** The why, in three short lines: the problem, the fix, the hope. */
+/** Why it exists, in the founder's words: the problem, the fix, the hope. */
 function CreatorNote() {
   const [photoFailed, setPhotoFailed] = useState(false);
   return (
@@ -111,23 +105,22 @@ function CreatorNote() {
       {photoFailed ? (
         <span className="oss-creator-photo initial" aria-hidden="true">M</span>
       ) : (
-        <img className="oss-creator-photo" src={CREATOR.photo} alt="" width={64} height={64} loading="lazy" onError={() => setPhotoFailed(true)} />
+        <img className="oss-creator-photo" src={CREATOR.photo} alt="" width={52} height={52} loading="lazy" onError={() => setPhotoFailed(true)} />
       )}
       <div className="oss-creator-body">
-        <dl className="oss-creator-why">
-          <div><dt>The problem</dt><dd>The GPX for a good climb is buried in watches, forums and paywalls.</dd></div>
-          <div><dt>The fix</dt><dd>One open map of every hill, with its routes a click away.</dd></div>
-          <div><dt>The hope</dt><dd>Every runner adds theirs, so nobody trains blind.</dd></div>
-        </dl>
+        <blockquote>
+          GPX files for good climbs are scattered across watches, forums and paywalls. hillGPX puts them on one open map, free to
+          download. I hope every runner adds theirs.
+        </blockquote>
         <figcaption>
-          <a href={CREATOR.url} target="_blank" rel="noreferrer">{CREATOR.name}</a>, who started hillGPX
+          <a href={CREATOR.url} target="_blank" rel="noreferrer">{CREATOR.name}</a>
         </figcaption>
       </div>
     </figure>
   );
 }
 
-/** What "free and open source" means here, as Airbnb lays out its explainer sheets: a mark, a promise, plain points. */
+/** What "free and open source" means here, kept short and plain. */
 export function OpenSourceDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal
@@ -147,10 +140,10 @@ export function OpenSourceDialog({ onClose }: { onClose: () => void }) {
     >
       <div className="oss-dialog">
         <header className="oss-hero">
-          <Mark size={44} />
+          <Mark size={40} />
           <div>
             <h3>Free and open source</h3>
-            <p className="oss-lead">No ads and no accounts. The code and data are public under the MIT licence.</p>
+            <p className="oss-lead">hillGPX is free to use, and its code and data are public under the MIT licence.</p>
           </div>
         </header>
         <Points />

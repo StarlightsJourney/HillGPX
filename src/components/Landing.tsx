@@ -12,6 +12,7 @@ import { ActivityTag } from './ActivityIcon';
 import { routeActivity } from '../lib/routeAnalysis';
 import { VenueThumb } from './VenueThumb';
 import { useUnits } from './UnitsContext';
+import { NARROW_HEADER, useMediaQuery } from './useMediaQuery';
 
 interface LandingProps {
   onOpen: () => void;
@@ -276,6 +277,7 @@ type Lookup = { state: 'idle' } | { state: 'searching' | 'missing' | 'failed'; q
  */
 export function HomeSearch({ onOpen }: { onOpen: () => void }) {
   const mode: Mode = 'climbs';
+  const narrow = useMediaQuery(NARROW_HEADER);
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -382,7 +384,7 @@ export function HomeSearch({ onOpen }: { onOpen: () => void }) {
         <span className="home-search-label">Where</span>
         <input
           value={query}
-          placeholder="Search countries, hills and towns"
+          placeholder={narrow ? 'Search places' : 'Search countries, hills and towns'}
           aria-label="Search countries, hills and towns"
           autoComplete="off"
           onFocus={() => setOpen(true)}

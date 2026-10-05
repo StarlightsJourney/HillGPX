@@ -1868,40 +1868,36 @@ button {
 .map-expand-ctrl svg {
   display: block;
 }
-/* The expand control in the brand colour, and pulsing while a route is open
-   beside the list: the bigger view is one click away. */
+/* The expand control stands out from the white stack: an ink button with a
+   white icon (it keeps its rounded shape on hover), and while a route is open
+   beside the list the icon itself breathes in and out. */
 .maplibregl-ctrl-group.map-expand-ctrl {
-  position: relative;
-  overflow: visible;
+  background: var(--ink) !important;
 }
 .maplibregl-ctrl-group.map-expand-ctrl button {
-  color: var(--accent);
-}
-.maplibregl-ctrl-group.map-expand-ctrl button[aria-pressed='true'] {
-  color: var(--ink);
-}
-.map-expand-ctrl.invite::after {
-  content: '';
-  position: absolute;
-  inset: 0;
   border-radius: inherit;
-  box-shadow: 0 0 0 0 rgb(193 80 46 / 55%);
-  animation: expand-pulse 1.8s ease-out infinite;
-  pointer-events: none;
+  background: var(--ink) !important;
+  color: #fff;
+  transition: background-color 0.15s ease;
 }
-@keyframes expand-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgb(193 80 46 / 55%);
-  }
-  70%,
+.maplibregl-ctrl-group.map-expand-ctrl button:hover {
+  background: #000 !important;
+}
+.map-expand-ctrl.invite svg {
+  animation: expand-breathe 1.6s ease-in-out infinite;
+}
+@keyframes expand-breathe {
+  0%,
   100% {
-    box-shadow: 0 0 0 12px rgb(193 80 46 / 0%);
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.22);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .map-expand-ctrl.invite::after {
+  .map-expand-ctrl.invite svg {
     animation: none;
-    box-shadow: 0 0 0 2px var(--accent);
   }
 }
 

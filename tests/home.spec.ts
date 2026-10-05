@@ -38,6 +38,14 @@ test('typing a country and pressing Search frames that country', async ({ page }
   await page.waitForSelector('.maplibregl-canvas', { timeout: 15_000 });
 });
 
+test('Add a GPX on a venue page opens the dialog over that page', async ({ page }) => {
+  await page.goto('/#venue/bukit-timah-hill');
+  await page.locator('.venue-detail .site-header-cta').click();
+  await expect(page.getByRole('dialog', { name: 'Add a GPX route' })).toBeVisible();
+  await expect(page).toHaveURL(/#venue\/bukit-timah-hill$/);
+  await expect(page.locator('.venue-detail')).toBeVisible();
+});
+
 test('map page footer spans the page below both the list and the map', async ({ page }) => {
   await page.goto('/#map');
   await dismissNotice(page);

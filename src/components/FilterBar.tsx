@@ -396,7 +396,7 @@ function ClimbCategories({ types, visibleVenues, filters, onChange, savedCount }
   }, [visibleVenues]);
 
   const categories: { id: ClimbCategory; label: string; shortLabel?: string }[] = [
-    { id: 'all', label: 'All' },
+    { id: 'all', label: 'All', shortLabel: 'All' },
     ...types.map((type) => ({
       id: type as ClimbCategory,
       label: type === 'hill' ? 'Hills & summits' : `${VENUE_TYPE_LABEL[type]}s`,

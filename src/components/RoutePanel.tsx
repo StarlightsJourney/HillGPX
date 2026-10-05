@@ -204,6 +204,10 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
   const [adding, setAdding] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    moreRef.current?.toggleAttribute('inert', !expanded);
+  }, [expanded]);
   const units = useUnits();
   const elevation = useTerrainFill(route);
   const hasElevation = routeHasElevation(route) || elevation.fromTerrain;
@@ -240,16 +244,6 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           <button type="button" className="gpx-icon-btn" onClick={() => downloadRoute(route)} aria-label="Download GPX" data-tip="Download GPX">
             <DownloadIcon size={15} />
           </button>
-          <button
-            type="button"
-            className="gpx-icon-btn gpx-collapse"
-            onClick={() => setExpanded((value) => !value)}
-            aria-expanded={expanded}
-            aria-label={expanded ? 'Show fewer route details' : 'Show more route details'}
-            data-tip={expanded ? 'Fewer details' : 'More details'}
-          >
-            <ChevronRightIcon size={15} />
-          </button>
           <button type="button" className="gpx-close" onClick={onClose} aria-label="Close route">
             <CloseIcon size={12} />
           </button>
@@ -261,10 +255,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           ['Distance', units.distance(route.distanceM)],
           ['EG', hasElevation ? units.height(elevation.gainM) : unavailable],
           ['EL', hasElevation ? units.height(elevation.lossM) : unavailable],
-          ['Highest', hasElevation ? units.height(maxM) : unavailable],
-          ['Lowest', hasElevation ? units.height(minM) : unavailable],
-          ['EG / km', hasElevation ? units.height(elevation.gainM / km) : unavailable],
-        ].slice(0, expanded ? undefined : 3).map(([label, value]) => (
+        ].map(([label, value]) => (
           <div className="gpx-stat" key={label}>
             <strong>{value}</strong>
             <span>{label}</span>
@@ -272,50 +263,79 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
         ))}
       </div>
 
-      {expanded && touches.length > 0 && (
-        <div className="gpx-touches route-passes">
-          <strong>Passes</strong>
-          <Marquee className="route-passes-line" speed={30}>
-            {touches.map((venue) => (
-              <button
-                type="button"
-                key={venue.slug}
-                className={venue.slug === spotlightSlug ? 'on' : undefined}
-                aria-pressed={venue.slug === spotlightSlug}
-                onClick={() => onShowVenue(venue.slug)}
-              >
-                <TypeGlyph type={venue.type} />
-                {venue.name}
-              </button>
-            ))}
-          </Marquee>
-        </div>
-      )}
-
-      {expanded && <OverlapChips overlaps={overlaps} onShowRoute={onShowRoute} />}
-
-      {expanded && (
-        <div className="route-photos">
-          <strong>Along the route</strong>
-          {routePhotos.map((photo) => (
-            <button type="button" key={photo.id} className={`route-photo-thumb ${photo.kind}`} onClick={() => onFocusPhoto(photo)} title={photo.caption || (photo.kind === 'hazard' ? 'Hazard' : 'Photo')}>
-              <img src={photo.url} alt="" loading="lazy" />
-              {photo.kind === 'hazard' && <span aria-label="Hazard">!</span>}
-              {photo.pending && <em className="route-photo-pending">Pending</em>}
-            </button>
-          ))}
-          <button type="button" className="route-photo-add" onClick={() => setAdding(true)}>
-            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
-            Photo or hazard
-          </button>
-        </div>
-      )}
-
       {hasElevation ? (
-        <ElevationProfile points={elevation.points} height={expanded ? 120 : 64} hoverIndex={hoverIndex} onHoverIndex={onHoverIndex} />
+        <ElevationProfile points={elevation.points} height={72} hoverIndex={hoverIndex} onHoverIndex={onHoverIndex} />
       ) : (
         <p className="route-elevation-unavailable">{elevation.pending ? 'Measuring elevation from terrain data…' : 'Elevation is unavailable for this route.'}</p>
       )}
+
+      {/* Always rendered, so opening it can slide; inert while folded. */}
+      <div className="route-more" id={`route-more-${route.slug}`} ref={moreRef}>
+        <div className="route-more-inner">
+          <div className="gpx-stats">
+            {[
+              ['Highest', hasElevation ? units.height(maxM) : unavailable],
+              ['Lowest', hasElevation ? units.height(minM) : unavailable],
+              ['EG / km', hasElevation ? units.height(elevation.gainM / km) : unavailable],
+            ].map(([label, value]) => (
+              <div className="gpx-stat" key={label}>
+                <strong>{value}</strong>
+                <span>{label}</span>
+              </div>
+            ))}
+          </div>
+
+          {touches.length > 0 && (
+            <div className="gpx-touches route-passes">
+              <strong>Passes</strong>
+              <Marquee className="route-passes-line" speed={30}>
+                {touches.map((venue) => (
+                  <button
+                    type="button"
+                    key={venue.slug}
+                    className={venue.slug === spotlightSlug ? 'on' : undefined}
+                    aria-pressed={venue.slug === spotlightSlug}
+                    title={venue.slug === spotlightSlug ? 'Show the whole route again' : `Show ${venue.name} on the map`}
+                    onClick={() => onShowVenue(venue.slug)}
+                  >
+                    <TypeGlyph type={venue.type} />
+                    {venue.name}
+                  </button>
+                ))}
+              </Marquee>
+            </div>
+          )}
+
+          <OverlapChips overlaps={overlaps} onShowRoute={onShowRoute} />
+
+          <div className="route-photos">
+            <strong>Along the route</strong>
+            {routePhotos.map((photo) => (
+              <button type="button" key={photo.id} className={`route-photo-thumb ${photo.kind}`} onClick={() => onFocusPhoto(photo)} title={photo.caption || (photo.kind === 'hazard' ? 'Hazard' : 'Photo')}>
+                <img src={photo.url} alt="" loading="lazy" />
+                {photo.kind === 'hazard' && <span aria-label="Hazard">!</span>}
+                {photo.pending && <em className="route-photo-pending">Pending</em>}
+              </button>
+            ))}
+            <button type="button" className="route-photo-add" onClick={() => setAdding(true)}>
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+              Photo or hazard
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        className="route-more-toggle"
+        onClick={() => setExpanded((value) => !value)}
+        aria-expanded={expanded}
+        aria-controls={`route-more-${route.slug}`}
+        aria-label={expanded ? 'Show fewer route details' : 'Show more route details'}
+      >
+        <span>{expanded ? 'Fewer details' : 'More details'}</span>
+        <ChevronRightIcon size={13} />
+      </button>
 
       {adding && <RoutePhotoModal route={route} startIndex={hoverIndex ?? Math.floor(route.coordinates.length / 2)} onPreviewIndex={onHoverIndex} onClose={() => setAdding(false)} onAdded={onPhotoAdded} />}
       {reporting && <ReportModal targetType="route" targetSlug={route.slug} targetName={route.name} onClose={() => setReporting(false)} />}

@@ -18,11 +18,12 @@ Good vertical training spots are local knowledge: the stairwell to the 40th floo
 
 - Browse **900,000+ hills and mountains in 232 countries**, plus Singapore's stairwells and tall HDB blocks, on a flat or 3D terrain map.
 - Search any country, town, hill or street; the map frames it.
-- Open a route for its trace, EG/EL profile, the places it passes and routes it overlaps. Download any route as GPX.
-- **Upload a GPX** without an account (up to 60 MB). It is checked for duplicates, keeps your device's elevation, is classified as road run, trail or cycling, and is published under CC BY 4.0. Heart-rate and other device data are stripped first.
+- Open a route for its trace, EG/EL profile, the places it passes and routes it overlaps; "More details" under the profile slides the rest open. Tap a place it passes to fly there, and tap it again to go back to the whole route. Download any route as GPX.
+- **Upload a GPX** without an account (up to 60 MB), from any page; on a place's page the upload opens right there. It is checked for duplicates, keeps your device's elevation, is classified as road run, trail or cycling, and is published under CC BY 4.0. Heart-rate and other device data are stripped first.
 - **Add photos** (up to 12 at once, dragged in or picked), **rate and review** places, pin hazards along a route, report mistakes, and save places with the heart. Reviews and ratings go live straight away; photos appear once a volunteer has checked them.
 - See the community's progress toward the next goal (a number of shared routes) in the strip at the top of every page; it opens "What's mapped", with the goal ladder and how much of the map has a GPX or photo.
-- Read how it works from the "Free and open source" badge on every page.
+- Read how it works from the "Free and open source" badge at the bottom of the page.
+- Phone first: on small screens the header stays on one row, Climbs/Routes and Filters sit above a scrolling row of categories, and searching takes you to the map.
 
 ## Contributing
 

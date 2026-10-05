@@ -24,14 +24,16 @@ test('map category bar scrolls and a card opens its venue page in a new tab', as
   await expect(venue.getByRole('button', { name: 'Back' })).toHaveCount(0);
 });
 
-test('header search spans its own row on a phone', async ({ page }) => {
+test('header keeps the logo, search, + and units on one row on a phone', async ({ page }) => {
   await page.goto('/#map');
-  const pill = await page.locator('.site-header [role="search"]').boundingBox();
-  expect(pill).not.toBeNull();
-  // 12px gutters either side of the page (390px, less any reserved scrollbar gutter).
-  const width = await page.evaluate(() => document.documentElement.clientWidth);
-  expect(Math.round(pill!.x)).toBe(12);
-  expect(Math.round(pill!.width)).toBe(width - 24);
+  const box = (selector: string) => page.locator(selector).first().boundingBox();
+  const [mark, pill, cta, units] = await Promise.all([box('.site-header .wordmark'), box('.site-header [role="search"]'), box('.site-header-cta'), box('.units-toggle')]);
+  for (const item of [mark, pill, cta, units]) expect(item).not.toBeNull();
+  const middle = (b: { y: number; height: number }) => b.y + b.height / 2;
+  for (const item of [pill!, cta!, units!]) expect(Math.abs(middle(item) - middle(mark!))).toBeLessThan(4);
+  expect(pill!.x).toBeGreaterThan(mark!.x + mark!.width);
+  expect(pill!.x + pill!.width).toBeLessThan(cta!.x);
+  expect(pill!.width).toBeGreaterThan(150);
 });
 
 test('landing route opens a compact map panel that expands', async ({ page }) => {
@@ -44,7 +46,7 @@ test('landing route opens a compact map panel that expands', async ({ page }) =>
   await expect(panel).toBeVisible();
   await expect(panel).toHaveClass(/compact/);
   await expect(page.getByRole('button', { name: 'Download GPX' })).toBeVisible();
-  await expect(panel.locator('.gpx-stats')).toBeVisible();
+  await expect(panel.locator('.gpx-stats').first()).toBeVisible();
 
   await page.getByRole('button', { name: 'Show more route details' }).click();
   await expect(panel).toHaveClass(/expanded/);

@@ -39,6 +39,7 @@ import { SiteFooter, SiteHeader } from './components/SiteChrome';
 import { OpenSourceBadge, OpenSourceNotice } from './components/OpenSourceNotice';
 import { fetchCommunityRoutes, fetchRoutePhotos, type RoutePhoto } from './lib/api';
 import { findOverlaps } from './lib/routeAnalysis';
+import { IMPORT_EVENT } from './lib/contribute';
 import { isWorldPeakSlug, peaksInView, worldPeakBySlug } from './lib/worldPeaks';
 
 /** One shared empty list, so "no dataset yet" is a stable reference to memo on. */
@@ -194,6 +195,13 @@ function MapApp() {
       .catch((err: Error) => console.warn('Community routes unavailable:', err.message));
 
     if (window.location.hash === '#import') history.replaceState(null, '', '#map');
+  }, []);
+
+  // "Add a GPX" on a venue page opens the dialog over that page (openImportHere).
+  useEffect(() => {
+    const open = () => setGpxOpen(true);
+    window.addEventListener(IMPORT_EVENT, open);
+    return () => window.removeEventListener(IMPORT_EVENT, open);
   }, []);
 
   useEffect(() => {
@@ -492,7 +500,11 @@ function MapApp() {
     const points = droppedGpx?.points ?? selectedRoute?.coordinates;
     return points ? findOverlaps(points, allRoutes, selectedRoute?.slug).map((overlap) => overlap.route.slug) : [];
   }, [droppedGpx, selectedRoute, allRoutes]);
-  const showPassedVenue = useCallback((slug: string) => setSpotlight({ slug, nonce: Date.now() }), []);
+  // A second tap on the same place lets it go, and the map returns to the route.
+  const showPassedVenue = useCallback(
+    (slug: string) => setSpotlight((current) => (current?.slug === slug ? null : { slug, nonce: Date.now() })),
+    [],
+  );
 
   const gpxHoverPoint: [number, number] | null =
     droppedGpx && gpxHoverIndex != null
@@ -502,10 +514,16 @@ function MapApp() {
   // Framing an area is a change of place, so any card still open is describing
   // somewhere you have just left. A pan already clears it; this is the same rule
   // for a move the person asked for by name.
-  const showArea = useCallback((bounds: Bounds) => {
+  // On a phone the search also brings the map into view (it was moving the
+  // hidden map behind the list), and a stored route left open would be
+  // describing the place you just left, so it closes.
+  const showArea = useCallback((bounds: Bounds, showMap = true) => {
     setSelectedSlug(null);
     setActiveRouteSlug(null);
     setUserLocation(null);
+    setSelectedRouteSlug(null);
+    setSpotlight(null);
+    if (showMap) setListOpen(false);
     setFocusBounds({ bounds, nonce: Date.now() });
   }, []);
 
@@ -517,7 +535,8 @@ function MapApp() {
     const frameHash = () => {
       const bounds = boundsFromHash(window.location.hash);
       if (!bounds) return;
-      showArea(bounds);
+      // A landing-page link opens on the list of what is there, not the map.
+      showArea(bounds, false);
       history.replaceState(null, '', '#map');
     };
     frameHash();

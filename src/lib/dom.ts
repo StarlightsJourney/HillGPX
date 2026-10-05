@@ -56,7 +56,11 @@ export function lockPageScroll(): () => void {
   if (scrollLocks++ === 0) {
     const scrollbar = window.innerWidth - documentElement.clientWidth;
     body.style.overflow = 'hidden';
-    if (scrollbar > 0) body.style.paddingRight = `${scrollbar}px`;
+    if (scrollbar > 0) {
+      body.style.paddingRight = `${scrollbar}px`;
+      // Fixed, centred things (the open-source badge) use this to stay put.
+      documentElement.style.setProperty('--scroll-lock-pad', `${scrollbar}px`);
+    }
   }
   let released = false;
   return () => {
@@ -65,6 +69,7 @@ export function lockPageScroll(): () => void {
     if (--scrollLocks === 0) {
       body.style.overflow = '';
       body.style.paddingRight = '';
+      documentElement.style.removeProperty('--scroll-lock-pad');
     }
   };
 }

@@ -2779,10 +2779,36 @@
   display: inline-flex;
   color: var(--ink) !important;
 }
-@media (max-width: 743px) {
+/* Narrower than the content: the base line becomes two neat rows (copyright
+   with the GitHub mark at its end, then the data credits), instead of the
+   credits squeezing into a ragged column beside the copyright. */
+@media (max-width: 899px) {
+  .site-footer-base {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px 16px;
+  }
+  .site-footer-credits {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .site-footer-gh {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+@media (max-width: 559px) {
+  .site-footer-inner {
+    padding: 0 16px;
+  }
   .site-footer-cols {
-    grid-template-columns: 1fr;
-    gap: 16px;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px 16px;
+    padding: 28px 0 20px;
+  }
+  .site-footer-cols > div:last-child {
+    grid-column: 1 / -1;
   }
 }
 
@@ -3413,9 +3439,37 @@
 .terrain-ctrl-label {
   font: inherit;
 }
+/* Narrow: two tidy rows instead of one cramped one. Climbs | Routes on the
+   left and Filters on the right, then the category icons on a full-width
+   row of their own, centred when they fit and scrolling sideways when not. */
 @media (max-width: 743px) {
+  .filterbar .filterbar-row {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    row-gap: 4px;
+    height: auto;
+    padding-top: 10px;
+  }
   .filterbar .mode-switch {
+    order: 1;
     width: auto;
+  }
+  .filterbar .filter-open {
+    order: 2;
+    height: 38px;
+  }
+  .filterbar .categories {
+    order: 3;
+    flex: 1 0 100%;
+    width: 100%;
+    height: 58px;
+    mask-image: none;
+  }
+  .filterbar .categories > :first-child {
+    margin-left: auto;
+  }
+  .filterbar .categories > :last-child {
+    margin-right: auto;
   }
 }
 
@@ -3733,7 +3787,7 @@
   color: #fff;
 }
 .route-pin.is-selected {
-  box-shadow: 0 0 0 3px rgb(193 80 46 / 25%), 0 6px 16px rgb(0 0 0 / 24%);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 22%);
 }
 
 /* Photos and hazards along a route */
@@ -4476,31 +4530,69 @@
     width: min(560px, calc(100vw - 316px));
   }
 }
+/* Phones and narrow windows: still one row — the mark, the pill filling the
+   middle, then + and m/ft — so the header is the same shape as on a wide
+   screen. The pill drops its "Where" label and its placeholder shortens
+   (SearchBar / HomeSearch). */
 @media (max-width: 743px) {
   .site-header-row {
-    grid-template-columns: auto 1fr;
-    grid-template-areas:
-      'left right'
-      'center center';
-    row-gap: 8px;
-    height: auto;
-    padding: 8px 12px 10px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px;
+    height: 60px;
+    padding: 0 12px;
   }
-  .site-header-left {
-    grid-area: left;
+  .site-header .wordmark-text {
+    display: none;
   }
   .site-header-right {
-    grid-area: right;
-  }
-  .site-header-center {
-    grid-area: center;
+    gap: 6px;
   }
   .site-header .home-search {
     width: 100%;
+    height: 44px;
   }
-  /* The pill has its own row now, so there is room for the name again. */
-  .site-header .wordmark-text {
-    display: inline;
+  .site-header .home-search-label {
+    display: none;
+  }
+  .site-header .home-search-field {
+    justify-content: center;
+    padding-left: 16px;
+  }
+  .site-header .home-search-field input {
+    padding: 0;
+    font-size: 14px;
+    text-overflow: ellipsis;
+  }
+  .site-header .units-opt {
+    width: 30px;
+  }
+  /* The round Search button stays an icon when the pill is focused, so it
+     never covers what you are typing. */
+  .site-header .home-search .home-search-go,
+  .site-header .home-search.focused .home-search-go {
+    width: 36px;
+    padding: 0;
+    gap: 0;
+  }
+  .site-header .home-search-go span {
+    display: none;
+  }
+  /* Suggestions span the screen, not just the narrow pill. */
+  .site-header .home-search-list,
+  .site-header .searchbar-results {
+    left: -36px;
+    right: auto;
+    width: calc(100vw - 24px);
+    max-width: none;
+  }
+}
+@media (max-width: 559px) {
+  .review-form.inline {
+    grid-template-columns: 1fr;
+  }
+  .modal-foot .btn:only-child,
+  .modal-foot .cov-foot-note + .btn {
+    flex: 1;
   }
 }
 
@@ -5149,7 +5241,10 @@
 .oss-badge {
   position: fixed;
   bottom: calc(20px + env(safe-area-inset-bottom));
-  left: 50%;
+  /* Centred on the page, not the window: a dialog's scroll lock pads the
+     body by the scrollbar width (--scroll-lock-pad), and the badge must not
+     jump when its own dialog opens. */
+  left: calc(50% - var(--scroll-lock-pad, 0px) / 2);
   z-index: 40;
   display: inline-flex;
   align-items: center;
@@ -5169,21 +5264,11 @@
   transition: box-shadow 0.15s ease, transform 0.15s var(--ease-out), background 0.15s ease;
 }
 .oss-badge:hover {
-  box-shadow: 0 8px 26px rgb(193 80 46 / 35%);
+  box-shadow: 0 8px 26px rgb(0 0 0 / 30%);
   transform: translateX(-50%) translateY(-1px);
 }
 .oss-badge:active {
   transform: translateX(-50%) scale(0.97);
-}
-.oss-badge.corner {
-  left: 20px;
-  transform: none;
-}
-.oss-badge.corner:hover {
-  transform: translateY(-1px);
-}
-.oss-badge.corner:active {
-  transform: scale(0.97);
 }
 .oss-badge .mark {
   border-radius: 5px;
@@ -5194,19 +5279,12 @@
     translate: 0 16px;
   }
 }
-/* On the map page it sits on the map, clear of the list. */
+/* On the map page it sits at the bottom centre of the map, clear of the list. */
 .oss-badge.on-map {
   position: absolute;
   bottom: 20px;
-  left: 20px;
+  left: 50%;
   z-index: 4;
-  transform: none;
-}
-.oss-badge.on-map:hover {
-  transform: translateY(-1px);
-}
-.oss-badge.on-map:active {
-  transform: scale(0.97);
 }
 @media (max-width: 899px) {
   .oss-badge.corner,
@@ -5222,29 +5300,28 @@
   padding-bottom: 72px;
 }
 
-/* The explainer fits without scrolling: mark and promise in one row, four
-   one-line tiles whose details show in a fixed-height panel, and the why in
-   three short lines. */
+/* The explainer: plain and short. Mark and promise in one row, three
+   one-line tiles in ink whose line shows underneath on hover, then a short
+   note from the founder. No accent colour, no decoration. */
 .oss-dialog {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
 }
 .oss-hero {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 .oss-hero .mark {
   flex: none;
-  filter: drop-shadow(0 6px 14px rgb(193 80 46 / 28%));
 }
 .oss-hero h3 {
   margin: 0 0 2px;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
 }
 .oss-lead {
   margin: 0;
@@ -5259,62 +5336,52 @@
 }
 .oss-point-tiles {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 .oss-point {
   display: flex;
-  flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   min-width: 0;
-  padding: 14px 6px 12px;
+  height: 48px;
+  padding: 0 10px;
   border: 1px solid var(--hairline);
-  border-radius: 14px;
+  border-radius: 12px;
   background: #fff;
   color: var(--ink);
   font: inherit;
-  text-align: center;
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s var(--ease-out);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
-.oss-point:hover,
+.oss-point:hover {
+  border-color: var(--border);
+}
 .oss-point.on {
   border-color: var(--ink);
-}
-.oss-point.on {
-  box-shadow: 0 0 0 1px var(--ink);
-}
-.oss-point:active {
-  transform: scale(0.97);
+  background: var(--bg-raised);
 }
 .oss-point-icon {
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  transition: transform 0.25s var(--ease-spring), color 0.15s ease;
-}
-.oss-point.on .oss-point-icon {
-  color: var(--accent);
-  transform: translateY(-2px) scale(1.08);
 }
 .oss-point strong {
-  font-size: 13px;
+  overflow: hidden;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .oss-point-detail {
   box-sizing: border-box;
-  min-height: 64px;
+  min-height: 46px;
   margin: 0;
-  padding: 11px 14px;
-  border-radius: 12px;
-  background: var(--bg-raised);
   color: var(--ink-2);
   font-size: 14px;
-  line-height: 1.45;
+  line-height: 1.5;
   animation: fade-in 0.2s ease both;
 }
 .oss-point-detail a {
@@ -5324,17 +5391,18 @@
 .oss-creator {
   display: flex;
   align-items: flex-start;
-  gap: 16px;
+  gap: 14px;
   margin: 0;
-  padding-top: 18px;
+  padding-top: 20px;
   border-top: 1px solid var(--hairline);
 }
 .oss-creator-photo {
   flex: none;
-  width: 64px;
-  height: 64px;
+  width: 52px;
+  height: 52px;
+  border: 1px solid var(--hairline);
   border-radius: 50%;
-  background: linear-gradient(160deg, #fbe3d8 0%, #f4c4ae 100%);
+  background: #fff;
   object-fit: cover;
   object-position: 50% 12%;
 }
@@ -5342,63 +5410,47 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent-grad);
-  color: #fff;
-  font-size: 26px;
+  background: var(--bg-raised);
+  color: var(--ink);
+  font-size: 22px;
   font-weight: 700;
 }
 .oss-creator-body {
   min-width: 0;
 }
-.oss-creator-why {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-}
-.oss-creator-why > div {
-  display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
-  gap: 8px;
-  font-size: 14px;
-  line-height: 1.4;
-}
-.oss-creator-why dt {
-  color: var(--accent);
-  font-weight: 700;
-}
-.oss-creator-why dd {
+.oss-creator blockquote {
   margin: 0;
   color: var(--ink);
+  font-size: 15px;
+  line-height: 1.55;
 }
 .oss-creator figcaption {
-  margin-top: 8px;
-  color: var(--muted);
+  margin-top: 6px;
   font-size: 13px;
 }
 .oss-creator figcaption a {
-  color: var(--ink);
+  color: var(--muted);
   font-weight: 600;
+  text-decoration: none;
+}
+.oss-creator figcaption a:hover {
+  color: var(--ink);
+  text-decoration: underline;
 }
 .oss-foot-btn {
   white-space: nowrap;
 }
 @media (max-width: 520px) {
   .oss-hero h3 {
-    font-size: 21px;
-  }
-  .oss-point-tiles {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    font-size: 20px;
   }
   .oss-point {
-    flex-direction: row;
-    justify-content: flex-start;
-    padding: 10px;
-    text-align: left;
+    flex-direction: column;
+    gap: 4px;
+    height: 64px;
   }
-  .oss-creator-why > div {
-    grid-template-columns: 1fr;
-    gap: 0;
+  .oss-point strong {
+    font-size: 13px;
   }
   .oss-foot-btn {
     flex: 1;
@@ -5979,22 +6031,8 @@
 }
 
 /* ─── Route panel: compact first, a side sheet on a wide map ────────────── */
-.gpx-panel.route-panel.compact {
-  /* Short enough not to need scrolling, and the (i) card can hang outside it. */
-  overflow: visible;
-}
-.route-panel.compact .gpx-stats {
-  flex-wrap: nowrap;
-}
-.map-wrap > .gpx-panel.route-panel.expanded {
+.map-wrap > .gpx-panel.route-panel {
   max-height: min(70%, 640px);
-}
-/* Bottom sheet: more details grow upwards. */
-.route-panel.compact .gpx-collapse svg {
-  transform: rotate(-90deg);
-}
-.route-panel.expanded .gpx-collapse svg {
-  transform: rotate(90deg);
 }
 
 @container mapwrap (min-width: 600px) {
@@ -6012,21 +6050,12 @@
     max-height: calc(100% - 64px);
     margin: auto 0;
   }
-  /* Expanded, the sheet grows with its content and scrolls past the map's
-     height; it used to be pinned to the bottom, leaving a tall empty card. */
-  .map-wrap > .gpx-panel.route-panel.expanded {
+  .map-wrap > .gpx-panel.route-panel {
     max-height: calc(100% - 64px);
   }
   .gpx-panel .gpx-stats {
     flex-wrap: wrap;
     gap: 12px 20px;
-  }
-  /* Side sheet: more details grow downwards. */
-  .route-panel.compact .gpx-collapse svg {
-    transform: rotate(90deg);
-  }
-  .route-panel.expanded .gpx-collapse svg {
-    transform: rotate(-90deg);
   }
 }
 
@@ -6077,9 +6106,9 @@
 .route-panel .gpx-stat span {
   font-size: 13px;
 }
-.route-panel.expanded .gpx-touches,
-.route-panel.expanded .route-overlaps,
-.route-panel.expanded .route-photos {
+.route-more .gpx-touches,
+.route-more .route-overlaps,
+.route-more .route-photos {
   margin-top: 16px;
   padding-top: 14px;
   border-top: 1px solid var(--hairline);
@@ -6168,6 +6197,7 @@
 }
 .route-panel .route-panel-title h2 {
   display: block;
+  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -6207,7 +6237,9 @@
   z-index: 3;
   padding: 2px;
   border-radius: inherit;
-  background: conic-gradient(from var(--orbit), transparent 0deg 318deg, rgb(240 138 98 / 60%) 340deg, var(--accent) 356deg, transparent 360deg);
+  /* A short comet: ink tail fading into a brand-colour head, visible on the
+     white card and against the map. */
+  background: conic-gradient(from var(--orbit), transparent 0deg 300deg, rgb(34 34 34 / 35%) 318deg, var(--ink) 336deg, var(--accent) 354deg, transparent 360deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
@@ -6241,6 +6273,61 @@
   }
   .route-panel-orbit {
     display: none;
+  }
+}
+
+/* "More details": a toggle under the profile; the extra numbers, places
+   passed, overlaps and photos slide open above it. */
+.route-more {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.32s var(--ease-out), opacity 0.24s ease;
+}
+.route-panel.expanded .route-more {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.route-more-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+.route-more-inner > .gpx-stats {
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+.route-more-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 34px;
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--ink-2);
+  font: 600 13px/1 var(--font-sans);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.route-more-toggle:hover {
+  background: var(--bg-raised);
+  color: var(--ink);
+}
+.route-more-toggle svg {
+  transform: rotate(90deg);
+  transition: transform 0.3s var(--ease-out);
+}
+.route-panel.expanded .route-more-toggle svg {
+  transform: rotate(-90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-more,
+  .route-more-toggle svg {
+    transition: none;
   }
 }
 

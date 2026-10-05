@@ -770,9 +770,15 @@ export function MapView({
     // The container changes size when the list folds away for a route, when
     // the window resizes, and while the stage animates. Keep whatever was last
     // framed on screen, once the size has settled.
+    // While the size animates (expanding the map, the list folding), the frame
+    // is re-fitted on every step with no animation, so the route glides with
+    // the edge instead of drifting and then jumping back once it settles. If
+    // a flight is still under way it is left alone and corrected at the end.
     let refitTimer: ReturnType<typeof setTimeout> | undefined;
     const observer = new ResizeObserver(() => {
       map.resize();
+      const frame = lastFrameRef.current;
+      if (frame && startedMaps.has(map) && !map.isMoving()) frameTo(map, frame, 0);
       map.redraw();
       clearTimeout(refitTimer);
       refitTimer = setTimeout(() => {
@@ -981,6 +987,17 @@ export function MapView({
       marker.remove();
     };
   }, [spotlight, ready, releaseGeolocate]);
+
+  // Tapping the same place again lets go of it: fly back to the whole route.
+  const hadSpotlightRef = useRef(false);
+  useEffect(() => {
+    const map = mapRef.current;
+    const had = hadSpotlightRef.current;
+    hadSpotlightRef.current = Boolean(spotlight);
+    if (!map || spotlight || !had || !routeFrameRef.current) return;
+    lastFrameRef.current = routeFrameRef.current;
+    frameTo(map, routeFrameRef.current, 900);
+  }, [spotlight]);
 
   useEffect(() => {
     const map = mapRef.current;

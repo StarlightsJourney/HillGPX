@@ -9,6 +9,20 @@
 
 export const REPO_URL = 'https://github.com/StarlightsJourney/HillGPX';
 
+/** Asks the map page (which also hosts venue pages) to open the "Add a GPX" dialog where you are. */
+export const IMPORT_EVENT = 'hillgpx:import';
+
+/**
+ * Click handler for every "Add a GPX" link. On a venue page, following
+ * `#import` left the page for the map; the dialog opens over the venue page
+ * instead. Elsewhere the link is followed as usual.
+ */
+export function openImportHere(event: { preventDefault: () => void }): void {
+  if (!window.location.hash.startsWith('#venue/')) return;
+  event.preventDefault();
+  window.dispatchEvent(new Event(IMPORT_EVENT));
+}
+
 function issueUrl(template: string, fields: Record<string, string | number | undefined>): string {
   const params = new URLSearchParams({ template });
   for (const [key, value] of Object.entries(fields)) {

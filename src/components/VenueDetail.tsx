@@ -28,6 +28,7 @@ import { downloadRoute } from './VenueCard';
 import { RouteThumb } from './RouteThumb';
 import { Modal } from './Modal';
 import { OpenSourceBadge } from './OpenSourceNotice';
+import { openImportHere } from '../lib/contribute';
 import {
   type CommunityPhoto,
   type Review,
@@ -781,6 +782,10 @@ function VenueDetailInner({
   const reviewsRef = useRef<HTMLElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
   useReveal(pageRef, venue.slug);
+  // The page is a fixed layer over the map page. Locking the map page behind
+  // it leaves one scrollbar (this page's own), so the header lines up with
+  // every other page and does not shift when a dialog opens.
+  useEffect(() => lockPageScroll(), []);
   const { reviews, setReviews, communityPhotos, commons, wiki, generated } = useVenueContent(venue);
   const narrow = useNarrow();
   const height = venueHeight(venue);
@@ -1000,7 +1005,7 @@ function VenueDetailInner({
                     <h3>No GPX here yet</h3>
                     <p>Been up {venue.name}? Share the file from your watch or app and anyone can download it.</p>
                   </div>
-                  <a className="btn btn-dark venue-empty-btn" href="#import"><UploadIcon size={15} />Upload a GPX</a>
+                  <a className="btn btn-dark venue-empty-btn" href="#import" onClick={openImportHere}><UploadIcon size={15} />Upload a GPX</a>
                 </div>
               )}
             </section>

@@ -17,6 +17,7 @@ import { countrySummaries } from '../lib/worldPeaks';
 import { normaliseQuery } from '../lib/streetTerms';
 import { useUnits } from './UnitsContext';
 import { SearchIcon } from './icons';
+import { NARROW_HEADER, useMediaQuery } from './useMediaQuery';
 
 interface SearchBarProps {
   /** Every loaded venue, whatever the filters and wherever the map is. */
@@ -110,6 +111,7 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const units = useUnits();
   const places = usePlaces();
+  const narrow = useMediaQuery(NARROW_HEADER);
 
   // Lowercase names once, not once per keystroke.
   const haystack = useMemo(
@@ -261,7 +263,7 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
           ref={inputRef}
           type="search"
           value={query}
-          placeholder="Search countries, hills and towns"
+          placeholder={narrow ? 'Search places' : 'Search countries, hills and towns'}
           aria-label="Search countries, hills, blocks and streets"
           autoComplete="off"
           onFocus={() => setOpen(true)}

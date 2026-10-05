@@ -6,6 +6,7 @@ import { loadDataset } from '../lib/venues';
 import { loadPeakIndex } from '../lib/worldPeaks';
 import { CheckIcon, UploadIcon } from './icons';
 import { CategoryIcon } from './FilterBar';
+import { openImportHere } from '../lib/contribute';
 import { Modal } from './Modal';
 
 /** Coverage numbers, loaded once and shared by everything that shows them. */
@@ -155,7 +156,7 @@ export function CoverageModal({ coverage, onClose, onUpload }: { coverage: Cover
           {onUpload ? (
             <button type="button" className="btn btn-accent" onClick={onUpload}>{cta}</button>
           ) : (
-            <a className="btn btn-accent" href="#import" onClick={onClose}>{cta}</a>
+            <a className="btn btn-accent" href="#import" onClick={(event) => { onClose(); openImportHere(event); }}>{cta}</a>
           )}
         </>
       }

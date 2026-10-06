@@ -23,7 +23,8 @@ Good vertical training spots are local knowledge: the stairwell to the 40th floo
 - **Add photos** (up to 12 at once, dragged in or picked), **rate and review** places, pin hazards along a route, report mistakes, and save places with the heart. Reviews and ratings go live straight away; photos appear once a volunteer has checked them.
 - See the community's progress toward the next goal (a number of shared routes) in the strip at the top of every page; it opens "What's mapped", with the goal ladder and how much of the map has a GPX or photo.
 - Read how it works from the "Free and open source" badge at the bottom of the page.
-- Phone first: on small screens the header stays on one row, Climbs/Routes and Filters sit above a scrolling row of categories, and searching takes you to the map.
+- Phone first: on small screens the header and the category bar each stay on one row, and searching takes you to the map.
+- Filters apply as you pick them; closing the dialog keeps your choice.
 
 ## Contributing
 

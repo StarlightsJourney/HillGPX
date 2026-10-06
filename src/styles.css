@@ -2061,43 +2061,41 @@ button {
 
 /* ─── Segmented control ───────────────────────────────────────────────── */
 
+/* Filter choices: chips that wrap onto as many rows as they need, so a label
+   like "Up to 25 km" is always readable. The chosen one is filled in ink. */
 .seg {
-  display: flex;
-  border: 1.5px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 8px;
 }
 
 .seg-btn {
-  flex: 1 1 0;
   min-width: 0;
-  padding: 12px 8px;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
   background: var(--surface);
-  border: none;
-  border-right: 1.5px solid var(--border);
-  border-radius: 0;
   font: inherit;
-  font-size: var(--t1);
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   cursor: pointer;
-}
-.seg-btn:last-child {
-  border-right: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 .seg-btn:hover {
-  background: var(--bg-raised);
+  border-color: var(--ink);
 }
-/* Airbnb-style selected segment: brand fill with white text. */
 .seg-btn.on {
-  background: var(--accent);
+  border-color: var(--ink);
+  background: var(--ink);
   color: #ffffff;
 }
-.seg-btn.on:hover {
-  filter: brightness(0.95);
+@media (max-width: 559px) {
+  .seg {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* ─── Height range ────────────────────────────────────────────────────── */

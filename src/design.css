@@ -5328,6 +5328,7 @@
   color: var(--muted);
   font-size: 14px;
   line-height: 1.45;
+  white-space: nowrap;
 }
 .oss-points {
   display: flex;
@@ -5339,27 +5340,28 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
+/* Each tile is a link: label, then an arrow that nudges on hover. */
 .oss-point {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
   min-width: 0;
   height: 48px;
-  padding: 0 10px;
-  border: 1px solid var(--hairline);
+  padding: 0 12px 0 14px;
+  border: 1px solid var(--border);
   border-radius: 12px;
   background: #fff;
   color: var(--ink);
-  font: inherit;
+  text-decoration: none;
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
-.oss-point:hover {
-  border-color: var(--border);
-}
-.oss-point.on {
+.oss-point:hover,
+.oss-point:focus-visible {
   border-color: var(--ink);
+  box-shadow: var(--shadow-pill);
+}
+.oss-point:active {
   background: var(--bg-raised);
 }
 .oss-point-icon {
@@ -5369,24 +5371,35 @@
   justify-content: center;
 }
 .oss-point strong {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   font-size: 14px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.oss-point-arrow {
+  flex: none;
+  color: var(--muted);
+  font-size: 15px;
+  transition: transform 0.2s var(--ease-out), color 0.15s ease;
+}
+.oss-point:hover .oss-point-arrow,
+.oss-point:focus-visible .oss-point-arrow {
+  color: var(--ink);
+  transform: translateX(2px);
+}
+/* One line, always: the description of the tile under the pointer. */
 .oss-point-detail {
-  box-sizing: border-box;
-  min-height: 46px;
   margin: 0;
-  color: var(--ink-2);
+  overflow: hidden;
+  color: var(--muted);
   font-size: 14px;
   line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   animation: fade-in 0.2s ease both;
-}
-.oss-point-detail a {
-  color: var(--ink);
-  font-weight: 600;
 }
 .oss-creator {
   display: flex;
@@ -5444,13 +5457,12 @@
   .oss-hero h3 {
     font-size: 20px;
   }
-  .oss-point {
-    flex-direction: column;
-    gap: 4px;
-    height: 64px;
+  .oss-point-tiles {
+    grid-template-columns: 1fr;
   }
-  .oss-point strong {
-    font-size: 13px;
+  .oss-lead,
+  .oss-point-detail {
+    white-space: normal;
   }
   .oss-foot-btn {
     flex: 1;

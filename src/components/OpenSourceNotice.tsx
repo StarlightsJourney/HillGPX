@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { REPO_URL } from '../lib/contribute';
+import { REPO_URL, openImportHere } from '../lib/contribute';
 import { Modal } from './Modal';
 import { CloseIcon, DownloadIcon, GitHubIcon, Mark, UploadIcon } from './icons';
 
@@ -33,64 +33,58 @@ interface Point {
   id: string;
   icon: ReactNode;
   title: string;
-  detail: ReactNode;
+  /** One short line, shown under the tiles while the tile is hovered or focused. */
+  detail: string;
+  href: string;
+  external?: boolean;
+  /** Runs on click (closes the dialog, opens the upload where you are). */
+  onClick?: (event: { preventDefault: () => void }) => void;
 }
 
-const POINTS: Point[] = [
-  {
-    id: 'download',
-    icon: <DownloadIcon size={22} />,
-    title: 'Free GPX',
-    detail: 'Every route can be downloaded to a watch, phone or bike computer, at no cost.',
-  },
-  {
-    id: 'open',
-    icon: <GitHubIcon size={20} />,
-    title: 'Open code',
-    detail: 'The code and the data are on GitHub, so anyone can see how it works or improve it.',
-  },
-  {
-    id: 'community',
-    icon: <UploadIcon size={22} />,
-    title: 'Built by runners',
-    detail: (
-      <>
-        The map grows from GPX files people share. You can also{' '}
-        <a href={`${REPO_URL}/issues/new?template=feedback.yml`} target="_blank" rel="noreferrer">suggest a fix</a> or{' '}
-        <a href={`${REPO_URL}/blob/HEAD/docs/COMMUNITY.md`} target="_blank" rel="noreferrer">help with costs</a>.
-      </>
-    ),
-  },
-];
-
 /**
- * Three short tiles; hovering, focusing or tapping one shows its line in the
- * panel underneath, which keeps one height so nothing below moves.
+ * Three tiles that go somewhere: browse routes, the code on GitHub, add a
+ * GPX. Each has an arrow so it reads as a link, and its one-line description
+ * shows underneath on hover or focus (the first one's by default).
  */
-function Points() {
-  const [active, setActive] = useState(POINTS[0].id);
-  const current = POINTS.find((point) => point.id === active) ?? POINTS[0];
+function Points({ onClose }: { onClose: () => void }) {
+  const points: Point[] = [
+    { id: 'download', icon: <DownloadIcon size={20} />, title: 'Free GPX', detail: 'Browse routes and download any of them to your watch or phone.', href: '#routes', onClick: () => onClose() },
+    { id: 'open', icon: <GitHubIcon size={18} />, title: 'Open code', detail: 'Read, copy or improve the code and data on GitHub.', href: REPO_URL, external: true },
+    {
+      id: 'share',
+      icon: <UploadIcon size={20} />,
+      title: 'Add a GPX',
+      detail: 'Share a route from your watch and it goes on the map for everyone.',
+      href: '#import',
+      onClick: (event) => {
+        onClose();
+        openImportHere(event);
+      },
+    },
+  ];
+  const [active, setActive] = useState(points[0].id);
+  const current = points.find((point) => point.id === active) ?? points[0];
   return (
     <div className="oss-points">
-      <div className="oss-point-tiles" role="tablist" aria-label="How it works">
-        {POINTS.map((point) => (
-          <button
+      <nav className="oss-point-tiles" aria-label="Get started">
+        {points.map((point) => (
+          <a
             key={point.id}
-            type="button"
-            role="tab"
-            aria-selected={point.id === active}
-            aria-controls="oss-point-detail"
+            href={point.href}
             className={`oss-point${point.id === active ? ' on' : ''}`}
             onMouseEnter={() => setActive(point.id)}
             onFocus={() => setActive(point.id)}
-            onClick={() => setActive(point.id)}
+            onClick={point.onClick}
+            aria-describedby={point.id === active ? 'oss-point-detail' : undefined}
+            {...(point.external ? { target: '_blank', rel: 'noreferrer' } : {})}
           >
             <span className="oss-point-icon" aria-hidden="true">{point.icon}</span>
             <strong>{point.title}</strong>
-          </button>
+            <span className="oss-point-arrow" aria-hidden="true">{point.external ? '↗' : '→'}</span>
+          </a>
         ))}
-      </div>
-      <p id="oss-point-detail" className="oss-point-detail" role="tabpanel" key={current.id}>
+      </nav>
+      <p id="oss-point-detail" className="oss-point-detail" key={current.id}>
         {current.detail}
       </p>
     </div>
@@ -143,10 +137,10 @@ export function OpenSourceDialog({ onClose }: { onClose: () => void }) {
           <Mark size={40} />
           <div>
             <h3>Free and open source</h3>
-            <p className="oss-lead">hillGPX is free to use, and its code and data are public under the MIT licence.</p>
+            <p className="oss-lead">Free to use. Open code and data, MIT licence.</p>
           </div>
         </header>
-        <Points />
+        <Points onClose={onClose} />
         <CreatorNote />
       </div>
     </Modal>

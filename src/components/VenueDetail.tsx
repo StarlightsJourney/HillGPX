@@ -1052,7 +1052,9 @@ function VenueDetailInner({
         <a className="venue-mobile-primary" href={directionsUrl(venue)} target="_blank" rel="noreferrer"><MapIcon size={16} />Directions</a>
       </div>
 
-      <OpenSourceBadge placement="corner" />
+      {/* Outside the page layer: it slides in with a transform, which would
+          carry a fixed badge along with it for the length of the animation. */}
+      {createPortal(<OpenSourceBadge placement="corner" />, document.body)}
       {addingPhotos && <AddPhotosModal venue={venue} onClose={() => setAddingPhotos(false)} />}
       {reporting && <ReportModal targetType="venue" targetSlug={venue.slug} targetName={venue.name} onClose={() => setReporting(false)} />}
     </div>,

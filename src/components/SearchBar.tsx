@@ -17,7 +17,7 @@ import { countrySummaries } from '../lib/worldPeaks';
 import { normaliseQuery } from '../lib/streetTerms';
 import { useUnits } from './UnitsContext';
 import { SearchIcon } from './icons';
-import { NARROW_HEADER, useMediaQuery } from './useMediaQuery';
+import { SearchHint } from './SearchHint';
 
 interface SearchBarProps {
   /** Every loaded venue, whatever the filters and wherever the map is. */
@@ -111,7 +111,6 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const units = useUnits();
   const places = usePlaces();
-  const narrow = useMediaQuery(NARROW_HEADER);
 
   // Lowercase names once, not once per keystroke.
   const haystack = useMemo(
@@ -258,12 +257,10 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
       }}
     >
       <label className="home-search-field home-search-where">
-        <span className="home-search-label">Where</span>
         <input
           ref={inputRef}
           type="search"
           value={query}
-          placeholder={narrow ? 'Search places' : 'Search countries, hills and towns'}
           aria-label="Search countries, hills, blocks and streets"
           autoComplete="off"
           onFocus={() => setOpen(true)}
@@ -277,6 +274,7 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
             if (e.key === 'Escape') reset();
           }}
         />
+        <SearchHint hidden={query.length > 0} />
       </label>
       <button type="submit" className="home-search-go" aria-label="Search">
         <SearchIcon size={16} />

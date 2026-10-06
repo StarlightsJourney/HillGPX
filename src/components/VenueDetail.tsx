@@ -1063,6 +1063,29 @@ function VenueDetailInner({
 }
 
 /**
+ * The place page's shape while its data loads: header, a title line, the
+ * photo frame and a few lines, so a card opened in a new tab lands on the
+ * place page straight away instead of showing the map page first.
+ */
+export function VenueDetailSkeleton() {
+  useEffect(() => lockPageScroll(), []);
+  return createPortal(
+    <div className="venue-detail venue-detail-loading" aria-busy="true" aria-label="Loading place">
+      <SiteHeader center={<SearchBar venues={[]} onPick={(slug) => (window.location.hash = `#venue/${slug}`)} onFitBounds={(bounds) => (window.location.hash = boundsToHash(bounds))} />} />
+      <main className="venue-detail-content">
+        <div className="sk-line sk-title" />
+        <div className="sk-line sk-sub" />
+        <div className="sk-photo" />
+        <div className="sk-line" />
+        <div className="sk-line" />
+        <div className="sk-line sk-short" />
+      </main>
+    </div>,
+    document.body,
+  );
+}
+
+/**
  * The venue page. App can hand over a fresh object for the same place (map
  * tiles reload), so the page pins one venue per slug: content is fetched once
  * per place, and a new slug remounts the page at the top.

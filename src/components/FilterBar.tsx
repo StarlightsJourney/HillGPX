@@ -195,7 +195,7 @@ function CategoryBarInner({
               onClick={() => setRouteModalOpen(true)}
             >
               <SlidersIcon />
-              Filters
+              <span className="filter-open-label">Filters</span>
               {routeFilterCount > 0 && <span className="filter-badge">{routeFilterCount}</span>}
             </button>
             {routeModalOpen && (
@@ -430,7 +430,7 @@ function ClimbCategories({ types, visibleVenues, filters, onChange, savedCount }
         onClick={() => setModalOpen(true)}
       >
         <SlidersIcon />
-        Filters
+        <span className="filter-open-label">Filters</span>
         {count > 0 && <span className="filter-badge">{count}</span>}
       </button>
 

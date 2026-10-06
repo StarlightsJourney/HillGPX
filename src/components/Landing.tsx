@@ -12,7 +12,7 @@ import { ActivityTag } from './ActivityIcon';
 import { routeActivity } from '../lib/routeAnalysis';
 import { VenueThumb } from './VenueThumb';
 import { useUnits } from './UnitsContext';
-import { NARROW_HEADER, useMediaQuery } from './useMediaQuery';
+import { SearchHint } from './SearchHint';
 
 interface LandingProps {
   onOpen: () => void;
@@ -277,7 +277,6 @@ type Lookup = { state: 'idle' } | { state: 'searching' | 'missing' | 'failed'; q
  */
 export function HomeSearch({ onOpen }: { onOpen: () => void }) {
   const mode: Mode = 'climbs';
-  const narrow = useMediaQuery(NARROW_HEADER);
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -381,10 +380,8 @@ export function HomeSearch({ onOpen }: { onOpen: () => void }) {
       }}
     >
       <label className="home-search-field home-search-where">
-        <span className="home-search-label">Where</span>
         <input
           value={query}
-          placeholder={narrow ? 'Search places' : 'Search countries, hills and towns'}
           aria-label="Search countries, hills and towns"
           autoComplete="off"
           onFocus={() => setOpen(true)}
@@ -409,6 +406,7 @@ export function HomeSearch({ onOpen }: { onOpen: () => void }) {
           aria-expanded={open && matches.length > 0}
           aria-controls="home-search-list"
         />
+        <SearchHint hidden={query.length > 0} />
       </label>
       <button type="submit" className="home-search-go" aria-label="Search" disabled={lookup.state === 'searching'}>
         <SearchIcon size={16} />

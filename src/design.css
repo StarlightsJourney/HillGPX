@@ -282,6 +282,43 @@
 .home-search-field input::placeholder {
   color: var(--muted);
 }
+/* The rolling "Search Japan / Bukit Timah / …" hint (SearchHint.tsx), laid
+   over the empty input at the field's own left padding. */
+.home-search-field {
+  position: relative;
+}
+.search-hint {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--field-pad, 32px);
+  right: 56px;
+  display: flex;
+  align-items: center;
+  gap: 0.28em;
+  overflow: hidden;
+  color: var(--muted);
+  font: 400 14px/1.4 var(--font-sans);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.search-hint-word {
+  display: inline-block;
+  color: var(--ink-2);
+  font-weight: 500;
+  animation: search-hint-in 0.45s var(--ease-out) both;
+}
+@keyframes search-hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(60%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .search-hint-word {
+    animation: none;
+  }
+}
 
 .home-search-sep {
   width: 1px;
@@ -1271,8 +1308,34 @@
 
 /* ─── Venue detail extras ─────────────────────────────────────────────── */
 
-.venue-detail {
-  animation: page-in 0.3s var(--ease-out);
+/* No entrance animation on the place page: it covers the map page, and
+   fading it in showed the map underneath for a moment. Only its contents
+   rise in (useReveal). */
+.venue-detail-loading .venue-detail-content {
+  padding-top: 24px;
+}
+.venue-detail-loading .sk-line {
+  height: 14px;
+  margin: 0 0 14px;
+  border-radius: 6px;
+}
+.venue-detail-loading .sk-title {
+  width: min(420px, 70%);
+  height: 30px;
+}
+.venue-detail-loading .sk-sub {
+  width: 240px;
+  margin-bottom: 24px;
+}
+.venue-detail-loading .sk-photo {
+  height: clamp(260px, 40vw, 460px);
+  margin-bottom: 32px;
+  border-radius: 16px;
+  background: linear-gradient(90deg, #efefef 0%, #f7f7f7 40%, #efefef 80%) 0 0 / 200% 100%;
+  animation: shimmer 1.3s linear infinite;
+}
+.venue-detail-loading .sk-short {
+  width: 40%;
 }
 .venue-detail-sub {
   display: flex;
@@ -2740,7 +2803,7 @@
 }
 .site-footer-cols {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 24px;
   padding: 36px 0 28px;
   border-bottom: 1px solid var(--hairline);
@@ -2806,9 +2869,6 @@
     grid-template-columns: 1fr 1fr;
     gap: 20px 16px;
     padding: 28px 0 20px;
-  }
-  .site-footer-cols > div:last-child {
-    grid-column: 1 / -1;
   }
 }
 
@@ -3445,7 +3505,7 @@
 @media (max-width: 743px) {
   .filterbar .filterbar-row {
     flex-wrap: nowrap;
-    justify-content: flex-start;
+    justify-content: center;
     gap: 6px;
     height: 64px;
   }
@@ -3465,11 +3525,15 @@
     left: 3px;
     width: calc(50% - 3px);
   }
+  /* Only as wide as its icons, so the whole group sits centred; it scrolls
+     (and fades at the edge) only when they do not fit. */
   .filterbar .categories {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     width: auto;
     min-width: 0;
     height: 100%;
+  }
+  .filterbar .categories:has(> :nth-child(5)) {
     mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
   }
   .filterbar .category {
@@ -3482,11 +3546,17 @@
     height: 40px;
     padding: 0;
     justify-content: center;
+    gap: 0;
     border-radius: 50%;
-    font-size: 0;
   }
-  .filterbar .filter-open svg {
-    margin: 0;
+  /* Icon only: the label stays for screen readers. */
+  .filterbar .filter-open-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .filterbar .filter-open .filter-badge {
     position: absolute;
@@ -4146,6 +4216,7 @@
   box-shadow: 0 1px 2px rgb(0 0 0 / 8%), 0 4px 12px rgb(0 0 0 / 6%);
 }
 .site-header .home-search-field {
+  --field-pad: 22px;
   padding: 0 16px 0 22px;
 }
 .site-header .home-search-label {
@@ -4578,6 +4649,7 @@
     display: none;
   }
   .site-header .home-search-field {
+    --field-pad: 16px;
     justify-content: center;
     padding-left: 16px;
   }
@@ -5319,7 +5391,8 @@
 .home .site-footer,
 .venue-detail .site-footer,
 .map-page .site-footer,
-.training-page .site-footer {
+.training-page .site-footer,
+.info-page .site-footer {
   padding-bottom: 72px;
 }
 
@@ -6364,6 +6437,136 @@
   .route-more-toggle svg {
     transition: none;
   }
+}
+
+/* When "Add a GPX" shrinks to a + (narrow windows), hovering it says what it does. */
+@media (max-width: 899px) {
+  .site-header-cta {
+    position: relative;
+  }
+  .site-header-cta[data-tip]::after {
+    content: attr(data-tip);
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    z-index: 40;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: var(--ink);
+    color: #fff;
+    font: 600 12px/1 var(--font-sans);
+    white-space: nowrap;
+    opacity: 0;
+    transform: translate(-50%, -4px);
+    transition: opacity 0.15s ease, transform 0.15s var(--ease-out);
+    pointer-events: none;
+  }
+  .site-header-cta:hover::after,
+  .site-header-cta:focus-visible::after {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ─── Privacy, contributions and contact (InfoPage.tsx) ──────────────────
+   A quiet reading page: tabs across the top, one column of text. */
+.info-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: #fff;
+}
+.info-page-body {
+  flex: 1;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+}
+.info-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 32px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--hairline);
+  scrollbar-width: none;
+}
+.info-tabs a {
+  flex: none;
+  padding: 12px 14px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.info-tabs a:hover {
+  color: var(--ink);
+}
+.info-tabs a[aria-current='page'] {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+}
+.info-article h1 {
+  margin: 0 0 8px;
+  font-size: 30px;
+  letter-spacing: -0.02em;
+}
+.info-article .info-lead {
+  margin: 0 0 28px;
+  color: var(--muted);
+  font-size: 17px;
+}
+.info-article h2 {
+  margin: 28px 0 8px;
+  font-size: 18px;
+}
+.info-article p,
+.info-article li {
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.info-article ul {
+  margin: 0;
+  padding-left: 20px;
+}
+.info-article li + li {
+  margin-top: 6px;
+}
+.info-article a {
+  color: var(--ink);
+  font-weight: 600;
+}
+.info-article .info-contact {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+}
+.info-contact li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 20px;
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+}
+.info-contact strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+.info-contact .btn {
+  height: 42px;
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.info-contact .btn-dark {
+  color: #fff;
 }
 
 /* Switching Climbs and Routes swaps the icon row: each category pops in a

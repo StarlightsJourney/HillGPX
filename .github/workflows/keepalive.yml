@@ -1,0 +1,27 @@
+name: Keep the database awake
+
+# Supabase pauses free projects after about a week without requests. On a
+# quiet week that would switch off uploads, reviews and community routes, so
+# this asks the database for the public community counts every three days.
+# It uses the same publishable key the website ships (public by design); no
+# secret is involved.
+
+on:
+  schedule:
+    - cron: '17 6 */3 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask for the community counts
+        run: |
+          curl --fail --silent --show-error --max-time 30 \
+            -X POST 'https://dzpgnebkyubeptitzjlj.supabase.co/rest/v1/rpc/community_stats' \
+            -H 'apikey: sb_publishable_invDmVPb4d4aKqTMTRp72w_hpFBZ0AI' \
+            -H 'Content-Type: application/json' \
+            -d '{}'

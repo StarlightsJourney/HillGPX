@@ -9,6 +9,14 @@
 
 export const REPO_URL = 'https://github.com/StarlightsJourney/HillGPX';
 
+/** Questions and removal requests: a public GitHub form (see .github/ISSUE_TEMPLATE/contact.yml). */
+export const CONTACT_URL = `${REPO_URL}/issues/new?template=contact.yml`;
+/**
+ * A private address for removal requests, shown on the Contact page when set.
+ * Left empty until the maintainer chooses one to publish.
+ */
+export const CONTACT_EMAIL = '';
+
 /** Asks the map page (which also hosts venue pages) to open the "Add a GPX" dialog where you are. */
 export const IMPORT_EVENT = 'hillgpx:import';
 

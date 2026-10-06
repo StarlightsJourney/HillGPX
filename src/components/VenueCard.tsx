@@ -1,3 +1,4 @@
+import { track } from '../lib/analytics';
 import type { Route, Venue } from '../types';
 import { HEIGHT_LABEL, townName, venueHeight, venueKindLabel, venuePhotos } from '../lib/venues';
 import { PhotoCredit, VenueThumb } from './VenueThumb';
@@ -7,6 +8,7 @@ import { CloseIcon, HeartIcon } from './icons';
 import { toGpx } from '../lib/gpx';
 
 export function downloadRoute(route: Route) {
+  track('gpx_download', route.slug);
   const gpx = toGpx(route.name, route.coordinates, [], route.elevationAvailable !== false);
   const blob = new Blob([gpx], { type: 'application/gpx+xml' });
   const url = URL.createObjectURL(blob);

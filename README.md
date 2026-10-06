@@ -8,7 +8,7 @@ Good vertical training spots are local knowledge: the stairwell to the 40th floo
 
 ## Principles
 
-- **Free for everyone.** Static site on GitHub Pages, open Supabase database for contributions. No accounts, no paywall, no tracking.
+- **Free for everyone.** Static site on GitHub Pages, open Supabase database for contributions. No accounts, no paywall, no tracking cookies.
 - **Community first.** The map grows through contributions, and contributors are credited on what they add.
 - **Honest numbers.** Hills show *elevation*; stairwells and blocks show *EG* (elevation gain); routes show *EG* and *EL*. Every route says where its elevation came from.
 - **Phone first.** Most people open it at the bottom of a hill.
@@ -17,10 +17,10 @@ Good vertical training spots are local knowledge: the stairwell to the 40th floo
 ## What you can do
 
 - Browse **900,000+ hills and mountains in 232 countries**, plus Singapore's stairwells and tall HDB blocks, on a flat or 3D terrain map.
-- Search any country, town, hill or street; the map frames it.
+- Search any country, town, hill or street, including the world's best-known summits wherever the map is; the map frames it.
 - Open a route for its trace, EG/EL profile, the places it passes and routes it overlaps; "More details" under the profile slides the rest open. Tap a place it passes to fly there, and tap it again to go back to the whole route. Download any route as GPX.
 - **Upload a GPX** without an account (up to 60 MB), from any page; on a place's page the upload opens right there. It is checked for duplicates, keeps your device's elevation, is classified as road run, trail or cycling, and is published under CC BY 4.0. Heart-rate and other device data are stripped first.
-- **Add photos** (up to 12 at once, dragged in or picked), **rate and review** places, pin hazards along a route, report mistakes, and save places with the heart. Reviews and ratings go live straight away; photos appear once a volunteer has checked them.
+- **Add photos** (up to 12 at once, dragged in or picked), **rate and review** places, pin hazards along a route, report mistakes, and save places with the heart. Everything goes live straight away; anyone can report a photo or review, and three reports hide it until a moderator looks.
 - See the community's progress toward the next goal (a number of shared routes) in the strip at the top of every page; it opens "What's mapped", with the goal ladder and how much of the map has a GPX or photo.
 - Read how it works from the "Free and open source" badge at the bottom of the page; privacy, contribution terms and contact are in the footer.
 - Phone first: on small screens the header and the category bar each stay on one row, and searching takes you to the map.
@@ -57,41 +57,57 @@ The browser uses Supabase's *publishable* key, which is public by design: row-le
 
 ## Hosting, domain and search engines
 
-**Hosting is already done, for free.** GitHub Pages serves the site from this repository and redeploys on every push to `main` (`.github/workflows/deploy.yml`). Anyone can open it in Chrome or any browser at https://starlightsjourney.github.io/HillGPX/. A domain name only gives it a shorter address; it does not move the hosting.
+### How it works
 
-### Your own domain
+The site is static files (HTML, JavaScript, data) that any host can serve. Everything people add (GPX, photos, reviews, ratings, reports) goes from their browser straight to the Supabase database and storage, so the site behaves like a dynamic one. The only key in the code is Supabase's *publishable* key, which is meant to be public: row-level security lets it add new rows and read published ones, nothing else, and the spam limits sit in the database where no visitor can switch them off.
 
-`hillgpx.com`, `.org`, `.app`, `.run`, `.io` and `.sg` were all unregistered on 6 October 2026 (checked against each registry). Buy one from a registrar such as Cloudflare Registrar (sells at cost) or Porkbun, then:
+Pushes to `main` deploy to GitHub Pages today (`.github/workflows/deploy.yml`, https://starlightsjourney.github.io/HillGPX/). The recommended home is **Cloudflare Pages on hillgpx.com**: free with unlimited bandwidth and requests, automatic deploys from GitHub (and a preview address for every branch and pull request), DDoS and bot protection, and free cookieless analytics. The repository stays public and open source either way.
 
-1. Add `public/CNAME` containing just the domain (for example `hillgpx.com`). The deploy workflow then builds for the site root and uses the domain for link previews, canonical links and the sitemap.
-2. At the registrar's DNS settings, add four `A` records for the bare domain (`185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`) and a `CNAME` for `www` pointing to `starlightsjourney.github.io`.
-3. In the repository's **Settings → Pages**, enter the domain, wait for the DNS check, then tick **Enforce HTTPS**.
-4. Update the live-site link at the top of this README and `docs/DEVELOPING.md`.
+### Moving to Cloudflare Pages with hillgpx.com
+
+`hillgpx.com`, `.org`, `.app`, `.run`, `.io` and `.sg` were all unregistered on 6 October 2026.
+
+1. **Domain:** create a free Cloudflare account and buy `hillgpx.com` from **Cloudflare Registrar** (at cost, about US$10 a year). Its DNS is then already on Cloudflare.
+2. **Project:** Cloudflare dashboard → **Workers & Pages** → **Create** → **Pages** → **Connect to Git** → choose `StarlightsJourney/HillGPX`.
+   - Production branch: `main`. Build command: `npm run build`. Output directory: `dist`.
+   - Environment variables: `VITE_BASE` = `/`, `SITE_URL` and `VITE_SITE_URL` = `https://hillgpx.com`, `NODE_VERSION` = `20`. Optional: `VITE_CF_ANALYTICS_TOKEN`, `VITE_CLARITY_ID` (see Analytics below).
+3. **Custom domain:** the project → **Custom domains** → add `hillgpx.com` and `www.hillgpx.com` (Cloudflare creates the records and the HTTPS certificate).
+4. **Protection:** the domain → **Security** → turn on **Bot Fight Mode**; keep the default DDoS protection. Pages has no request limits to worry about.
+5. **One canonical address:** in the GitHub repository → **Settings** → **Secrets and variables** → **Actions** → **Variables**, add `SITE_URL` = `https://hillgpx.com`, so the GitHub Pages copy also points search engines at hillgpx.com. You can then turn GitHub Pages off (Settings → Pages) or keep it as a backup.
+6. Update the live-site link at the top of this README.
+
+Cloudflare Pages' free plan takes up to 20,000 files per deployment. The build counts them and, if the site ever grows past 19,500, leaves out the least useful place pages first (`MAX_SITE_FILES` in `scripts/build_seo.mjs`); it is at about 18,700 today. `public/_headers` sets caching and security headers there.
 
 ### Being found on Google and by AI assistants
 
 The app keeps places behind `#venue/…` addresses, which search engines treat as the home page. So every build also writes plain pages they can read (`scripts/build_seo.mjs`, run by `npm run build`):
 
-- a page for every hill and mountain in the local data and every summit in the world-peaks index (`/place/<slug>/`), every country (`/country/<code>/`, "Highest peaks in Japan") and every GPX route (`/route/<slug>/`), each with a real title and description, a photo where there is one, schema.org data, link-preview tags and a button into the map;
-- `sitemap.xml` (about 13,000 addresses), `robots.txt` and `llms.txt` (a plain summary for AI assistants);
-- link-preview tags and a preview image (`public/og-image.png`) on the home page, so shared links show a card.
+- a page for every hill and mountain in the local data and every summit in the world-peaks index (`/place/<slug>/`), every country (`/country/<code>/`, "Highest peaks in Japan") and every GPX route (`/route/<slug>/`), each with a title, description, photo, schema.org data and link-preview tags, and a button into the map;
+- `sitemap.xml`, `robots.txt` (which names the AI search crawlers as welcome), `llms.txt` (a plain summary for AI assistants) and a `404.html`;
+- plain text inside the home page itself, for crawlers that do not run JavaScript, plus link-preview tags and the preview card `public/og-image.png`.
 
-After the site is live on its address:
+After the site is live on hillgpx.com:
 
-1. Add it in [Google Search Console](https://search.google.com/search-console) (domain property, verified with a DNS `TXT` record at your registrar) and submit `https://<your-domain>/sitemap.xml`. Do the same in [Bing Webmaster Tools](https://www.bing.com/webmasters), which also feeds ChatGPT search and Copilot.
-2. Indexing takes days to weeks. Links to the site from elsewhere (a running club page, Strava club description, Reddit posts) speed it up.
+1. Add it to [Google Search Console](https://search.google.com/search-console) as a domain property (Cloudflare can add the verification record for you) and submit `https://hillgpx.com/sitemap.xml`. Do the same in [Bing Webmaster Tools](https://www.bing.com/webmasters), which also feeds ChatGPT search and Copilot.
+2. Indexing takes days to weeks; links from elsewhere (club pages, Strava clubs, Reddit) speed it up.
+3. Messaging apps cache link previews: a link shared before the change keeps its old card for a while.
 
-`robots.txt` only counts at the root of a domain, so on the `github.io` address search engines rely on the sitemap submitted in Search Console; with your own domain it works on its own.
+### Analytics
+
+Both are optional and switched on by build settings, so forks and local builds send nothing (`src/lib/analytics.ts`); the Privacy page describes whichever is on.
+
+- **Cloudflare Web Analytics** (free, no cookies): visits, pages, countries, referrers and load speed. On Cloudflare Pages: the project → **Metrics** → enable **Web Analytics** (one click), or create a site under **Analytics & Logs → Web Analytics** and set its token as `VITE_CF_ANALYTICS_TOKEN`.
+- **Microsoft Clarity** (free, a Contentsquare-style tool): heatmaps, scroll depth, rage clicks and session replays with typed text masked. Create a project at [clarity.microsoft.com](https://clarity.microsoft.com), set **Settings → Setup → Cookies** to off, and set its id as `VITE_CLARITY_ID`. The site also sends a few named events to it (search, opening and downloading routes, uploads, reviews, reports, expanding the map).
+
+Both load after the page has painted, so they do not slow it down.
 
 ### Contributions, moderation and spam
 
-Contributions (GPX, photos, reviews, ratings, reports) work on any address: they go straight from the browser to Supabase with the publishable key, and row-level security allows only inserting new rows and reading approved ones. How to approve photos, hide spam and read reports is in [docs/MODERATION.md](docs/MODERATION.md).
-
-Spam limits live in the database (`supabase/migrations/20261006000000_spam_limits.sql`, applied once in the Supabase SQL editor): a cap per connection per hour and per day, one review per place per connection per day, a daily ceiling per kind of contribution, no web links in reviews or reports, and an hourly ceiling on new files. Only a salted one-way hash of the visitor's network address is kept, for a day.
+Contributions publish straight away. Two database migrations, applied once in the Supabase SQL editor, keep that safe: `20261006000000_spam_limits.sql` (per-connection hourly and daily caps, one review per place per day, daily ceilings, no links, hourly file ceilings; only a salted one-way hash of the network address is kept, for a day) and `20261007000000_auto_publish.sql` (photos publish at once, and anything three different people report is hidden until a moderator looks). How to work the reports queue is in [docs/MODERATION.md](docs/MODERATION.md).
 
 ### Running costs
 
-Everything runs on free plans today: GitHub Pages (1 GB site, about 100 GB of traffic a month; the site is about 300 MB), Supabase free (500 MB database, 1 GB file storage, 5 GB of downloads a month), OpenFreeMap, AWS terrain tiles and Open-Meteo. Supabase pauses free projects after a week without requests; `.github/workflows/keepalive.yml` pings it every three days so that never happens. Supabase Pro (about US$25 a month) is only worth it when its dashboard's **Usage** page shows file storage past about 800 MB or downloads past about 4 GB a month; photos are the part that grows. Open-Meteo's free tier is non-commercial: revisit it before any sponsorship.
+Everything runs on free plans: Cloudflare Pages (or GitHub Pages), Supabase free (500 MB database, 1 GB file storage, 5 GB of downloads a month), OpenFreeMap, AWS terrain tiles and Open-Meteo, plus the domain (about US$10 a year). Supabase pauses free projects after a week without requests; `.github/workflows/keepalive.yml` pings it every three days. Supabase Pro (about US$25 a month) is only worth it when its **Usage** page shows file storage past about 800 MB or downloads past about 4 GB a month; community photos are what grows. Open-Meteo's free tier is non-commercial: revisit it before any sponsorship.
 
 ## Why the GPX limit is 60 MB
 
@@ -113,6 +129,7 @@ Phones parse the file in the browser, and much larger files can crash a mobile t
 - GeoNames summits without a surveyed height use SRTM elevation, which can be tens of metres off on sharp peaks.
 - Ratings only cover reviews left on HillGPX; places without any show "New".
 - Routes are the largest gap, which is exactly where contributions help most.
+- The world-peaks index misses some famous summits (Mount Fuji among them) and lists some mountain ranges as if they were summits; the search and the place pages skip the ranges. Rebuilding the index in `scripts/fetch_world_peaks.py` is the fix.
 
 ## Licence
 

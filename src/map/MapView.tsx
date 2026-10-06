@@ -1,3 +1,4 @@
+import { requestReport } from '../lib/contribute';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -1060,9 +1061,14 @@ function routePhotoMarker(photo: RoutePhoto): Marker {
   card.appendChild(big);
   const body = document.createElement('div');
   if (photo.kind === 'hazard') body.appendChild(textSpan('Hazard', 'route-photo-pop-tag'));
-  if (photo.pending) body.appendChild(textSpan('Only you can see this until a volunteer approves it', 'route-photo-pop-pending'));
   if (photo.caption) body.appendChild(textSpan(photo.caption, 'route-photo-pop-caption'));
   body.appendChild(textSpan(`Added by ${photo.author} · ${new Date(photo.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`, 'route-photo-pop-meta'));
+  const report = document.createElement('button');
+  report.type = 'button';
+  report.className = 'route-photo-pop-report';
+  report.textContent = 'Report';
+  report.addEventListener('click', () => requestReport({ targetType: 'route_photo', targetSlug: photo.id, targetName: photo.caption || 'this photo' }));
+  body.appendChild(report);
   card.appendChild(body);
 
   const popup = new Popup({ offset: 22, closeButton: true, maxWidth: '280px', className: 'route-photo-popup' }).setDOMContent(card);

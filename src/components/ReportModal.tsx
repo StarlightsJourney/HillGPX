@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { loadAuthor, saveAuthor, submitReport, type ReportKind } from '../lib/api';
+import { loadAuthor, saveAuthor, submitReport, type ReportKind, type ReportTarget } from '../lib/api';
 import { Modal } from './Modal';
 
 export function FlagIcon() {
@@ -35,6 +35,13 @@ const KINDS: { value: ReportKind; label: string; hint: string }[] = [
   { value: 'other', label: 'Something else', hint: '' },
 ];
 
+/** For one photo or review: what makes it break the house rules. */
+const CONTENT_KINDS: { value: ReportKind; label: string; hint: string }[] = [
+  { value: 'photo', label: 'Wrong place or unclear', hint: 'Not this place, or not useful' },
+  { value: 'abuse', label: 'Spam, rude or personal', hint: 'Adverts, insults, or details about a person' },
+  { value: 'other', label: 'Something else', hint: '' },
+];
+
 /** Hints that read better for a route than the place-oriented defaults. */
 const ROUTE_HINTS: Partial<Record<ReportKind, string>> = {
   wrong_details: 'Name, distance, EG or the track itself is off',
@@ -42,8 +49,10 @@ const ROUTE_HINTS: Partial<Record<ReportKind, string>> = {
 };
 
 /** One small form for everything a visitor might want a maintainer to look at. */
-export function ReportModal({ targetType, targetSlug, targetName, onClose }: { targetType: 'venue' | 'route'; targetSlug: string; targetName: string; onClose: () => void }) {
-  const [kind, setKind] = useState<ReportKind>('wrong_details');
+export function ReportModal({ targetType, targetSlug, targetName, onClose }: { targetType: ReportTarget; targetSlug: string; targetName: string; onClose: () => void }) {
+  const content = targetType === 'photo' || targetType === 'route_photo' || targetType === 'review';
+  const kinds = content ? CONTENT_KINDS : KINDS;
+  const [kind, setKind] = useState<ReportKind>(kinds[0].value);
   const [message, setMessage] = useState('');
   const [author] = useState(loadAuthor);
   const [busy, setBusy] = useState(false);
@@ -66,7 +75,7 @@ export function ReportModal({ targetType, targetSlug, targetName, onClose }: { t
 
   return (
     <Modal
-      title={`Report an issue with ${targetName}`}
+      title={content ? `Report ${targetName}` : `Report an issue with ${targetName}`}
       onClose={onClose}
       footer={sent ? (
         <button type="button" className="btn btn-dark" onClick={onClose}>Done</button>
@@ -77,11 +86,11 @@ export function ReportModal({ targetType, targetSlug, targetName, onClose }: { t
       )}
     >
       {sent ? (
-        <p className="review-thanks">Thank you. A volunteer will check it and fix the details.</p>
+        <p className="review-thanks">Thank you. A moderator will look at it; if several people report the same photo or review, it is hidden straight away.</p>
       ) : (
         <div className="report-form">
           <div className="report-kinds" role="radiogroup" aria-label="What is wrong">
-            {KINDS.map((option) => (
+            {kinds.map((option) => (
               <button
                 key={option.value}
                 type="button"
@@ -99,7 +108,7 @@ export function ReportModal({ targetType, targetSlug, targetName, onClose }: { t
             className="review-comment"
             rows={3}
             maxLength={1000}
-            placeholder="What should be fixed? The more specific, the faster it gets done."
+            placeholder={content ? 'What is wrong with it?' : 'What should be fixed? The more specific, the faster it gets done.'}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
           />

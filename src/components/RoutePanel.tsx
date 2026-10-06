@@ -314,7 +314,6 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
               <button type="button" key={photo.id} className={`route-photo-thumb ${photo.kind}`} onClick={() => onFocusPhoto(photo)} title={photo.caption || (photo.kind === 'hazard' ? 'Hazard' : 'Photo')}>
                 <img src={photo.url} alt="" loading="lazy" />
                 {photo.kind === 'hazard' && <span aria-label="Hazard">!</span>}
-                {photo.pending && <em className="route-photo-pending">Pending</em>}
               </button>
             ))}
             <button type="button" className="route-photo-add" onClick={() => setAdding(true)}>

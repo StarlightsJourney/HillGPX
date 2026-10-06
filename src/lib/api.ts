@@ -9,6 +9,7 @@
  *
  * Point a fork at its own project with VITE_SUPABASE_URL and VITE_SUPABASE_KEY.
  */
+import { track } from './analytics';
 import type { Route, RouteActivity, RoutePoint } from '../types';
 import { toGpx } from './gpx';
 
@@ -152,6 +153,7 @@ export async function submitReview(input: { venueSlug: string; rating: number; c
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({ id: review.id, venue_slug: review.venueSlug, rating: review.rating, comment: review.comment, author: review.author }),
   });
+  track('review_post', review.venueSlug);
   return review;
 }
 
@@ -225,6 +227,7 @@ export async function submitPhoto(input: { venueSlug: string; file: File; credit
       author: input.author.trim().slice(0, 60) || null,
     }),
   });
+  track('photo_upload', input.venueSlug);
 }
 
 /* ─── Routes ───────────────────────────────────────────────────────────── */
@@ -336,6 +339,7 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
     if (error instanceof ApiError && error.status === 409) throw new DuplicateRouteError('This track is already in the community archive.');
     throw error;
   }
+  track('gpx_upload', row.slug);
   return toRoute({ ...row, created_at: new Date().toISOString(), contributor: row.contributor, recorded_at: row.recorded_at });
 }
 
@@ -353,10 +357,12 @@ export function communityStats(): Promise<CommunityStats | null> {
 
 /* ─── Reports ──────────────────────────────────────────────────────────── */
 
-export type ReportKind = 'wrong_details' | 'hazard' | 'closed' | 'photo' | 'other';
+export type ReportKind = 'wrong_details' | 'hazard' | 'closed' | 'photo' | 'abuse' | 'other';
+/** What a report is about: a place or route (by slug), or one photo, route photo or review (by id). */
+export type ReportTarget = 'venue' | 'route' | 'photo' | 'route_photo' | 'review';
 
 /** File a report for a maintainer to review (wrong details, hazards, closures, a bad photo). */
-export async function submitReport(input: { targetType: 'venue' | 'route'; targetSlug: string; kind: ReportKind; message: string; author: string }): Promise<void> {
+export async function submitReport(input: { targetType: ReportTarget; targetSlug: string; kind: ReportKind; message: string; author: string }): Promise<void> {
   await rest('/rest/v1/reports', {
     method: 'POST',
     headers: { Prefer: 'return=minimal' },
@@ -368,6 +374,7 @@ export async function submitReport(input: { targetType: 'venue' | 'route'; targe
       author: input.author.trim().slice(0, 60) || null,
     }),
   });
+  track('report_sent', input.targetType);
 }
 
 /* ─── Photos and hazards along a route ─────────────────────────────────── */
@@ -382,8 +389,6 @@ export interface RoutePhoto {
   url: string;
   author: string;
   createdAt: string;
-  /** Only on the uploader's own copy, before a volunteer has approved it. */
-  pending?: boolean;
 }
 
 interface RoutePhotoRow {
@@ -436,6 +441,7 @@ export async function submitRoutePhoto(input: { routeSlug: string; lng: number; 
       author: input.author.trim().slice(0, 60) || null,
     }),
   });
+  track('photo_upload', input.routeSlug);
   return {
     id: photoId,
     routeSlug: input.routeSlug,
@@ -446,7 +452,6 @@ export async function submitRoutePhoto(input: { routeSlug: string; lng: number; 
     url: publicUrl('photos', path),
     author: input.author.trim() || 'You',
     createdAt: new Date().toISOString(),
-    pending: true,
   };
 }
 

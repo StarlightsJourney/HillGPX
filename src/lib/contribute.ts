@@ -17,6 +17,17 @@ export const CONTACT_URL = `${REPO_URL}/issues/new?template=contact.yml`;
  */
 export const CONTACT_EMAIL = '';
 
+/** Opens the report form for something drawn outside React (map popups); App listens. */
+export const REPORT_EVENT = 'hillgpx:report';
+export interface ReportRequest {
+  targetType: 'photo' | 'route_photo' | 'review';
+  targetSlug: string;
+  targetName: string;
+}
+export function requestReport(detail: ReportRequest): void {
+  window.dispatchEvent(new CustomEvent<ReportRequest>(REPORT_EVENT, { detail }));
+}
+
 /** Asks the map page (which also hosts venue pages) to open the "Add a GPX" dialog where you are. */
 export const IMPORT_EVENT = 'hillgpx:import';
 

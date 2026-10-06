@@ -371,12 +371,6 @@
   white-space: nowrap;
   transition: max-width 0.25s var(--ease-out);
 }
-.home-search.focused .home-search-go {
-  padding: 0 20px;
-}
-.home-search.focused .home-search-go span {
-  max-width: 80px;
-}
 .home-search-go:hover {
   filter: brightness(0.95);
 }
@@ -875,6 +869,10 @@
   box-shadow: 0 8px 28px rgb(0 0 0 / 22%);
   animation: pop-in 0.2s var(--ease-out);
   transform-origin: top center;
+}
+/* A status line on its own (nothing found) has no divider under it. */
+.searchbar-results .results-head:last-child {
+  border-bottom: none;
 }
 .searchbar-results .result-row {
   border: none;
@@ -4384,14 +4382,19 @@
   border: 1px solid var(--hairline);
 }
 
-/* The hidden "Search" label kept an 8px gap, pushing the icon off centre. */
+/* The Search button is always just the round icon, focused or not; its
+   "Search" text stays for screen readers only. */
 .home-search-go {
   gap: 0;
 }
-.home-search.focused .home-search-go {
-  gap: 8px;
+.home-search-go span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
-.site-header .home-search:not(.focused) .home-search-go {
+.site-header .home-search .home-search-go {
   width: 36px;
   padding: 0;
 }
@@ -5759,6 +5762,56 @@
   color: inherit;
 }
 
+/* Report links on what people add: quiet until wanted. */
+.review-report,
+.route-photo-pop-report {
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: 600 12px/1.2 var(--font-sans);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.review-report:hover,
+.route-photo-pop-report:hover {
+  color: var(--ink);
+}
+.route-photo-pop-report {
+  display: block;
+}
+.lightbox-head .lightbox-report {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* Photos fade in once fully loaded and decoded (FadeImage.tsx); until then
+   their box shimmers grey, as Airbnb's listing photos do. */
+.fade-img {
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.fade-img.is-loaded {
+  opacity: 1;
+}
+.card-thumb:has(> .fade-img:not(.is-loaded)),
+.carousel-slide:has(> .fade-img:not(.is-loaded)) {
+  background: linear-gradient(100deg, var(--bg-raised) 30%, #fafafa 50%, var(--bg-raised) 70%) 0 0 / 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fade-img {
+    transition: none;
+  }
+  .card-thumb:has(> .fade-img:not(.is-loaded)),
+  .carousel-slide:has(> .fade-img:not(.is-loaded)) {
+    animation: none;
+  }
+}
 /* The last grid cell says how many more photos the viewer holds. Cells
    shimmer until their (sharp, slow-to-arrive) Commons photo covers them. */
 .venue-photo-cell {

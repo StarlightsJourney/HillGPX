@@ -40,7 +40,9 @@ import { SiteFooter, SiteHeader } from './components/SiteChrome';
 import { OpenSourceBadge, OpenSourceNotice } from './components/OpenSourceNotice';
 import { fetchCommunityRoutes, fetchRoutePhotos, type RoutePhoto } from './lib/api';
 import { findOverlaps } from './lib/routeAnalysis';
-import { IMPORT_EVENT } from './lib/contribute';
+import { IMPORT_EVENT, REPORT_EVENT, type ReportRequest } from './lib/contribute';
+import { ReportModal } from './components/ReportModal';
+import { track } from './lib/analytics';
 import { isWorldPeakSlug, peaksInView, worldPeakBySlug } from './lib/worldPeaks';
 
 /** One shared empty list, so "no dataset yet" is a stable reference to memo on. */
@@ -72,6 +74,13 @@ function detailSlugFromHash(): string | null {
 
 export default function App() {
   const [view, setView] = useState<View>(viewFromHash);
+  // "Report" on a photo or review anywhere (map popups dispatch requestReport).
+  const [report, setReport] = useState<ReportRequest | null>(null);
+  useEffect(() => {
+    const open = (event: Event) => setReport((event as CustomEvent<ReportRequest>).detail);
+    window.addEventListener(REPORT_EVENT, open);
+    return () => window.removeEventListener(REPORT_EVENT, open);
+  }, []);
 
   useEffect(() => {
     const sync = () => setView(viewFromHash());
@@ -94,6 +103,7 @@ export default function App() {
         <MapApp />
       )}
       {view === 'landing' && <OpenSourceNotice />}
+      {report && <ReportModal targetType={report.targetType} targetSlug={report.targetSlug} targetName={report.targetName} onClose={() => setReport(null)} />}
       {view !== 'map' && <OpenSourceBadge placement={view === 'landing' ? 'landing' : 'corner'} />}
     </UnitsProvider>
   );
@@ -384,6 +394,7 @@ function MapApp() {
       setRouteHoverIndex(null);
       setSpotlight(null);
       if (slug) {
+        track('route_open', slug);
         setSelectedSlug(null);
         setDroppedGpx(null);
         setListOpen(false);
@@ -496,7 +507,7 @@ function MapApp() {
       cancelled = true;
     };
   }, [selectedRouteSlug]);
-  // Your own uploads show straight away (marked pending) while a volunteer checks them.
+  // Your own uploads show straight away, before the next fetch of the route's photos.
   const [myRoutePhotos, setMyRoutePhotos] = useState<RoutePhoto[]>(NO_PHOTOS);
   const routePhotos = useMemo(() => {
     const approved = routePhotosState && routePhotosState.slug === selectedRouteSlug ? routePhotosState.photos : NO_PHOTOS;
@@ -727,7 +738,10 @@ function MapApp() {
                 mapExpanded={mapFullWidth}
                 onToggleExpand={() => {
                   if (mapExpanded) restoreListScroll();
-                  else rememberListScroll();
+                  else {
+                    rememberListScroll();
+                    track('map_expand');
+                  }
                   setMapExpanded(!mapExpanded);
                 }}
                 injectedVenueSlugs={droppedGpx?.venueSlugs ?? []}

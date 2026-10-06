@@ -36,7 +36,12 @@ jobs:
       - name: Site address
         id: site
         run: |
-          if [ -f public/CNAME ]; then
+          # A repository variable SITE_URL (Settings → Secrets and variables →
+          # Actions → Variables) wins, so this copy can point search engines
+          # at the main address (e.g. https://hillgpx.com on Cloudflare).
+          if [ -n "${{ vars.SITE_URL }}" ]; then
+            echo "url=${{ vars.SITE_URL }}" >> "$GITHUB_OUTPUT"
+          elif [ -f public/CNAME ]; then
             echo "url=https://$(tr -d '[:space:]' < public/CNAME)" >> "$GITHUB_OUTPUT"
           else
             owner="${{ github.repository_owner }}"

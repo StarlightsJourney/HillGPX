@@ -1,5 +1,6 @@
 import type { Venue } from '../types';
-import { DATA_BASE, type Bounds } from './venues';
+import { DATA_BASE, loadDataset, type Bounds } from './venues';
+import { regionOf } from './regions';
 
 /**
  * Worldwide summits (GeoNames, CC BY 4.0), built by scripts/fetch_world_peaks.py
@@ -186,13 +187,28 @@ export function countryName(code: string): string {
 
 let summariesPromise: Promise<CountrySummary[]> | null = null;
 
+/** The tallest summits, skipping any within 3 km of a taller one already picked (its sub-peaks). */
+function tallestDistinct(venues: Venue[], limit: number): Venue[] {
+  const picked: Venue[] = [];
+  for (const venue of [...venues].sort((a, b) => (b.summitM ?? 0) - (a.summitM ?? 0))) {
+    const near = picked.some((other) => {
+      const dLat = ((venue.lat - other.lat) * Math.PI) / 180;
+      const dLng = (((venue.lng - other.lng) * Math.PI) / 180) * Math.cos((venue.lat * Math.PI) / 180);
+      return 6_371_000 * Math.hypot(dLat, dLng) < 3000;
+    });
+    if (!near) picked.push(venue);
+    if (picked.length === limit) break;
+  }
+  return picked;
+}
+
 /**
  * Every country with mapped summits, most summits first, for the banner, the
  * landing rows and the searches. Peaks carry the same stored photo as on the
  * map (toVenue), so a summit looks the same everywhere.
  */
 export function countrySummaries(): Promise<CountrySummary[]> {
-  summariesPromise ??= Promise.all([loadPeakIndex(), loadPeakPhotos()]).then(([index, photos]) => {
+  summariesPromise ??= Promise.all([loadPeakIndex(), loadPeakPhotos(), loadDataset().catch(() => null)]).then(([index, photos, dataset]) => {
     if (!index?.byCountry) {
       summariesPromise = null;
       return [];
@@ -211,14 +227,31 @@ export function countrySummaries(): Promise<CountrySummary[]> {
       // An index from before `rows`: its tallest highlights.
       return (rowsBy.get(code) ?? []).sort((a, b) => b[4] - a[4]).slice(0, 12);
     };
+    // The local data's hills are left out of the world index (so the map has
+    // no duplicate pins), which took Mount Fuji out of "Highest peaks in
+    // Japan". Put them back into their country's count and row.
+    const localBy = new Map<string, Venue[]>();
+    for (const venue of dataset?.venues ?? []) {
+      if (venue.type !== 'hill' || !venue.summitM) continue;
+      const country = regionOf(venue.lng, venue.lat);
+      if (!country) continue;
+      const list = localBy.get(country);
+      if (list) list.push(venue);
+      else localBy.set(country, [venue]);
+    }
     return Object.entries(index.byCountry)
-      .map(([code, [count, west, south, east, north]]) => ({
-        code,
-        name: countryName(code),
-        count,
-        bounds: { west, south, east, north },
-        peaks: landingRow(code).map((row) => toVenue(row, index.tile, photos)),
-      }))
+      .map(([code, [count, west, south, east, north]]) => {
+        const name = countryName(code);
+        const local = localBy.get(name) ?? [];
+        const world = landingRow(code).map((row) => toVenue(row, index.tile, photos));
+        return {
+          code,
+          name,
+          count: count + local.length,
+          bounds: { west, south, east, north },
+          peaks: local.length ? tallestDistinct([...world, ...local], Math.max(world.length, 12)) : world,
+        };
+      })
       .sort((a, b) => b.count - a.count);
   });
   return summariesPromise;

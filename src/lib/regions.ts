@@ -119,3 +119,22 @@ export function boundsFromHash(hash: string): Bounds | null {
   const [west, south, east, north] = match.slice(1).map(Number);
   return [west, south, east, north].every(Number.isFinite) ? { west, south, east, north } : null;
 }
+
+/** Names Intl does not give but people type. Keyed by ISO code. */
+export const COUNTRY_ALIASES: Record<string, string[]> = {
+  US: ['usa', 'us', 'america', 'united states of america'],
+  GB: ['uk', 'britain', 'great britain', 'england', 'scotland', 'wales'],
+  KR: ['korea'],
+  KP: ['north korea'],
+  CZ: ['czech republic'],
+  NL: ['holland'],
+  TR: ['turkey', 'turkiye'],
+  MM: ['burma'],
+  CI: ['ivory coast'],
+  AE: ['uae'],
+  CD: ['drc', 'democratic republic of the congo'],
+  SZ: ['swaziland'],
+  MK: ['macedonia'],
+  CV: ['cape verde'],
+  TL: ['east timor'],
+};

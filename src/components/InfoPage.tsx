@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { CONTACT_EMAIL, CONTACT_URL, REPO_URL } from '../lib/contribute';
 import { ANALYTICS } from '../lib/analytics';
-import { HomeSearch } from './Landing';
+import { SiteSearch } from './SearchBar';
 import { SiteFooter, SiteHeader } from './SiteChrome';
 
 export type InfoPageId = 'privacy' | 'terms' | 'contact';
@@ -114,7 +114,7 @@ export function InfoPage({ page }: { page: InfoPageId }) {
   }, [page]);
   return (
     <div className="info-page">
-      <SiteHeader sticky center={<HomeSearch onOpen={() => (window.location.hash = '#map')} />} />
+      <SiteHeader sticky center={<SiteSearch />} />
       <main className="info-page-body">
         <nav className="info-tabs" aria-label="About hillGPX">
           {TABS.map((tab) => (

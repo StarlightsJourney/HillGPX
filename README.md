@@ -129,7 +129,7 @@ Phones parse the file in the browser, and much larger files can crash a mobile t
 - GeoNames summits without a surveyed height use SRTM elevation, which can be tens of metres off on sharp peaks.
 - Ratings only cover reviews left on HillGPX; places without any show "New".
 - Routes are the largest gap, which is exactly where contributions help most.
-- The world-peaks index misses some famous summits (Mount Fuji among them) and lists some mountain ranges as if they were summits; the search and the place pages skip the ranges. Rebuilding the index in `scripts/fetch_world_peaks.py` is the fix.
+- The world-peaks index leaves out summits already in the local hill data (so the map has no duplicate pins); country rows, country pages and search add those back, which is how Mount Fuji appears. A few GeoNames heights are wrong at the source (Azumaya San is listed at 3,254 m; it is about 2,350 m).
 
 ## Licence
 

@@ -215,7 +215,16 @@ for (const [id, name, lat, lng, ele, , code, feature] of index.top) {
   const photo = stored ? { file: stored[0], credit: stored[2], licence: stored[3], source: 'Wikimedia Commons' } : null;
   const country = code ? countryName(code) : null;
   placeSpecs.push({ slug, name, lat, lng, heightM: ele, kind: 'hill', country, countryCode: code || null, text: descriptions[slug]?.text || '', photo, routesHere: [] });
-  if (code) peaksByCountry.set(code, [...(peaksByCountry.get(code) ?? []), { slug, name, ele }]);
+  if (code) peaksByCountry.set(code, [...(peaksByCountry.get(code) ?? []), { slug, name, ele, lat, lng }]);
+}
+
+// The local data's hills (Mount Fuji among them) are not in the world index,
+// so add them to their country's list too.
+const codeByName = new Map(Object.keys(index.byCountry).map((code) => [countryName(code), code]));
+for (const venue of venues) {
+  if (venue.type !== 'hill' || !venue.summitM) continue;
+  const code = codeByName.get(regionOf(venue.lng, venue.lat));
+  if (code) peaksByCountry.set(code, [...(peaksByCountry.get(code) ?? []), { slug: venue.slug, name: venue.name, ele: venue.summitM, lat: venue.lat, lng: venue.lng }]);
 }
 
 // Write the place pages that fit: places with routes, a photo or a written
@@ -231,7 +240,13 @@ if (placeSpecs.length > room) console.warn(`SEO: ${(placeSpecs.length - room).to
 // One page per country: its tallest summits.
 for (const [code, [count]] of Object.entries(index.byCountry)) {
   const name = countryName(code);
-  const peaks = (peaksByCountry.get(code) ?? []).sort((a, b) => b.ele - a.ele).slice(0, 40);
+  // Tallest first, skipping points within 3 km of a taller one (a summit's own sub-peaks).
+  const peaks = [];
+  for (const peak of (peaksByCountry.get(code) ?? []).sort((a, b) => b.ele - a.ele)) {
+    const near = peaks.some((other) => 6371000 * Math.hypot(((peak.lat - other.lat) * Math.PI) / 180, (((peak.lng - other.lng) * Math.PI) / 180) * Math.cos((peak.lat * Math.PI) / 180)) < 3000);
+    if (!near) peaks.push(peak);
+    if (peaks.length === 40) break;
+  }
   if (peaks.length === 0) continue;
   const description = `The highest peaks in ${name}, from ${peaks[0].name} (${metres(peaks[0].ele)}) down. ${count.toLocaleString('en')} summits in ${name} are on the hillGPX map, with GPX routes, photos and weather.`;
   const [, west, south, east, north] = index.byCountry[code];

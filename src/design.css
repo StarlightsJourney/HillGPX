@@ -6291,25 +6291,44 @@
   color: var(--ink);
 }
 
-/* With a route open on the expanded map the category bar folds away, so the
-   map gets its height too, and comes back when the route closes. The height
-   changes in one step and only the bar's contents animate: animating the
-   height resized the map on every frame, which shook the page. */
-.map-filters.folded {
-  display: none;
-}
-.map-filters:not(.folded) > div {
-  animation: filters-in 0.32s var(--ease-out) both;
-}
-@keyframes filters-in {
-  from {
+/* On the expanded map the category bar floats over the top of the map
+   instead of sitting above it, and slides up out of the way while a route is
+   open, then back down when it closes. The map is never resized for it:
+   resizing (in one step or animated) made the map jump or stall while it
+   redrew at every height. The map controls step down below the bar. */
+@media (min-width: 900px) {
+  .map-page.is-expanded .map-top > .site-header {
+    position: relative;
+    z-index: 2;
+  }
+  .map-page.is-expanded .map-filters {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1;
+    background: #fff;
+    transition: transform 0.32s var(--ease-out), opacity 0.24s ease;
+  }
+  .map-page.is-expanded.bar-folded .map-filters {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateY(-100%);
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 0.32s var(--ease-out), opacity 0.24s ease, visibility 0s 0.32s;
+  }
+  .map-page.is-expanded .map-wrap .maplibregl-ctrl-top-right {
+    transform: translateY(80px);
+    transition: transform 0.32s var(--ease-out);
+  }
+  .map-page.is-expanded.bar-folded .map-wrap .maplibregl-ctrl-top-right {
+    transform: none;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .map-filters:not(.folded) > div {
-    animation: none;
+@media (min-width: 900px) and (prefers-reduced-motion: reduce) {
+  .map-page.is-expanded .map-filters,
+  .map-page.is-expanded .map-wrap .maplibregl-ctrl-top-right {
+    transition: none;
   }
 }
 

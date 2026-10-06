@@ -94,9 +94,9 @@ export default function App() {
   return (
     <UnitsProvider>
       {view === 'landing' ? (
-        <Landing onOpen={() => (window.location.hash = '#map')} />
+        <Landing />
       ) : view === 'training' ? (
-        <TrainingPanel onClose={() => (window.location.hash = '#map')} />
+        <TrainingPanel />
       ) : view !== 'map' ? (
         <InfoPage page={view} />
       ) : (
@@ -590,13 +590,17 @@ function MapApp() {
   const mapFullWidth = mapExpanded;
 
   // The sticky header and category bar are measured so the sticky map below
-  // them can be exactly as tall as the rest of the window.
+  // them can be exactly as tall as the rest of the window. The height is
+  // written straight onto the page in the observer, before the frame paints:
+  // going through React state lagged a frame, so while the category bar slid
+  // in or out the map was briefly too tall and the page jolted.
   const topRef = useRef<HTMLDivElement>(null);
-  const [topHeight, setTopHeight] = useState(0);
+  const pageRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = topRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(() => setTopHeight(el.offsetHeight));
+    const pageEl = pageRef.current;
+    if (!el || !pageEl) return;
+    const observer = new ResizeObserver(() => pageEl.style.setProperty('--map-top', `${el.offsetHeight}px`));
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
@@ -641,7 +645,7 @@ function MapApp() {
   }, [allVenues]);
 
   return (
-    <div className="app map-page" style={{ '--map-top': `${topHeight}px` } as React.CSSProperties}>
+    <div className={`app map-page${mapFullWidth ? ' is-expanded' : ''}${routeOpen && mapFullWidth ? ' bar-folded' : ''}`} ref={pageRef}>
       {/* Header and category bar stay put while the page scrolls the list. */}
       <div className="map-top" ref={topRef}>
         <SiteHeader center={<SearchBar venues={allVenues} onPick={pickFromSearch} onFitBounds={showArea} />} />

@@ -9,11 +9,12 @@ import {
   rankingHeight,
   venueHeight,
   venueKindLabel,
+  loadDataset,
   type Area,
   type Bounds,
 } from '../lib/venues';
-import { DESTINATIONS, geocodePlace } from '../lib/regions';
-import { countrySummaries, notablePeakCountry, notablePeaks } from '../lib/worldPeaks';
+import { COUNTRY_ALIASES, DESTINATIONS, boundsToHash, geocodePlace } from '../lib/regions';
+import { countrySummaries, notablePeakCountry, notablePeaks, peaksInView } from '../lib/worldPeaks';
 import { normaliseQuery } from '../lib/streetTerms';
 import { useUnits } from './UnitsContext';
 import { SearchIcon } from './icons';
@@ -29,6 +30,8 @@ interface SearchBarProps {
    * or every match for a street name.
    */
   onFitBounds: (bounds: Bounds) => void;
+  /** Pressing Search with nothing typed (pages without a map open it). Default: focus the box. */
+  onEmptySubmit?: () => void;
 }
 
 /** A country or a curated destination: somewhere to go rather than something to climb. */
@@ -40,6 +43,8 @@ interface Place {
   bounds: Bounds | null;
   /** Fallback box when the lookup fails: its tallest summits. */
   peaks: Venue[];
+  /** Other names people type ("usa", "uk"), lower case. */
+  aliases?: string[];
 }
 
 const MAX_RESULTS = 8;
@@ -66,6 +71,7 @@ function usePlaces(): Place[] {
           meta: `Country · ${formatCount(c.count)} summits`,
           bounds: c.bounds,
           peaks: c.peaks,
+          aliases: COUNTRY_ALIASES[c.code],
         })),
       );
     });
@@ -77,6 +83,37 @@ function usePlaces(): Place[] {
     const taken = new Set(destinations.map((d) => d.name.toLowerCase()));
     return [...destinations, ...countries.filter((c) => !taken.has(c.name.toLowerCase()))];
   }, [destinations, countries]);
+}
+
+/**
+ * The box, grown to include the three nearest climbs within 80 km when it has
+ * none of its own. Checks the loaded venues first, then the world-summit
+ * tiles around the place (they are only in memory where the map has been).
+ */
+async function withNearestClimbs(bounds: Bounds, loaded: Venue[]): Promise<Bounds> {
+  const inside = (v: Venue) => v.lng >= bounds.west && v.lng <= bounds.east && v.lat >= bounds.south && v.lat <= bounds.north;
+  if (loaded.some(inside)) return bounds;
+  const lat = (bounds.south + bounds.north) / 2;
+  const lng = (bounds.west + bounds.east) / 2;
+  const reach = { west: lng - 0.9, south: lat - 0.75, east: lng + 0.9, north: lat + 0.75 };
+  const summits = await peaksInView(reach).catch(() => []);
+  const venues = [...loaded, ...summits];
+  if (summits.some(inside)) return bounds;
+  const km = (v: Venue) => 111.2 * Math.hypot(v.lat - lat, (v.lng - lng) * Math.cos((lat * Math.PI) / 180));
+  const nearest = venues
+    .map((venue) => ({ venue, distance: km(venue) }))
+    .filter((hit) => hit.distance <= 80)
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 3)
+    .map((hit) => hit.venue);
+  if (nearest.length === 0) return bounds;
+  const pad = 0.06;
+  return {
+    west: Math.min(bounds.west, ...nearest.map((v) => v.lng)) - pad,
+    south: Math.min(bounds.south, ...nearest.map((v) => v.lat)) - pad,
+    east: Math.max(bounds.east, ...nearest.map((v) => v.lng)) + pad,
+    north: Math.max(bounds.north, ...nearest.map((v) => v.lat)) + pad,
+  };
 }
 
 /** Lower case with accents removed, so "azumaya" finds "Azumaya San" and "zao" finds "Zaō". */
@@ -106,10 +143,10 @@ function matchPlaces(places: Place[], q: string): { exact: Place | null; prefix:
   const prefix: Place[] = [];
   const inner: Place[] = [];
   for (const place of places) {
-    const name = place.name.toLowerCase();
-    if (name === q) exact ??= place;
-    else if (name.startsWith(q) || name.split(/[\s-]+/).some((word) => word.startsWith(q))) prefix.push(place);
-    else if (name.includes(q)) inner.push(place);
+    const names = [fold(place.name), ...(place.aliases ?? [])];
+    if (names.includes(q)) exact ??= place;
+    else if (names.some((name) => name.startsWith(q) || name.split(/[\s-]+/).some((word) => word.startsWith(q)))) prefix.push(place);
+    else if (names.some((name) => name.includes(q))) inner.push(place);
   }
   return { exact, prefix, inner };
 }
@@ -123,7 +160,7 @@ function matchPlaces(places: Place[], q: string): { exact: Place | null; prefix:
  * where it was. At ~18k venues a lowercase substring scan is a few
  * milliseconds, so there is no index and no debounce.
  */
-export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
+export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [lookup, setLookup] = useState<Lookup>({ state: 'idle' });
@@ -148,7 +185,7 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
   const normalised = useMemo(() => fold(normaliseQuery(query)), [query]);
   // Place names are matched on the plain query: street expansions would turn
   // "st" into "street" and miss "St Lucia".
-  const plain = query.toLowerCase().trim().replace(/\s+/g, ' ');
+  const plain = fold(query).trim().replace(/\s+/g, ' ');
 
   // Every match, not just the ones that fit on screen. Truncating during the
   // scan would return the first eight blocks in file order and sort only those,
@@ -214,6 +251,9 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
     setOpen(true);
     void geocodePlace(text)
       .catch(() => null)
+      // A town with no climbs inside its box (Perth's centre) is widened to
+      // take in the nearest ones, so the search lands somewhere useful.
+      .then((bounds) => (bounds ? withNearestClimbs(bounds, pool) : null))
       .then((bounds) => {
         if (id !== lookupIdRef.current) return;
         const target = bounds ?? fallback;
@@ -246,7 +286,8 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
    */
   const submit = () => {
     if (!query.trim()) {
-      inputRef.current?.focus();
+      if (onEmptySubmit) onEmptySubmit();
+      else inputRef.current?.focus();
       return;
     }
     track('search', query.trim());
@@ -343,5 +384,34 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
         </div>
       )}
     </form>
+  );
+}
+
+/**
+ * The header search on pages without a map (landing, info, training): the
+ * same SearchBar as the map page, over the same data, so a search finds the
+ * same things everywhere. A pick opens the place page; an area opens the map
+ * framed on it.
+ */
+export function SiteSearch() {
+  const [venues, setVenues] = useState<Venue[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    loadDataset()
+      .then((dataset) => {
+        if (!cancelled) setVenues(dataset.venues);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return (
+    <SearchBar
+      venues={venues}
+      onPick={(slug) => (window.location.hash = `#venue/${slug}`)}
+      onFitBounds={(bounds) => (window.location.hash = boundsToHash(bounds))}
+      onEmptySubmit={() => (window.location.hash = '#map')}
+    />
   );
 }

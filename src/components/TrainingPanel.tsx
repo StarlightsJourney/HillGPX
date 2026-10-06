@@ -11,7 +11,7 @@ import {
 import { useUnits } from './UnitsContext';
 import { ChartIcon, TargetIcon } from './icons';
 import { SiteFooter, SiteHeader } from './SiteChrome';
-import { HomeSearch } from './Landing';
+import { SiteSearch } from './SearchBar';
 
 function TrashIconComp({ size = 16 }: { size?: number }) {
   return (
@@ -33,11 +33,7 @@ function TrashIconComp({ size = 16 }: { size?: number }) {
   );
 }
 
-interface TrainingPanelProps {
-  onClose: () => void;
-}
-
-export function TrainingPanel({ onClose }: TrainingPanelProps) {
+export function TrainingPanel() {
   const units = useUnits();
   const [state, setState] = useState(loadTrainingState);
   const [goalInput, setGoalInput] = useState(String(state.goalM));
@@ -64,7 +60,7 @@ export function TrainingPanel({ onClose }: TrainingPanelProps) {
 
   return (
     <div className="training-page">
-    <SiteHeader center={<HomeSearch onOpen={onClose} />} />
+    <SiteHeader center={<SiteSearch />} />
     <div className="training-panel">
       <header className="training-panel-head">
         <h1>Training balance</h1>

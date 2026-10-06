@@ -1,23 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Route, Venue } from '../types';
+import { SiteSearch } from './SearchBar';
 import { HEIGHT_LABEL, boundsOf, loadDataset, photoSrc, rankingHeight, townName, venueHeight, venueKindLabel, type Bounds, type Dataset } from '../lib/venues';
-import { DESTINATIONS, boundsToHash, geocodePlace, normalisePlace, regionBounds, regionOf } from '../lib/regions';
-import { countrySummaries, notablePeakCountry, notablePeaks, type CountrySummary } from '../lib/worldPeaks';
+import { DESTINATIONS, boundsToHash, normalisePlace, regionBounds, regionOf } from '../lib/regions';
+import { countrySummaries, type CountrySummary } from '../lib/worldPeaks';
 import { SiteFooter, SiteHeader } from './SiteChrome';
 import { routeDifficulty, routeHasElevation } from '../lib/routes';
-import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from './icons';
+import { ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { RatingLabel } from './ResultsList';
 import { RouteThumb } from './RouteThumb';
 import { ActivityTag } from './ActivityIcon';
 import { routeActivity } from '../lib/routeAnalysis';
 import { VenueThumb } from './VenueThumb';
 import { useUnits } from './UnitsContext';
-import { SearchHint } from './SearchHint';
-import { track } from '../lib/analytics';
-
-interface LandingProps {
-  onOpen: () => void;
-}
 
 type Mode = 'climbs' | 'routes';
 
@@ -44,7 +39,7 @@ const ROUTES_LINK: MapLink = { href: '#routes', mode: 'routes' };
  * can browse, one search that takes you somewhere, and rows of real listings
  * underneath. No hero copy to read — the rows are the pitch.
  */
-export function Landing({ onOpen }: LandingProps) {
+export function Landing() {
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -73,7 +68,7 @@ export function Landing({ onOpen }: LandingProps) {
 
   return (
     <div className="home">
-      <SiteHeader sticky center={<HomeSearch onOpen={onOpen} />} />
+      <SiteHeader sticky center={<SiteSearch />} />
 
       <HeroBlock />
 
@@ -223,255 +218,6 @@ function WorldRows({ list }: { list: CountrySummary[] }) {
 }
 
 /* ─── Search ──────────────────────────────────────────────────────────── */
-
-interface PlaceOption {
-  key: string;
-  name: string;
-  hint: string;
-  bounds: Bounds;
-  /** Other names people type for it ("usa", "uk"), normalised. */
-  aliases: string[];
-  /** Searched too, but a hit here ranks below any hit on a name. */
-  extra: string;
-  /** Tie-break: curated destinations first, then countries with more summits. */
-  weight: number;
-}
-
-/** Names Intl does not give but people type. Keyed by ISO code. */
-const COUNTRY_ALIASES: Record<string, string[]> = {
-  US: ['usa', 'us', 'america', 'united states of america'],
-  GB: ['uk', 'britain', 'great britain', 'england', 'scotland', 'wales'],
-  KR: ['korea'],
-  KP: ['north korea'],
-  CZ: ['czech republic'],
-  NL: ['holland'],
-  TR: ['turkey', 'turkiye'],
-  MM: ['burma'],
-  CI: ['ivory coast'],
-  AE: ['uae'],
-  CD: ['drc', 'democratic republic of the congo'],
-  SZ: ['swaziland'],
-  MK: ['macedonia'],
-  CV: ['cape verde'],
-  TL: ['east timor'],
-};
-
-const MAX_OPTIONS = 8;
-
-/** 0 exact, 1 name starts with it, 2 a word starts with it, 3 contains it, 4 only the hint does; null no match. */
-function matchScore(option: PlaceOption, q: string): number | null {
-  const names = [normalisePlace(option.name), ...option.aliases];
-  if (names.includes(q)) return 0;
-  if (names.some((n) => n.startsWith(q))) return 1;
-  if (names.some((n) => n.split(/[\s-]+/).some((word) => word.startsWith(q)))) return 2;
-  if (names.some((n) => n.includes(q))) return 3;
-  if (option.extra.includes(q)) return 4;
-  return null;
-}
-
-type Lookup = { state: 'idle' } | { state: 'searching' | 'missing' | 'failed'; query: string };
-
-/**
- * The header search on pages without the venue list loaded (landing,
- * training): countries, destinations and the geocoder. The same one-field
- * "Where" pill as the map's SearchBar, so the header reads the same everywhere.
- */
-export function HomeSearch({ onOpen }: { onOpen: () => void }) {
-  const mode: Mode = 'climbs';
-  const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
-  const [lookup, setLookup] = useState<Lookup>({ state: 'idle' });
-  const lookupId = useRef(0);
-  const rootRef = useRef<HTMLFormElement>(null);
-  const countries = useCountries();
-  const [peaks, setPeaks] = useState<Venue[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    void notablePeaks().then((list) => {
-      if (!cancelled) setPeaks(list);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const options = useMemo<PlaceOption[]>(() => {
-    const destinations = DESTINATIONS.map((d, i) => ({
-      key: `d:${d.name}`,
-      name: d.name,
-      hint: d.hint,
-      bounds: d.bounds,
-      aliases: [],
-      extra: normalisePlace(d.hint),
-      weight: 1e9 - i,
-    }));
-    // A curated destination wins a name clash: its box is hand-drawn.
-    const taken = new Set(DESTINATIONS.map((d) => normalisePlace(d.name)));
-    const fromIndex = (countries ?? [])
-      .filter((c) => !taken.has(normalisePlace(c.name)))
-      .map((c) => ({
-        key: `c:${c.code}`,
-        name: c.name,
-        hint: `Country · ${c.count.toLocaleString()} summits`,
-        bounds: c.bounds,
-        aliases: COUNTRY_ALIASES[c.code] ?? [],
-        extra: '',
-        weight: c.count,
-      }));
-    // The world's best-known summits too, ranked below any place.
-    const summits = peaks.map((peak) => ({
-      key: `p:${peak.slug}`,
-      name: peak.name,
-      hint: ['Summit', peak.summitM ? `${peak.summitM.toLocaleString()} m` : null, notablePeakCountry(peak.slug)].filter(Boolean).join(' · '),
-      bounds: { west: peak.lng - 0.06, south: peak.lat - 0.06, east: peak.lng + 0.06, north: peak.lat + 0.06 },
-      aliases: [],
-      extra: '',
-      weight: -1e6 + (peak.summitM ?? 0),
-    }));
-    return [...destinations, ...fromIndex, ...summits];
-  }, [countries, peaks]);
-
-  const q = normalisePlace(query);
-  const matches = useMemo(() => {
-    if (!q) return options.filter((o) => o.key.startsWith('d:'));
-    return options
-      .map((option) => ({ option, score: matchScore(option, q) }))
-      .filter((m): m is { option: PlaceOption; score: number } => m.score !== null)
-      .sort((a, b) => a.score - b.score || b.option.weight - a.option.weight)
-      .slice(0, MAX_OPTIONS)
-      .map((m) => m.option);
-  }, [options, q]);
-
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, []);
-
-  /**
-   * Search always goes somewhere real: the highlighted (or best) country or
-   * destination, then the geocoder for anything else ("kyoto"). It never
-   * falls back to the default view, which is what made "japan" land on Singapore.
-   */
-  const submit = () => {
-    const text = query.trim();
-    if (text) track('search', text);
-    if (!text) {
-      rememberMode(mode);
-      onOpen();
-      return;
-    }
-    const pick = (open ? matches[active] : undefined) ?? matches[0];
-    if (pick) {
-      openMap(mode, boundsToHash(pick.bounds));
-      return;
-    }
-    const id = ++lookupId.current;
-    setLookup({ state: 'searching', query: text });
-    setOpen(true);
-    geocodePlace(text)
-      .then((bounds) => {
-        if (id !== lookupId.current) return;
-        if (bounds) openMap(mode, boundsToHash(bounds));
-        else setLookup({ state: 'missing', query: text });
-      })
-      .catch(() => {
-        if (id === lookupId.current) setLookup({ state: 'failed', query: text });
-      });
-  };
-
-  const status = lookup.state === 'searching'
-    ? `Looking for “${lookup.query}”…`
-    : lookup.state === 'missing'
-      ? `No place called “${lookup.query}” found. Try a country, a city or a mountain range.`
-      : lookup.state === 'failed'
-        ? 'Place search is not answering right now. Try a country name, or open the map.'
-        : q && matches.length === 0
-          ? `Press Search to look up “${query.trim()}” on the map.`
-          : null;
-
-  return (
-    <form
-      ref={rootRef}
-      className={`home-search${open ? ' focused' : ''}`}
-      role="search"
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit();
-      }}
-    >
-      <label className="home-search-field home-search-where">
-        <input
-          value={query}
-          aria-label="Search countries, hills and towns"
-          autoComplete="off"
-          onFocus={() => setOpen(true)}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setActive(0);
-            setOpen(true);
-            lookupId.current += 1;
-            setLookup({ state: 'idle' });
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') {
-              e.preventDefault();
-              setActive((i) => Math.min(matches.length - 1, i + 1));
-            } else if (e.key === 'ArrowUp') {
-              e.preventDefault();
-              setActive((i) => Math.max(0, i - 1));
-            } else if (e.key === 'Escape') setOpen(false);
-          }}
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={open && matches.length > 0}
-          aria-controls="home-search-list"
-        />
-        <SearchHint hidden={query.length > 0} />
-      </label>
-      <button type="submit" className="home-search-go" aria-label="Search" disabled={lookup.state === 'searching'}>
-        <SearchIcon size={16} />
-        <span>Search</span>
-      </button>
-
-      {open && (matches.length > 0 || status) && (
-        <ul className="home-search-list" id="home-search-list" role="listbox" aria-label="Places">
-          {status ? (
-            <li className="home-search-list-head home-search-status" role="status">{status}</li>
-          ) : (
-            <li className="home-search-list-head" aria-hidden="true">{q ? 'Places' : 'Popular places to train'}</li>
-          )}
-          {!status && matches.map((option, i) => (
-            <li key={option.key} role="option" aria-selected={i === active}>
-              <button
-                type="button"
-                className={i === active ? 'active' : ''}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => openMap(mode, boundsToHash(option.bounds))}
-              >
-                <span className="home-search-pin" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6">
-                    <path d="M12 21s-7-6.2-7-11.5a7 7 0 1 1 14 0C19 14.8 12 21 12 21z" />
-                    <circle cx="12" cy="9.5" r="2.5" />
-                  </svg>
-                </span>
-                <span>
-                  <strong>{option.name}</strong>
-                  <small>{option.hint}</small>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </form>
-  );
-}
-
-/* ─── Rows ────────────────────────────────────────────────────────────── */
 
 interface RowSpec {
   title: string;

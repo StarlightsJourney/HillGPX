@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { combinedRating, fetchReviews, loadAuthor, saveAuthor, submitReview } from './api';
+import { apiErrorMessage, combinedRating, fetchReviews, loadAuthor, saveAuthor, submitReview } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -26,6 +26,15 @@ describe('api', () => {
     const body = JSON.parse(String(init.body)) as Record<string, unknown>;
     expect(body).not.toHaveProperty('status');
     expect(body.venue_slug).toBe('test-hill');
+  });
+
+  it('shows the spam limit message, not the raw response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ code: 'P0001', message: 'You have already reviewed this place today.' }), { status: 400 })));
+    await expect(submitReview({ venueSlug: 'test-hill', rating: 4, comment: '', author: '' })).rejects.toThrow('You have already reviewed this place today.');
+  });
+
+  it('explains a storage refusal as the upload ceiling', () => {
+    expect(apiErrorMessage('{"message":"new row violates row-level security policy"}', 403)).toMatch(/Uploads are paused/);
   });
 
   it('maps review rows', async () => {

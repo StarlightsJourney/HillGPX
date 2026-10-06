@@ -1,0 +1,28 @@
+name: Contact or removal request
+description: Ask a question, or ask for something you added (or something about you) to be taken down.
+title: "Contact: "
+labels: ["contact"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is this about?
+      options:
+        - Remove something I contributed
+        - Remove something about me or my property
+        - Copyright or licence question
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: link
+    attributes:
+      label: Link to the place or route (if any)
+      placeholder: https://…/#venue/…
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Do not post private information here; this page is public. Say if you need a private reply and we will get in touch.
+    validations:
+      required: true

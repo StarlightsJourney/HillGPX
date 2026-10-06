@@ -5,7 +5,7 @@ import { GpxDropzone, type LoadedGpx } from './components/GpxDropzone';
 import { GpxPanel } from './components/GpxPanel';
 import { SearchBar } from './components/SearchBar';
 import { FilterBar, type BrowseMode } from './components/FilterBar';
-import { VenueDetail } from './components/VenueDetail';
+import { VenueDetail, VenueDetailSkeleton } from './components/VenueDetail';
 import { RoutesList } from './components/RoutesList';
 import { RoutePanel } from './components/RoutePanel';
 import { NO_ROUTE_FILTERS, filterRoutes, routeBounds, type RouteFilters } from './lib/routes';
@@ -33,6 +33,7 @@ import { CloseIcon, ListIcon, LocationArrowIcon, MapIcon } from './components/ic
 import { loadLocalRoutes, saveLocalRoutes } from './lib/localRoutes';
 import { logSession } from './lib/training';
 import { TrainingPanel } from './components/TrainingPanel';
+import { InfoPage, type InfoPageId } from './components/InfoPage';
 import { UnitsProvider } from './components/UnitsContext';
 import { Modal } from './components/Modal';
 import { SiteFooter, SiteHeader } from './components/SiteChrome';
@@ -51,12 +52,15 @@ const NO_PHOTOS: RoutePhoto[] = [];
 // fetched once someone actually opens it.
 const MapView = lazy(() => import('./map/MapView').then((m) => ({ default: m.MapView })));
 
-type View = 'landing' | 'map' | 'training';
+type View = 'landing' | 'map' | 'training' | InfoPageId;
+
+const INFO_PAGES: ReadonlySet<string> = new Set<InfoPageId>(['privacy', 'terms', 'contact']);
 
 function viewFromHash(): View {
   const hash = window.location.hash;
   if (hash === '#map' || hash === '#routes' || hash === '#import' || hash.startsWith('#map/') || hash.startsWith('#venue/')) return 'map';
   if (hash === '#training') return 'training';
+  if (INFO_PAGES.has(hash.slice(1))) return hash.slice(1) as InfoPageId;
   return 'landing';
 }
 
@@ -84,6 +88,8 @@ export default function App() {
         <Landing onOpen={() => (window.location.hash = '#map')} />
       ) : view === 'training' ? (
         <TrainingPanel onClose={() => (window.location.hash = '#map')} />
+      ) : view !== 'map' ? (
+        <InfoPage page={view} />
       ) : (
         <MapApp />
       )}
@@ -317,6 +323,12 @@ function MapApp() {
 
   const selectedVenue = selectedSlug ? venueBySlug.get(selectedSlug) ?? null : null;
   const detailVenue = detailSlug ? venueBySlug.get(detailSlug) ?? null : null;
+  // A place page opened from a card (its own tab) shows a skeleton of itself
+  // until its data arrives, rather than the map page underneath it; and the
+  // map is only built once you actually leave the place page for it.
+  const detailPending = Boolean(detailSlug && !detailVenue && (!dataset || (isWorldPeakSlug(detailSlug) && !linkedPeak)));
+  const [mapNeeded, setMapNeeded] = useState(!detailSlug);
+  if (!detailSlug && !mapNeeded) setMapNeeded(true);
 
   const routesFor = useCallback(
     (venue: Venue | null) => {
@@ -695,7 +707,7 @@ function MapApp() {
         ) : (
           <div className="map-wrap">
             <Suspense fallback={<div className="map-skeleton"><div className="map-skeleton-pulse" /></div>}>
-              <MapView
+              {mapNeeded && <MapView
                 allRoutes={mode === 'routes' ? filteredRoutes : allRoutes}
                 mode={mode}
                 selectedRouteSlug={selectedRouteSlug}
@@ -742,7 +754,7 @@ function MapApp() {
                   // counts — a flyTo from search must not undo its own pick.
                   if (userInitiated) selectVenue(null);
                 }}
-              />
+              />}
             </Suspense>
 
             {!routeOpen && <OpenSourceBadge placement="on-map" />}
@@ -829,6 +841,8 @@ function MapApp() {
             )}
           </button>
         )}
+
+        {detailPending && <VenueDetailSkeleton />}
 
         {detailVenue && (
           <VenueDetail

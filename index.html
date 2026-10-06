@@ -3,11 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>hillGPX — find hills, stairs and routes to train elevation</title>
+    <title>hillGPX: hills, mountains and free GPX routes worldwide</title>
     <meta
       name="description"
-      content="Find hills, stairs, tall HDB blocks and trail routes to train elevation gain on. Browse routes on the map, drop in your own GPX, get an honest elevation profile."
+      content="A free, open map of 900,000+ hills and mountains in 232 countries, Singapore's stairwells and tall blocks, and a community archive of GPX routes up them. Download any route, share your own."
     />
+    <!-- Canonical address and link previews. %VITE_SITE_URL% is the public
+         address (vite.config.ts; the deploy sets it from public/CNAME). -->
+    <link rel="canonical" href="%VITE_SITE_URL%/" />
+    <meta property="og:site_name" content="hillGPX" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta property="og:title" content="hillGPX: hills, mountains and free GPX routes" />
+    <meta property="og:description" content="Find a hill to train on anywhere in the world, see honest elevation, and download free GPX routes shared by runners." />
+    <meta property="og:image" content="%VITE_SITE_URL%/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "hillGPX",
+        "url": "%VITE_SITE_URL%/",
+        "description": "A free, open-source map of hills, mountains and community GPX routes, with honest elevation.",
+        "isAccessibleForFree": true,
+        "license": "https://opensource.org/licenses/MIT"
+      }
+    </script>
     <!-- Absolute paths: Vite prefixes them with `base` (e.g. /HillGPX/) at build. -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/icons/icon-192.png" type="image/png" sizes="192x192" />

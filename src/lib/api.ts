@@ -66,6 +66,23 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The sentence to show for a failed request. The database's spam limits
+ * (supabase/migrations/20261006000000_spam_limits.sql) raise plain messages
+ * meant for people; a storage policy refusal means the hourly upload ceiling.
+ */
+export function apiErrorMessage(body: string, status: number): string {
+  let message = body;
+  try {
+    const parsed = JSON.parse(body) as { message?: unknown };
+    if (typeof parsed.message === 'string') message = parsed.message;
+  } catch {
+    // Not JSON: keep the text as it came.
+  }
+  if (/row-level security/i.test(message)) return 'Uploads are paused for a little while because of heavy traffic. Please try again later.';
+  return message || `Something went wrong (HTTP ${status}).`;
+}
+
 async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${SUPABASE_URL}${path}`, {
     ...init,
@@ -73,7 +90,7 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   if (!response.ok) {
     const body = await response.text().catch(() => '');
-    throw new ApiError(body || `HTTP ${response.status}`, response.status);
+    throw new ApiError(apiErrorMessage(body, response.status), response.status);
   }
   return (response.status === 204 || response.status === 201 ? undefined : await response.json()) as T;
 }
@@ -84,7 +101,7 @@ async function upload(bucket: string, path: string, body: Blob, contentType: str
     headers: { apikey: SUPABASE_KEY, 'Content-Type': contentType, 'x-upsert': 'false' },
     body,
   });
-  if (!response.ok) throw new ApiError(await response.text().catch(() => `HTTP ${response.status}`), response.status);
+  if (!response.ok) throw new ApiError(apiErrorMessage(await response.text().catch(() => ''), response.status), response.status);
   return publicUrl(bucket, path);
 }
 

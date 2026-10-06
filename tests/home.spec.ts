@@ -31,7 +31,7 @@ test('opening the map renders tiles without console errors', async ({ page }) =>
 test('typing a country and pressing Search frames that country', async ({ page }) => {
   await page.goto('/');
   await dismissNotice(page);
-  await page.getByPlaceholder('Search countries, hills and towns').fill('japan');
+  await page.getByLabel('Search countries, hills and towns').fill('japan');
   await page.getByRole('button', { name: 'Search' }).click();
   await expect(page).toHaveURL(/#map/);
   // The hash carries Japan's box before the map tidies it to #map.

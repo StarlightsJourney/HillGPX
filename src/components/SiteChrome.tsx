@@ -35,7 +35,7 @@ export function SiteHeader({ center, sticky = false }: { center?: ReactNode; sti
         </div>
         <div className="site-header-center">{center}</div>
         <div className="site-header-right">
-          <a className="site-header-cta" href="#import" onClick={openImportHere} aria-label="Add a GPX" title="Add a GPX">
+          <a className="site-header-cta" href="#import" onClick={openImportHere} aria-label="Add a GPX" data-tip="Add a GPX">
             <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <path d="M8 3v10M3 8h10" />
             </svg>
@@ -74,9 +74,15 @@ export function SiteFooter() {
             <a href={`${REPO_URL}/blob/HEAD/README.md#data-sources-and-licensing`} target="_blank" rel="noreferrer">Data sources and licences</a>
             <a href={REPO_URL} target="_blank" rel="noreferrer">Source code</a>
           </div>
+          <div>
+            <h3>About</h3>
+            <a href="#privacy">Privacy</a>
+            <a href="#terms">Contributions and licences</a>
+            <a href="#contact">Contact</a>
+          </div>
         </div>
         <div className="site-footer-base">
-          <span>© hillGPX · Free and open source (MIT) · Built by its community</span>
+          <span>© hillGPX · Code MIT · Routes and reviews CC BY 4.0 · Photos CC BY-SA 4.0</span>
           <span className="site-footer-credits">
             Data: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>,{' '}
             <a href="https://www.geonames.org" target="_blank" rel="noreferrer">GeoNames</a>,{' '}

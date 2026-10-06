@@ -33,12 +33,25 @@ jobs:
 
       - run: npm ci
       - run: npm run typecheck
+      - name: Site address
+        id: site
+        run: |
+          if [ -f public/CNAME ]; then
+            echo "url=https://$(tr -d '[:space:]' < public/CNAME)" >> "$GITHUB_OUTPUT"
+          else
+            owner="${{ github.repository_owner }}"
+            echo "url=https://${owner,,}.github.io/${{ github.event.repository.name }}" >> "$GITHUB_OUTPUT"
+          fi
       - run: npm run build
         env:
           # GitHub Pages serves a project site under /<repo>/, so asset URLs
           # need that prefix. With a custom domain (public/CNAME present) the
           # site lives at the root, so the prefix is dropped automatically.
           VITE_BASE: ${{ hashFiles('public/CNAME') != '' && '/' || format('/{0}/', github.event.repository.name) }}
+          # The public address for link previews, canonical links and the
+          # sitemap (scripts/build_seo.mjs). Set by the "Site address" step.
+          VITE_SITE_URL: ${{ steps.site.outputs.url }}
+          SITE_URL: ${{ steps.site.outputs.url }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

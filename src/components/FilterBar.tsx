@@ -278,9 +278,10 @@ function RouteFilterModal({
   onClose: () => void;
   returnFocusTo: React.RefObject<HTMLElement>;
 }) {
-  const [draft, setDraft] = useState(filters);
+  // Every choice applies straight away (the list and map update behind the
+  // dialog); the footer button only closes it.
   const [closing, setClosing] = useState(false);
-  const count = filterRoutes(routes, draft).length;
+  const count = filterRoutes(routes, filters).length;
   const close = useCallback(() => setClosing(true), []);
 
   useEffect(() => {
@@ -316,7 +317,7 @@ function RouteFilterModal({
             <h3>Minimum EG</h3>
             <div className="seg" role="radiogroup" aria-label="Minimum EG">
               {GAIN_CHOICES.map((choice) => (
-                <Segment key={choice.label} selected={draft.minGainM === choice.value} onSelect={() => setDraft({ ...draft, minGainM: choice.value })}>
+                <Segment key={choice.label} selected={filters.minGainM === choice.value} onSelect={() => onChange({ ...filters, minGainM: choice.value })}>
                   {choice.label}
                 </Segment>
               ))}
@@ -326,7 +327,7 @@ function RouteFilterModal({
             <h3>Distance</h3>
             <div className="seg" role="radiogroup" aria-label="Maximum distance">
               {DISTANCE_CHOICES.map((choice) => (
-                <Segment key={choice.label} selected={draft.maxDistanceM === choice.value} onSelect={() => setDraft({ ...draft, maxDistanceM: choice.value })}>
+                <Segment key={choice.label} selected={filters.maxDistanceM === choice.value} onSelect={() => onChange({ ...filters, maxDistanceM: choice.value })}>
                   {choice.label}
                 </Segment>
               ))}
@@ -334,17 +335,13 @@ function RouteFilterModal({
           </section>
         </div>
         <footer className="filter-modal-foot">
-          <button type="button" className="linkish" onClick={() => setDraft({ ...NO_ROUTE_FILTERS, category: draft.category })}>
+          <button type="button" className="linkish" onClick={() => onChange({ ...NO_ROUTE_FILTERS, category: filters.category })}>
             Clear all
           </button>
           <button
             type="button"
             className="filter-apply"
-            disabled={count === 0}
-            onClick={() => {
-              onChange(draft);
-              close();
-            }}
+            onClick={close}
           >
             {count === 0 ? 'No matches' : `Show ${count} route${count === 1 ? '' : 's'}`}
           </button>
@@ -460,10 +457,10 @@ interface FilterModalProps extends FilterBarProps {
 }
 
 /**
- * Dialog changes are drafted, and the footer count catches up after a short
- * pause so its number does not flicker while a height handle is being dragged.
- * Pressing Show commits the draft — Airbnb's pattern. The chips outside the
- * dialog remain immediate.
+ * Changes apply as you make them: after a short pause (so dragging a height
+ * handle does not re-filter the map on every step) the choice is committed and
+ * the footer count catches up. Closing the dialog any way (X, Escape, the scrim
+ * or the footer button) keeps what is chosen; the footer button only closes.
  */
 function FilterModal({
   types,
@@ -481,8 +478,18 @@ function FilterModal({
   const [entered, setEntered] = useState(false);
   const [closing, setClosing] = useState(false);
 
+  // The latest choice and the parent's setter, read by the timer and on close
+  // without restarting the timer whenever the parent re-renders.
+  const draftRef = useRef(draft);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    draftRef.current = draft;
+    onChangeRef.current = onChange;
+  });
+
   const requestClose = useCallback(() => {
     if (closing) return;
+    onChangeRef.current(draftRef.current);
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) onClose();
     else setClosing(true);
   }, [closing, onClose]);
@@ -492,6 +499,7 @@ function FilterModal({
     const timer = window.setTimeout(() => {
       setDraftCount(filterVenues(visibleVenues, draft).length);
       setCounting(false);
+      onChangeRef.current(draft);
     }, 450);
     return () => window.clearTimeout(timer);
   }, [draft, visibleVenues]);
@@ -633,12 +641,8 @@ function FilterModal({
           <button
             type="button"
             className="filter-apply"
-            disabled={counting}
             aria-busy={counting}
-            onClick={() => {
-              onChange(draft);
-              requestClose();
-            }}
+            onClick={requestClose}
           >
             {counting ? (
               <>

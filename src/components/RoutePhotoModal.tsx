@@ -74,7 +74,7 @@ export function RoutePhotoModal({ route, startIndex, onPreviewIndex, onClose, on
       )}
     >
       {done ? (
-        <p className="review-thanks">Added. You can see it on the route now; everyone else will once a volunteer has had a quick look.</p>
+        <p className="review-thanks">Added. It is on the route for everyone now.</p>
       ) : (
         <div className="photo-form">
           <div className="chip-row" role="radiogroup" aria-label="What is it">
@@ -97,7 +97,7 @@ export function RoutePhotoModal({ route, startIndex, onPreviewIndex, onClose, on
             <span>Credit as (optional)</span>
             <input value={author} maxLength={60} onChange={(event) => setAuthor(event.target.value)} placeholder="Your name or handle" />
           </label>
-          <p className="photo-note">A volunteer checks every photo before it appears. Location data is removed from the file.</p>
+          <p className="photo-note">Appears straight away under the <a href="#terms">house rules</a>; anything reported by several people is hidden. Location data is removed from the file.</p>
           {error && <p className="review-error">{error}</p>}
         </div>
       )}

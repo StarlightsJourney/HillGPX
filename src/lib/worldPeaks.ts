@@ -131,6 +131,37 @@ export async function worldPeakBySlug(slug: string): Promise<Venue | null> {
   return venues.find((venue) => venue.slug === slug) ?? null;
 }
 
+let notablePromise: Promise<Venue[]> | null = null;
+
+/**
+ * The world's best-known summits from the index (about 6,000), whatever is on
+ * screen, so search can find "Azumaya San" from Singapore. Ranges (`MTS`,
+ * `HLLS`) are areas rather than summits and are left out.
+ */
+export function notablePeaks(): Promise<Venue[]> {
+  notablePromise ??= Promise.all([loadPeakIndex(), loadPeakPhotos()]).then(([index, photos]) => {
+    if (!index) {
+      notablePromise = null;
+      return [];
+    }
+    return index.top
+      .filter((row) => row[7] !== 'MTS' && row[7] !== 'HLLS')
+      .map((row) => {
+        const venue = toVenue(row, index.tile, photos);
+        if (row[6]) notableCountries.set(venue.slug, countryName(row[6]));
+        return venue;
+      });
+  });
+  return notablePromise;
+}
+
+const notableCountries = new Map<string, string>();
+
+/** The country of a summit returned by notablePeaks(), for search results. */
+export function notablePeakCountry(slug: string): string | undefined {
+  return notableCountries.get(slug);
+}
+
 export interface CountrySummary {
   code: string;
   name: string;

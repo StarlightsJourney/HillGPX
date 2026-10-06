@@ -27,8 +27,9 @@ import { directionsUrl, venueConditions, type Conditions } from '../lib/conditio
 import { downloadRoute } from './VenueCard';
 import { RouteThumb } from './RouteThumb';
 import { Modal } from './Modal';
+import { FadeImage } from './FadeImage';
 import { OpenSourceBadge } from './OpenSourceNotice';
-import { openImportHere } from '../lib/contribute';
+import { openImportHere, requestReport } from '../lib/contribute';
 import {
   type CommunityPhoto,
   type Review,
@@ -72,6 +73,8 @@ interface GalleryPhoto {
   licence?: string;
   /** Identities used to drop the same file arriving from two sources (see `photoKey`). */
   keys: string[];
+  /** Set for photos people added here, which anyone can report. */
+  communityId?: string;
 }
 
 /**
@@ -142,7 +145,12 @@ function useVenueContent(venue: Venue) {
     };
   }, [venue]);
 
-  return { reviews, setReviews, communityPhotos, commons, wiki, generated };
+  // After someone adds photos they are live, so fetch the list again.
+  const reloadPhotos = useCallback(() => {
+    fetchPhotos(venue.slug).then(setCommunityPhotos).catch(() => undefined);
+  }, [venue.slug]);
+
+  return { reviews, setReviews, communityPhotos, reloadPhotos, commons, wiki, generated };
 }
 
 const NARROW_QUERY = '(max-width: 743px)';
@@ -215,7 +223,7 @@ function PhotoGrid({ photos, venueName, onAdd }: { photos: GalleryPhoto[]; venue
               aria-label={`Open photo ${i + 1} of ${count} of ${venueName}`}
               onClick={() => setViewer(i)}
             >
-              <img src={photo.src} alt="" loading={i === 0 ? 'eager' : 'lazy'} decoding="async" onError={swapToFallback(photo)} />
+              <FadeImage src={photo.src} alt="" loading={i === 0 ? 'eager' : 'lazy'} decoding="async" onError={swapToFallback(photo)} />
               {hidden > 0 && i === shown.length - 1 && <span className="venue-photo-more">+{hidden}</span>}
             </button>
           ))}
@@ -313,7 +321,7 @@ function Slides({ photos, index, onIndex, onOpen }: { photos: GalleryPhoto[]; in
     >
       {photos.map((photo, i) => (
         <button type="button" key={photo.key} className="carousel-slide" onClick={onOpen} aria-label={onOpen ? `Open photo ${i + 1} full screen` : undefined} tabIndex={onOpen ? 0 : -1}>
-          <img
+          <FadeImage
             src={photo.src}
             alt=""
             loading={Math.abs(i - index) <= 1 ? 'eager' : 'lazy'}
@@ -349,6 +357,19 @@ function Lightbox({ photos, index, onIndex, onClose }: { photos: GalleryPhoto[];
       <header className="lightbox-head">
         <button type="button" onClick={onClose} aria-label="Close photos"><CloseIcon size={14} />Close</button>
         <span>{index + 1} / {count}</span>
+        {photos[index].communityId && (
+          <button
+            type="button"
+            className="lightbox-report"
+            onClick={() => {
+              const id = photos[index].communityId;
+              onClose();
+              if (id) requestReport({ targetType: 'photo', targetSlug: id, targetName: 'this photo' });
+            }}
+          >
+            <FlagIcon />Report
+          </button>
+        )}
       </header>
       <div className="lightbox-stage">
         <Slides photos={photos} index={index} onIndex={onIndex} />
@@ -388,6 +409,9 @@ function ReviewCard({ review }: { review: Review }) {
       <p className="review-meta"><Stars value={review.rating} /> · {formatDate(review.createdAt)}</p>
       {review.comment && <p className={`review-text${long && !expanded ? ' clamped' : ''}`}>{review.comment}</p>}
       {long && <button type="button" className="review-more" onClick={() => setExpanded((v) => !v)}>{expanded ? 'Show less' : 'Show more'}</button>}
+      <button type="button" className="review-report" onClick={() => requestReport({ targetType: 'review', targetSlug: review.id, targetName: `${review.author}'s review` })}>
+        Report
+      </button>
     </article>
   );
 }
@@ -533,7 +557,7 @@ interface PendingPhoto {
  * before sending. Each tile shows its own progress, and a failed one stays
  * behind to retry while the rest are already through.
  */
-function AddPhotosModal({ venue, onClose }: { venue: Venue; onClose: () => void }) {
+function AddPhotosModal({ venue, onClose, onUploaded }: { venue: Venue; onClose: () => void; onUploaded: () => void }) {
   const [items, setItems] = useState<PendingPhoto[]>([]);
   const [credit, setCredit] = useState(loadAuthor);
   const [busy, setBusy] = useState(false);
@@ -585,6 +609,7 @@ function AddPhotosModal({ venue, onClose }: { venue: Venue; onClose: () => void 
     }
     if (failed) setError((message) => `${failed} photo${failed === 1 ? '' : 's'} did not upload${message ? `: ${message}` : ''}. Try again.`);
     setBusy(false);
+    onUploaded();
   };
 
   const sent = items.filter((item) => item.status === 'done').length;
@@ -639,7 +664,7 @@ function AddPhotosModal({ venue, onClose }: { venue: Venue; onClose: () => void 
         <div className="photo-done">
           <span className="photo-done-icon"><CheckIcon size={22} /></span>
           <h3>Thank you</h3>
-          <p>{sent} photo{sent === 1 ? '' : 's'} of {venue.name} will appear once a volunteer has had a quick look, usually within a day.</p>
+          <p>{sent} photo{sent === 1 ? ' is' : 's are'} now on {venue.name}'s page.</p>
         </div>
       ) : (
         <div className="photo-form">
@@ -675,7 +700,7 @@ function AddPhotosModal({ venue, onClose }: { venue: Venue; onClose: () => void 
             <span>Credit as</span>
             <input value={credit} maxLength={60} onChange={(event) => setCredit(event.target.value)} placeholder="Your name or handle" />
           </label>
-          <p className="photo-note">A volunteer checks every photo before it appears. Shared under CC BY-SA 4.0 with your credit; location data is removed.</p>
+          <p className="photo-note">Photos appear straight away under the <a href="#terms">house rules</a>; anything reported by several people is hidden. Shared under CC BY-SA 4.0 with your credit; location data is removed.</p>
           {error && <p className="review-error">{error}</p>}
         </div>
       )}
@@ -744,7 +769,7 @@ function NearbyThumb({ venue }: { venue: Venue }) {
   if (cover?.slug === venue.slug) {
     return (
       <span className="card-thumb">
-        <img src={cover.url} alt={venue.name} loading="lazy" decoding="async" onError={() => setCover(null)} />
+        <FadeImage src={cover.url} alt={venue.name} loading="lazy" decoding="async" onError={() => setCover(null)} />
       </span>
     );
   }
@@ -786,7 +811,7 @@ function VenueDetailInner({
   // it leaves one scrollbar (this page's own), so the header lines up with
   // every other page and does not shift when a dialog opens.
   useEffect(() => lockPageScroll(), []);
-  const { reviews, setReviews, communityPhotos, commons, wiki, generated } = useVenueContent(venue);
+  const { reviews, setReviews, communityPhotos, reloadPhotos, commons, wiki, generated } = useVenueContent(venue);
   const narrow = useNarrow();
   const height = venueHeight(venue);
   const typeLabel = venueKindLabel(venue);
@@ -812,7 +837,7 @@ function VenueDetailInner({
     };
     return [
       ...venuePhotos(venue).map(storedGalleryPhoto),
-      ...communityPhotos.map((photo): GalleryPhoto => ({ key: photo.id, src: photo.url, credit: photo.credit, licence: photo.licence, keys: [photoKey(photo.url)] })),
+      ...communityPhotos.map((photo): GalleryPhoto => ({ key: photo.id, src: photo.url, credit: photo.credit, licence: photo.licence, keys: [photoKey(photo.url)], communityId: photo.id })),
       ...commons,
     ].filter(unique);
   }, [venue, communityPhotos, commons]);
@@ -1055,7 +1080,7 @@ function VenueDetailInner({
       {/* Outside the page layer: it slides in with a transform, which would
           carry a fixed badge along with it for the length of the animation. */}
       {createPortal(<OpenSourceBadge placement="corner" />, document.body)}
-      {addingPhotos && <AddPhotosModal venue={venue} onClose={() => setAddingPhotos(false)} />}
+      {addingPhotos && <AddPhotosModal venue={venue} onClose={() => setAddingPhotos(false)} onUploaded={reloadPhotos} />}
       {reporting && <ReportModal targetType="venue" targetSlug={venue.slug} targetName={venue.name} onClose={() => setReporting(false)} />}
     </div>,
     document.body,

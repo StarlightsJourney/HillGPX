@@ -13,11 +13,12 @@ import {
   type Bounds,
 } from '../lib/venues';
 import { DESTINATIONS, geocodePlace } from '../lib/regions';
-import { countrySummaries } from '../lib/worldPeaks';
+import { countrySummaries, notablePeakCountry, notablePeaks } from '../lib/worldPeaks';
 import { normaliseQuery } from '../lib/streetTerms';
 import { useUnits } from './UnitsContext';
 import { SearchIcon } from './icons';
 import { SearchHint } from './SearchHint';
+import { track } from '../lib/analytics';
 
 interface SearchBarProps {
   /** Every loaded venue, whatever the filters and wherever the map is. */
@@ -78,6 +79,26 @@ function usePlaces(): Place[] {
   }, [destinations, countries]);
 }
 
+/** Lower case with accents removed, so "azumaya" finds "Azumaya San" and "zao" finds "Zaō". */
+function fold(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+/** The world's best-known summits, loaded once for search. */
+function useNotablePeaks(): Venue[] {
+  const [peaks, setPeaks] = useState<Venue[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void notablePeaks().then((list) => {
+      if (!cancelled) setPeaks(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return peaks;
+}
+
 /** Exact name first, then names starting with the query, then anywhere in the name. */
 function matchPlaces(places: Place[], q: string): { exact: Place | null; prefix: Place[]; inner: Place[] } {
   if (q.length < 2) return { exact: null, prefix: [], inner: [] };
@@ -111,14 +132,20 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const units = useUnits();
   const places = usePlaces();
+  const notable = useNotablePeaks();
+  // What is loaded (on screen) plus the world's best-known summits, so a
+  // summit on another continent is found too.
+  const pool = useMemo(() => {
+    if (notable.length === 0) return venues;
+    const loaded = new Set(venues.map((v) => v.slug));
+    return [...venues, ...notable.filter((v) => !loaded.has(v.slug))];
+  }, [venues, notable]);
+  const loadedSlugs = useMemo(() => new Set(venues.map((v) => v.slug)), [venues]);
 
-  // Lowercase names once, not once per keystroke.
-  const haystack = useMemo(
-    () => venues.map((v) => `${v.name} ${v.town ?? ''}`.toLowerCase()),
-    [venues],
-  );
+  // Lowercase, accent-free names once, not once per keystroke.
+  const haystack = useMemo(() => pool.map((v) => fold(`${v.name} ${v.town ?? ''}`)), [pool]);
   const areas = useMemo(() => buildAreas(venues), [venues]);
-  const normalised = useMemo(() => normaliseQuery(query), [query]);
+  const normalised = useMemo(() => fold(normaliseQuery(query)), [query]);
   // Place names are matched on the plain query: street expansions would turn
   // "st" into "street" and miss "St Lucia".
   const plain = query.toLowerCase().trim().replace(/\s+/g, ' ');
@@ -133,10 +160,10 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
     if (normalised.length < 2) return [];
     const found: Venue[] = [];
     for (let i = 0; i < haystack.length; i++) {
-      if (haystack[i].includes(normalised)) found.push(venues[i]);
+      if (haystack[i].includes(normalised)) found.push(pool[i]);
     }
     return found.sort((a, b) => rankingHeight(b) - rankingHeight(a));
-  }, [normalised, haystack, venues]);
+  }, [normalised, haystack, pool]);
 
   const results = useMemo(() => matches.slice(0, MAX_RESULTS), [matches]);
   const areaHits = useMemo(() => matchAreas(areas, normalised, MAX_AREAS), [areas, normalised]);
@@ -164,7 +191,11 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
   };
 
   const pick = (slug: string) => {
-    onPick(slug);
+    const venue = pool.find((v) => v.slug === slug);
+    // A summit from the world list is not loaded yet: frame it, and the map
+    // loads its area and shows its pin.
+    if (venue && !loadedSlugs.has(slug)) onFitBounds({ west: venue.lng - 0.06, south: venue.lat - 0.06, east: venue.lng + 0.06, north: venue.lat + 0.06 });
+    else onPick(slug);
     reset();
   };
 
@@ -218,6 +249,7 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
       inputRef.current?.focus();
       return;
     }
+    track('search', query.trim());
     if (placeHits.exact) return pickPlace(placeHits.exact);
     if (areaHits.length > 0) return pickArea(areaHits[0]);
     if (placeHits.prefix.length > 0) return pickPlace(placeHits.prefix[0]);
@@ -303,6 +335,7 @@ export function SearchBar({ venues, onPick, onFitBounds }: SearchBarProps) {
                 <span className="result-meta small muted">
                   {venueKindLabel(venue)}
                   {height && ` · ${units.height(height.value)} ${HEIGHT_LABEL[height.kind]}`}
+                  {notablePeakCountry(venue.slug) && ` · ${notablePeakCountry(venue.slug)}`}
                 </span>
               </button>
             );

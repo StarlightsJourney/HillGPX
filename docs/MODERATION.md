@@ -1,18 +1,31 @@
 # Moderating hillGPX
 
 Everything people add goes straight from their browser to the project's
-Supabase database. There is no admin page on the site: moderation happens in
-the Supabase dashboard, where you are signed in as the project owner.
+Supabase database and **appears straight away**. Nobody has to approve it
+first. Instead:
+
+- **Automatic checks** run on every contribution: per-person rate limits, one
+  review per place per day, no web links, file type and size limits, and
+  daily ceilings (`supabase/migrations/20261006000000_spam_limits.sql`).
+- **The house rules** are on the site's Contributions page (`#terms`).
+- **The community flags problems.** Every photo, route photo and review has a
+  Report link. Once three different people have reported the same one, it is
+  hidden at once (`status` goes back to `pending`) and waits for you
+  (`supabase/migrations/20261007000000_auto_publish.sql`).
+
+So the only regular job is the reports queue. There is no admin page on the
+site: moderation happens in the Supabase dashboard, where you are signed in
+as the project owner.
 
 ## Where people add things
 
 | What | Where on the site | Goes live |
 | --- | --- | --- |
 | GPX route | **+ Add a GPX** in the header (or "Upload a GPX" on a place page) | Straight away |
-| Photos of a place | Place page → **Add photos** on the photo grid | After you approve |
+| Photos of a place | Place page → **Add photos** on the photo grid | Straight away |
 | Review and rating | Place page → **Reviews** (or the stars under the height) | Straight away |
-| Photo or hazard on a route | Open a route → **More details** → **Photo or hazard** | After you approve |
-| Report a problem | Place page or route (i) → **Report an issue** | Only you see it |
+| Photo or hazard on a route | Open a route → **More details** → **Photo or hazard** | Straight away |
+| Report a problem | Place page or route (i) → **Report an issue**; a photo (full-screen viewer) or review → **Report** | Only you see it |
 
 ## The dashboard
 
@@ -23,14 +36,19 @@ the Supabase dashboard, where you are signed in as the project owner.
 3. Every row has a `status`: `pending`, `approved` or `rejected`. The site only
    ever shows `approved` rows.
 
-### Approving photos
+### Things hidden by reports
 
-1. Table Editor → `photos` (or `route_photos`) → filter `status` equals
-   `pending`.
-2. To see the picture, open **Storage** → `photos` bucket → the path in the
-   row's `storage_path` column.
-3. Back in the table, set `status` to `approved` (it appears on the site
-   within a minute) or `rejected`.
+1. Table Editor → `photos`, `route_photos` or `reviews` → filter `status`
+   equals `pending`. These are the ones three people reported.
+2. For a photo, open **Storage** → `photos` bucket → the path in the row's
+   `storage_path` column to see it.
+3. Set `status` to `approved` to put it back, or `rejected` to keep it hidden.
+   The reports behind it are in `reports` (`target_slug` is the photo's or
+   review's `id`): set them to `approved` once dealt with, so they do not count
+   towards hiding it again.
+
+To make hiding stricter or looser, change how many reports it takes:
+`update private.limits set per_day = 2 where kind = 'hide_after_reports';`
 
 ### Removing a review, route or photo
 
@@ -64,8 +82,9 @@ connection per day, caps each table's total per day, refuses web links in
 reviews, captions and reports, and caps new files per storage bucket per hour.
 Visitors see a plain message when they hit a limit.
 
-- **Apply it once:** dashboard → **SQL Editor** → **New query** → paste the
-  whole file → **Run**.
+- **Apply both migrations once, in order:** dashboard → **SQL Editor** →
+  **New query** → paste `20261006000000_spam_limits.sql` → **Run**, then the
+  same with `20261007000000_auto_publish.sql`.
 - **Change the numbers:** SQL Editor →
   `update private.limits set per_hour = 5 where kind = 'reviews';`
 - **Stop all new contributions of one kind in an emergency:**

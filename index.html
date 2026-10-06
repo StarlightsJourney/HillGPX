@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>hillGPX: hills, mountains and free GPX routes worldwide</title>
+    <title>hillGPX: hills and free GPX routes</title>
     <meta
       name="description"
-      content="A free, open map of 900,000+ hills and mountains in 232 countries, Singapore's stairwells and tall blocks, and a community archive of GPX routes up them. Download any route, share your own."
+      content="Hills, mountains and free GPX routes, worldwide. Find somewhere to climb, download the route."
     />
     <!-- Canonical address and link previews. %VITE_SITE_URL% is the public
          address (vite.config.ts; the deploy sets it from public/CNAME). -->
@@ -14,8 +14,8 @@
     <meta property="og:site_name" content="hillGPX" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="%VITE_SITE_URL%/" />
-    <meta property="og:title" content="hillGPX: hills, mountains and free GPX routes" />
-    <meta property="og:description" content="Find a hill to train on anywhere in the world, see honest elevation, and download free GPX routes shared by runners." />
+    <meta property="og:title" content="hillGPX" />
+    <meta property="og:description" content="Every hill worth climbing, with free GPX routes." />
     <meta property="og:image" content="%VITE_SITE_URL%/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -49,7 +49,27 @@
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700&text=hillGPX&display=block" rel="stylesheet" />
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Plain text for crawlers that do not run JavaScript (most AI bots).
+         React replaces it as soon as the app starts. -->
+    <div id="root">
+      <main style="max-width: 720px; margin: 40px auto; padding: 0 20px; font-family: system-ui, sans-serif; line-height: 1.6">
+        <h1>hillGPX: hills and free GPX routes</h1>
+        <p>hillGPX is a free, open-source map of more than 900,000 hills and mountains in 232 countries, plus Singapore's stairwells and tall blocks. Runners and hikers share GPX routes up them, and every route is free to download with its real elevation gain and loss.</p>
+        <h2>What you can do</h2>
+        <ul>
+          <li>Search any country, hill or town and see the climbs nearby on a map.</li>
+          <li>Open a route for its trace and elevation profile, and download the GPX.</li>
+          <li>Add your own GPX, photos and reviews. No account needed.</li>
+        </ul>
+        <h2>Start here</h2>
+        <ul>
+          <li><a href="%VITE_SITE_URL%/#map">Map of hills and climbs</a></li>
+          <li><a href="%VITE_SITE_URL%/#routes">GPX routes</a></li>
+          <li><a href="%VITE_SITE_URL%/place/bukit-timah-hill/">Bukit Timah Hill</a>, <a href="%VITE_SITE_URL%/country/my/">peaks in Malaysia</a>, <a href="%VITE_SITE_URL%/country/jp/">Japan</a>, <a href="%VITE_SITE_URL%/country/us/">United States</a></li>
+          <li><a href="%VITE_SITE_URL%/llms.txt">Summary for AI assistants</a> · <a href="https://github.com/StarlightsJourney/HillGPX">Source code</a></li>
+        </ul>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

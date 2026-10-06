@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Route, Venue } from '../types';
 import { HEIGHT_LABEL, boundsOf, loadDataset, photoSrc, rankingHeight, townName, venueHeight, venueKindLabel, type Bounds, type Dataset } from '../lib/venues';
 import { DESTINATIONS, boundsToHash, geocodePlace, normalisePlace, regionBounds, regionOf } from '../lib/regions';
-import { countrySummaries, type CountrySummary } from '../lib/worldPeaks';
+import { countrySummaries, notablePeakCountry, notablePeaks, type CountrySummary } from '../lib/worldPeaks';
 import { SiteFooter, SiteHeader } from './SiteChrome';
 import { routeDifficulty, routeHasElevation } from '../lib/routes';
 import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from './icons';
@@ -13,6 +13,7 @@ import { routeActivity } from '../lib/routeAnalysis';
 import { VenueThumb } from './VenueThumb';
 import { useUnits } from './UnitsContext';
 import { SearchHint } from './SearchHint';
+import { track } from '../lib/analytics';
 
 interface LandingProps {
   onOpen: () => void;
@@ -284,6 +285,16 @@ export function HomeSearch({ onOpen }: { onOpen: () => void }) {
   const lookupId = useRef(0);
   const rootRef = useRef<HTMLFormElement>(null);
   const countries = useCountries();
+  const [peaks, setPeaks] = useState<Venue[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void notablePeaks().then((list) => {
+      if (!cancelled) setPeaks(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const options = useMemo<PlaceOption[]>(() => {
     const destinations = DESTINATIONS.map((d, i) => ({
@@ -308,8 +319,18 @@ export function HomeSearch({ onOpen }: { onOpen: () => void }) {
         extra: '',
         weight: c.count,
       }));
-    return [...destinations, ...fromIndex];
-  }, [countries]);
+    // The world's best-known summits too, ranked below any place.
+    const summits = peaks.map((peak) => ({
+      key: `p:${peak.slug}`,
+      name: peak.name,
+      hint: ['Summit', peak.summitM ? `${peak.summitM.toLocaleString()} m` : null, notablePeakCountry(peak.slug)].filter(Boolean).join(' · '),
+      bounds: { west: peak.lng - 0.06, south: peak.lat - 0.06, east: peak.lng + 0.06, north: peak.lat + 0.06 },
+      aliases: [],
+      extra: '',
+      weight: -1e6 + (peak.summitM ?? 0),
+    }));
+    return [...destinations, ...fromIndex, ...summits];
+  }, [countries, peaks]);
 
   const q = normalisePlace(query);
   const matches = useMemo(() => {
@@ -337,6 +358,7 @@ export function HomeSearch({ onOpen }: { onOpen: () => void }) {
    */
   const submit = () => {
     const text = query.trim();
+    if (text) track('search', text);
     if (!text) {
       rememberMode(mode);
       onOpen();
@@ -367,7 +389,9 @@ export function HomeSearch({ onOpen }: { onOpen: () => void }) {
       ? `No place called “${lookup.query}” found. Try a country, a city or a mountain range.`
       : lookup.state === 'failed'
         ? 'Place search is not answering right now. Try a country name, or open the map.'
-        : null;
+        : q && matches.length === 0
+          ? `Press Search to look up “${query.trim()}” on the map.`
+          : null;
 
   return (
     <form

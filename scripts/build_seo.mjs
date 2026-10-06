@@ -16,7 +16,7 @@
  *
  * Usage: node scripts/build_seo.mjs   (run by `npm run build`)
  */
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -26,11 +26,16 @@ const DATA = join(ROOT, 'public', 'data');
 const SITE = (process.env.SITE_URL || process.env.VITE_SITE_URL || 'https://starlightsjourney.github.io/HillGPX').replace(/\/+$/, '');
 const TODAY = new Date().toISOString().slice(0, 10);
 const TILE = 5;
+// Cloudflare Pages' free plan takes at most 20,000 files per deployment.
+// Place pages fill whatever room the app leaves, most useful first.
+const MAX_FILES = Number(process.env.MAX_SITE_FILES || 19500);
 
 if (!existsSync(DIST)) {
   console.error('dist/ is missing: run vite build first.');
   process.exit(1);
 }
+// Start from the app alone, so a second run does not count its own pages.
+for (const dir of ['place', 'country', 'route']) rmSync(join(DIST, dir), { recursive: true, force: true });
 
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
 const venues = readJson(join(DATA, 'venues.json')).venues;
@@ -167,6 +172,7 @@ ${routesHere.length ? `<h2>GPX routes here</h2><ul class="list">${routesHere.map
 }
 
 const placeUrlBySlug = new Map();
+const placeSpecs = [];
 // Coarse country boxes for the local hills (the same ones src/lib/regions.ts
 // uses to label cards), checked in order.
 const REGIONS = [
@@ -184,7 +190,7 @@ for (const route of routes) for (const slug of route.venueSlugs ?? []) routesByV
 for (const venue of venues) {
   if (venue.type !== 'hill' || /^[\d\s.,m]+$/i.test(venue.name)) continue;
   const text = descriptions[venue.slug]?.text || (venue.notes && !venue.notes.startsWith('Summit elevation from') ? venue.notes : '');
-  placePage({
+  placeSpecs.push({
     slug: venue.slug,
     name: venue.name,
     lat: venue.lat,
@@ -208,9 +214,19 @@ for (const [id, name, lat, lng, ele, , code, feature] of index.top) {
   const stored = peakPhotos[slug];
   const photo = stored ? { file: stored[0], credit: stored[2], licence: stored[3], source: 'Wikimedia Commons' } : null;
   const country = code ? countryName(code) : null;
-  placePage({ slug, name, lat, lng, heightM: ele, kind: 'hill', country, countryCode: code || null, text: descriptions[slug]?.text || '', photo, routesHere: [] });
+  placeSpecs.push({ slug, name, lat, lng, heightM: ele, kind: 'hill', country, countryCode: code || null, text: descriptions[slug]?.text || '', photo, routesHere: [] });
   if (code) peaksByCountry.set(code, [...(peaksByCountry.get(code) ?? []), { slug, name, ele }]);
 }
+
+// Write the place pages that fit: places with routes, a photo or a written
+// description first, then the tallest.
+const countFiles = (dir) => readdirSync(dir, { withFileTypes: true }).reduce((n, entry) => n + (entry.isDirectory() ? countFiles(join(dir, entry.name)) : 1), 0);
+const reserved = countFiles(DIST) + Object.keys(index.byCountry).length + routes.length + 4;
+const room = Math.max(0, MAX_FILES - reserved);
+const score = (spec) => (spec.routesHere.length ? 4 : 0) + (spec.photo ? 2 : 0) + (spec.text ? 1 : 0);
+placeSpecs.sort((a, b) => score(b) - score(a) || (b.heightM ?? 0) - (a.heightM ?? 0));
+for (const spec of placeSpecs.slice(0, room)) placePage(spec);
+if (placeSpecs.length > room) console.warn(`SEO: ${(placeSpecs.length - room).toLocaleString('en')} place pages left out to stay under ${MAX_FILES.toLocaleString('en')} files.`);
 
 // One page per country: its tallest summits.
 for (const [code, [count]] of Object.entries(index.byCountry)) {
@@ -230,7 +246,7 @@ for (const [code, [count]] of Object.entries(index.byCountry)) {
         {
           '@type': 'ItemList',
           name: `Highest peaks in ${name}`,
-          itemListElement: peaks.map((peak, i) => ({ '@type': 'ListItem', position: i + 1, name: peak.name, url: `${SITE}/place/${peak.slug}/` })),
+          itemListElement: peaks.map((peak, i) => ({ '@type': 'ListItem', position: i + 1, name: peak.name, url: placeUrlBySlug.get(peak.slug) ?? appLink(`#venue/${peak.slug}`) })),
         },
         breadcrumbLd([[name, null]]),
       ],
@@ -239,7 +255,7 @@ for (const [code, [count]] of Object.entries(index.byCountry)) {
 <h1>Highest peaks in ${escape(name)}</h1>
 <p class="sub">${count.toLocaleString('en')} summits mapped</p>
 <p>${escape(description)}</p>
-<ul class="list">${peaks.map((peak) => `<li><a href="${SITE}/place/${peak.slug}/">${escape(peak.name)}</a> · ${metres(peak.ele)}</li>`).join('')}</ul>
+<ul class="list">${peaks.map((peak) => `<li><a href="${placeUrlBySlug.get(peak.slug) ?? appLink(`#venue/${peak.slug}`)}">${escape(peak.name)}</a> · ${metres(peak.ele)}</li>`).join('')}</ul>
 <p><a class="cta" href="${appLink(`#map/${[west, south, east, north].map((n) => n.toFixed(4)).join(',')}`)}">See ${escape(name)} on the map</a></p>`,
   });
 }
@@ -281,7 +297,13 @@ writeFileSync(
   join(DIST, 'sitemap.xml'),
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((url) => `<url><loc>${url}</loc><lastmod>${TODAY}</lastmod></url>`).join('\n')}\n</urlset>\n`,
 );
-writeFileSync(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`);
+// Everyone may read everything; the AI search crawlers are named so it is
+// unmistakable that they are welcome.
+const AI_CRAWLERS = ['GPTBot', 'OAI-SearchBot', 'ChatGPT-User', 'ClaudeBot', 'Claude-SearchBot', 'PerplexityBot', 'Google-Extended', 'Applebot-Extended', 'Bingbot'];
+writeFileSync(
+  join(DIST, 'robots.txt'),
+  `User-agent: *\nAllow: /\n\n${AI_CRAWLERS.map((bot) => `User-agent: ${bot}\nAllow: /`).join('\n\n')}\n\nSitemap: ${SITE}/sitemap.xml\n`,
+);
 const topCountries = Object.entries(index.byCountry).sort((a, b) => b[1][0] - a[1][0]).slice(0, 12);
 writeFileSync(
   join(DIST, 'llms.txt'),
@@ -301,6 +323,14 @@ ${topCountries.map(([code, [count]]) => `- [${countryName(code)}](${SITE}/countr
 ## GPX routes
 ${routes.map((route) => `- [${route.name}](${SITE}/route/${route.slug}/): ${km(route.distanceM)}, ${metres(route.gainM)} EG`).join('\n')}
 `,
+);
+
+// A real "not found" page: without one, Cloudflare Pages answers every
+// unknown address with the app and a 200, which search engines count as
+// duplicate pages.
+writeFileSync(
+  join(DIST, '404.html'),
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Not found · hillGPX</title><meta name="robots" content="noindex"><style>${STYLE}</style></head><body><header><a class="brand" href="${SITE}/">${MARK}hillGPX</a></header><main><h1>That page is not here</h1><p class="sub">It may have moved, or the address has a typo.</p><p><a class="cta" href="${SITE}/">Go to hillGPX</a></p></main></body></html>\n`,
 );
 
 console.log(`SEO: ${pages.length.toLocaleString('en')} pages, sitemap with ${urls.length.toLocaleString('en')} URLs, robots.txt, llms.txt for ${SITE}`);

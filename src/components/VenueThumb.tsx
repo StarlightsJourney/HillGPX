@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { TypeGlyph } from './TypeGlyph';
+import { FadeImage } from './FadeImage';
 import type { Venue, VenuePhoto } from '../types';
 import { photoSrc, venuePhotos } from '../lib/venues';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
@@ -34,7 +35,7 @@ export function VenueThumb({ venue, rounded = true, index = 0 }: { venue: Venue;
   if (photo && failed !== photo.file) {
     return (
       <span className={`card-thumb${rounded ? '' : ' square'}`}>
-        <img
+        <FadeImage
           key={photo.file}
           src={photoSrc(photo)}
           alt={index > 0 ? `${venue.name}, photo ${index + 1} of ${photos.length}` : venue.name}

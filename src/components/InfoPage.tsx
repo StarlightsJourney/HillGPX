@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { CONTACT_EMAIL, CONTACT_URL, REPO_URL } from '../lib/contribute';
+import { ANALYTICS } from '../lib/analytics';
 import { HomeSearch } from './Landing';
 import { SiteFooter, SiteHeader } from './SiteChrome';
 
@@ -15,7 +16,22 @@ function Privacy() {
   return (
     <>
       <h1>Privacy</h1>
-      <p className="info-lead">hillGPX has no accounts, no adverts and no analytics or tracking cookies.</p>
+      <p className="info-lead">
+        hillGPX has no accounts, no adverts and no tracking cookies.{!ANALYTICS.cloudflare && !ANALYTICS.clarity && ' It does not run analytics.'}
+      </p>
+      {(ANALYTICS.cloudflare || ANALYTICS.clarity) && (
+        <>
+          <h2>How we learn what works</h2>
+          <ul>
+            {ANALYTICS.cloudflare && (
+              <li><strong>Visit counts:</strong> Cloudflare Web Analytics counts page views, countries, referring sites and load speed. It sets no cookies and keeps no personal data.</li>
+            )}
+            {ANALYTICS.clarity && (
+              <li><strong>How the site is used:</strong> Microsoft Clarity records clicks, scrolling and anonymised session replays so we can see where people get stuck. Anything you type is masked and it runs without cookies.</li>
+            )}
+          </ul>
+        </>
+      )}
       <h2>What stays in your browser</h2>
       <p>Saved places, routes you keep on this device, your unit choice and the name you last contributed under are stored in your browser only. Clearing your browser data removes them.</p>
       <h2>What is stored when you contribute</h2>
@@ -48,7 +64,7 @@ function Terms() {
       <h2>House rules</h2>
       <ul>
         <li>Be accurate and kind. No adverts, spam or personal details about other people.</li>
-        <li>Photos are checked by a volunteer before they appear. Routes and reviews go live straight away and are removed if they break these rules.</li>
+        <li>Everything appears straight away. Anyone can report a photo or review; once three different people have reported it, it is hidden until a moderator looks.</li>
         <li>Routes and conditions come from the community. Check access, weather and your own limits before you go.</li>
       </ul>
       <h2>The code and the data we build on</h2>

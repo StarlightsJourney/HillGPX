@@ -72,7 +72,7 @@ The site lives on **Cloudflare Pages at https://hillgpx.com** (project `hillgpx`
    - Production branch: `main`. Build command: `npm run build`. Output directory: `dist`.
    - Environment variables: `VITE_BASE` = `/`, `SITE_URL` and `VITE_SITE_URL` = `https://hillgpx.com`, `NODE_VERSION` = `20`. Optional: `VITE_CF_ANALYTICS_TOKEN`, `VITE_CLARITY_ID` (see Analytics below).
 3. **Custom domain:** the project → **Custom domains** → add `hillgpx.com` and `www.hillgpx.com` (Cloudflare creates the records and the HTTPS certificate).
-4. **Protection:** the domain → **Security** → turn on **Bot Fight Mode**; keep the default DDoS protection. Pages has no request limits to worry about.
+4. **Protection:** keep the default DDoS protection and add the firewall rules described under "Blocking scanners". Leave **Bot Fight Mode** off: on the free plan it also challenges Google's fetchers and link-preview services. Pages has no request limits to worry about.
 5. **One canonical address:** in the GitHub repository → **Settings** → **Secrets and variables** → **Actions** → **Variables**, add `SITE_URL` = `https://hillgpx.com`, so the GitHub Pages copy also points search engines at hillgpx.com. You can then turn GitHub Pages off (Settings → Pages) or keep it as a backup.
 6. Update the live-site link at the top of this README.
 

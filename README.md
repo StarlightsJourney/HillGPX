@@ -103,7 +103,7 @@ Both load after the page has painted, so they do not slow it down.
 
 ### Contributions, moderation and spam
 
-Contributions publish straight away. Two database migrations, applied once in the Supabase SQL editor, keep that safe: `20261006000000_spam_limits.sql` (per-connection hourly and daily caps, one review per place per day, daily ceilings, no links, hourly file ceilings; only a salted one-way hash of the network address is kept, for a day) and `20261007000000_auto_publish.sql` (photos publish at once, and anything three different people report is hidden until a moderator looks). How to work the reports queue is in [docs/MODERATION.md](docs/MODERATION.md).
+Contributions publish straight away. Two database migrations (applied to the live project) keep that safe: `20261006000000_spam_limits.sql` (per-connection hourly and daily caps, one review per place per day, daily ceilings, no links, hourly file ceilings; only a salted one-way hash of the network address is kept, for a day) and `20261007000000_auto_publish.sql` (photos publish at once, and anything three different people report is hidden until a moderator looks). How to work the reports queue is in [docs/MODERATION.md](docs/MODERATION.md).
 
 ### Running costs
 

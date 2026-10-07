@@ -82,7 +82,7 @@ connection per day, caps each table's total per day, refuses web links in
 reviews, captions and reports, and caps new files per storage bucket per hour.
 Visitors see a plain message when they hit a limit.
 
-- **Apply both migrations once, in order:** dashboard → **SQL Editor** →
+- **Both are already applied to the live project.** For a new project, apply them once, in order: dashboard → **SQL Editor** →
   **New query** → paste `20261006000000_spam_limits.sql` → **Run**, then the
   same with `20261007000000_auto_publish.sql`.
 - **Change the numbers:** SQL Editor →

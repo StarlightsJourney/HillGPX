@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist');
 const DATA = join(ROOT, 'public', 'data');
-const SITE = (process.env.SITE_URL || process.env.VITE_SITE_URL || 'https://starlightsjourney.github.io/HillGPX').replace(/\/+$/, '');
+const SITE = (process.env.SITE_URL || process.env.VITE_SITE_URL || 'https://hillgpx.com').replace(/\/+$/, '');
 const TODAY = new Date().toISOString().slice(0, 10);
 const TILE = 5;
 // Cloudflare Pages' free plan takes at most 20,000 files per deployment.

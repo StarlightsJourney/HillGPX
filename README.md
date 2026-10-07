@@ -2,7 +2,7 @@
 
 A free, open-source, community-built map of every hill, mountain, staircase and tall block worth climbing, and an open archive of the GPX routes up them, with honest elevation for every file.
 
-**Live site:** https://starlightsjourney.github.io/HillGPX/ · **MIT licence** · [Help build it](CONTRIBUTING.md) · [Moderation guide](docs/MODERATION.md)
+**Live site:** https://hillgpx.com · **MIT licence** · [Help build it](CONTRIBUTING.md) · [Moderation guide](docs/MODERATION.md)
 
 Good vertical training spots are local knowledge: the stairwell to the 40th floor, the ridge loop that gives 500 m before work, the hill the club repeats on Thursdays. HillGPX puts that knowledge on one open map. Every route, photo, rating and correction on it was added by someone who trains there.
 
@@ -61,9 +61,9 @@ The browser uses Supabase's *publishable* key, which is public by design: row-le
 
 The site is static files (HTML, JavaScript, data) that any host can serve. Everything people add (GPX, photos, reviews, ratings, reports) goes from their browser straight to the Supabase database and storage, so the site behaves like a dynamic one. The only key in the code is Supabase's *publishable* key, which is meant to be public: row-level security lets it add new rows and read published ones, nothing else, and the spam limits sit in the database where no visitor can switch them off.
 
-Pushes to `main` deploy to GitHub Pages today (`.github/workflows/deploy.yml`, https://starlightsjourney.github.io/HillGPX/). The recommended home is **Cloudflare Pages on hillgpx.com**: free with unlimited bandwidth and requests, automatic deploys from GitHub (and a preview address for every branch and pull request), DDoS and bot protection, and free cookieless analytics. The repository stays public and open source either way.
+The site lives on **Cloudflare Pages at https://hillgpx.com** (project `hillgpx`): every merge to `main` builds and deploys automatically, every branch and pull request gets its own preview address on `hillgpx.pages.dev`, and it is free with unlimited bandwidth, DDoS and bot protection, and cookieless analytics. `www.hillgpx.com` redirects to `hillgpx.com`. GitHub Pages (`.github/workflows/deploy.yml`, https://starlightsjourney.github.io/HillGPX/) still deploys as a backup copy whose canonical links point at hillgpx.com. The repository stays public and open source.
 
-### Moving to Cloudflare Pages with hillgpx.com
+### How it was set up (for a fork or a rebuild)
 
 `hillgpx.com`, `.org`, `.app`, `.run`, `.io` and `.sg` were all unregistered on 6 October 2026.
 

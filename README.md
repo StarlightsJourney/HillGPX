@@ -105,6 +105,10 @@ Both load after the page has painted, so they do not slow it down.
 
 Contributions publish straight away. Two database migrations (applied to the live project) keep that safe: `20261006000000_spam_limits.sql` (per-connection hourly and daily caps, one review per place per day, daily ceilings, no links, hourly file ceilings; only a salted one-way hash of the network address is kept, for a day) and `20261007000000_auto_publish.sql` (photos publish at once, and anything three different people report is hidden until a moderator looks). How to work the reports queue is in [docs/MODERATION.md](docs/MODERATION.md).
 
+### Blocking scanners
+
+Every new site is scanned within minutes by bots looking for leaked secrets (`/.env`, `/.git/config`, `/wp-login.php`, `setup.php`). Nothing like that exists on hillGPX, and on top of that Cloudflare blocks those requests outright and bans the address from the whole site for 30 days. The ban is automatic: a small scheduled Worker (`cloudflare/autoban/worker.js`) adds every prober to the `hillgpx_banned` list every five minutes. Testing those paths from your own connection bans you too, unless your address is in the Worker's `NEVER_BAN` setting.
+
 ### Running costs
 
 Everything runs on free plans: Cloudflare Pages (or GitHub Pages), Supabase free (500 MB database, 1 GB file storage, 5 GB of downloads a month), OpenFreeMap, AWS terrain tiles and Open-Meteo, plus the domain (about US$10 a year). Supabase pauses free projects after a week without requests; `.github/workflows/keepalive.yml` pings it every three days. Supabase Pro (about US$25 a month) is only worth it when its **Usage** page shows file storage past about 800 MB or downloads past about 4 GB a month; community photos are what grows. Open-Meteo's free tier is non-commercial: revisit it before any sponsorship.

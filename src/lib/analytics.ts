@@ -3,8 +3,10 @@
  * (see README "Analytics"), so a fork or a local build sends nothing.
  *
  * - VITE_CF_ANALYTICS_TOKEN: Cloudflare Web Analytics. Visits, pages,
- *   countries, referrers and load speed. No cookies, no personal data. (On
- *   Cloudflare Pages it can also be switched on with one click instead.)
+ *   countries, referrers and load speed. No cookies, no personal data.
+ * - VITE_CF_ANALYTICS_AUTO=1: the same, but Cloudflare adds the script itself
+ *   at the edge ("automatic setup" on a proxied domain, as hillgpx.com is), so
+ *   nothing is loaded here; it only tells the Privacy page it is running.
  * - VITE_CLARITY_ID: Microsoft Clarity. Heatmaps, scroll depth, rage clicks
  *   and session replays with typed text masked. Free. Set its project to
  *   "cookies off" so it stays cookieless.
@@ -18,7 +20,8 @@ const CF_TOKEN = (import.meta.env.VITE_CF_ANALYTICS_TOKEN as string | undefined)
 const CLARITY_ID = (import.meta.env.VITE_CLARITY_ID as string | undefined) || '';
 
 /** What the privacy page should say is running. */
-export const ANALYTICS = { cloudflare: Boolean(CF_TOKEN), clarity: Boolean(CLARITY_ID) };
+const CF_AUTO = (import.meta.env.VITE_CF_ANALYTICS_AUTO as string | undefined) === '1';
+export const ANALYTICS = { cloudflare: Boolean(CF_TOKEN) || CF_AUTO, clarity: Boolean(CLARITY_ID) };
 
 type ClarityFn = ((...args: unknown[]) => void) & { q?: unknown[][] };
 declare global {

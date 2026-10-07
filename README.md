@@ -107,7 +107,7 @@ Contributions publish straight away. Two database migrations (applied to the liv
 
 ### Blocking scanners
 
-Every new site is scanned within minutes by bots looking for leaked secrets (`/.env`, `/.git/config`, `/wp-login.php`, `setup.php`). Nothing like that exists on hillGPX, and on top of that Cloudflare blocks those requests outright and bans the address from the whole site for 30 days. The ban is automatic: a small scheduled Worker (`cloudflare/autoban/worker.js`) adds every prober to the `hillgpx_banned` list every five minutes. Testing those paths from your own connection bans you too, unless your address is in the Worker's `NEVER_BAN` setting.
+Every new site is scanned within minutes by bots looking for leaked secrets (`/.env`, `/.git/config`, `/wp-login.php`, `setup.php`). Nothing like that exists on hillGPX, and on top of that Cloudflare blocks those requests outright and bans the address from the whole site for 30 days. The ban is automatic: a small scheduled Worker (`cloudflare/autoban/worker.js`) adds an IP Access Rule for every prober every five minutes (Security → WAF → Tools → IP Access Rules, notes starting `hillgpx-autoban`). Testing those paths from your own connection bans you too, unless your address is in the Worker's `NEVER_BAN` setting.
 
 ### Running costs
 

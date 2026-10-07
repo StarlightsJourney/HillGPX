@@ -2,24 +2,23 @@
 /**
  * hillgpx-autoban: bans addresses that probe hillgpx.com for secrets.
  *
- * Cloudflare's firewall on hillgpx.com has two custom rules:
- *   1. "Banned addresses": block every request from the IP list
- *      `hillgpx_banned` (the whole site, including the app and its data).
- *   2. "Secret and exploit probes": block requests for .env, .git, .php,
- *      WordPress paths and similar.
+ * Cloudflare's firewall on hillgpx.com blocks requests for .env, .git, .php,
+ * WordPress paths and similar (custom rule "Secret and exploit probes").
+ * Every five minutes this Worker (a Cron Trigger, no route) reads that rule's
+ * firewall events and bans each probing address from the whole site with a
+ * zone IP Access Rule (mode "block"), noted "hillgpx-autoban". Bans are lifted
+ * after BAN_DAYS so a recycled address is not banned forever. IPv6 addresses
+ * are banned as their /64, since one machine usually holds a whole /64.
  *
- * Every five minutes this Worker (a Cron Trigger, no route) reads the
- * firewall events for rule 2 and adds each probing address to the list, so
- * from then on rule 1 keeps it out of everything. Entries expire after
- * BAN_DAYS so a recycled address is not banned forever. IPv6 addresses are
- * banned as their /64, since one machine usually holds a whole /64.
+ * (The custom rule "Banned addresses" and the IP list `hillgpx_banned` are
+ * for bans added by hand; this Worker does not touch them.)
  *
  * Settings (Worker → Settings → Variables and Secrets):
- *   CF_API_TOKEN  secret. An API token with "Account · Account Filter Lists ·
- *                 Edit" and "Zone · Analytics · Read" (hillgpx.com). Without
- *                 it the Worker does nothing.
- *   ACCOUNT_ID, ZONE_ID, LIST_ID, PROBE_RULE_ID  plain text (set at deploy).
- *   NEVER_BAN     comma-separated addresses or prefixes that are never added
+ *   CF_API_TOKEN  secret. An API token with Zone · Firewall Services · Edit
+ *                 and Zone · Analytics · Read. Without it the Worker does
+ *                 nothing.
+ *   ZONE_ID, PROBE_RULE_ID  plain text (set at deploy).
+ *   NEVER_BAN     comma-separated addresses or prefixes that are never banned
  *                 (the maintainer's own connection, for testing).
  *   BAN_DAYS      how long a ban lasts (default 30).
  *
@@ -29,6 +28,7 @@
 
 const API = 'https://api.cloudflare.com/client/v4';
 const LOOKBACK_MINUTES = 15;
+const NOTE = 'hillgpx-autoban';
 
 export default {
   async scheduled(_event, env, ctx) {
@@ -59,22 +59,22 @@ function expandIpv6(ip) {
   return [...left, ...middle, ...right].map((group) => group.padStart(4, '0'));
 }
 
-/** What goes on the list for an address: itself for IPv4, its /64 for IPv6. */
+/** The IP Access Rule target for an address: itself for IPv4, its /64 for IPv6. */
 function banTarget(ip) {
-  if (!ip.includes(':')) return ip;
-  return `${expandIpv6(ip).slice(0, 4).map((group) => parseInt(group, 16).toString(16)).join(':')}::/64`;
+  if (!ip.includes(':')) return { target: 'ip', value: ip };
+  return { target: 'ip_range', value: `${expandIpv6(ip).slice(0, 4).map((group) => parseInt(group, 16).toString(16)).join(':')}::/64` };
 }
 
-async function listItems(env) {
-  const items = [];
-  let cursor;
-  do {
-    const query = new URLSearchParams({ per_page: '500', ...(cursor ? { cursor } : {}) });
-    const page = await api(env, `/accounts/${env.ACCOUNT_ID}/rules/lists/${env.LIST_ID}/items?${query}`);
-    items.push(...page.result);
-    cursor = page.result_info?.cursors?.after;
-  } while (cursor);
-  return items;
+/** Every ban this Worker has made (rules noted "hillgpx-autoban"). */
+async function ourBans(env) {
+  const rules = [];
+  for (let page = 1; ; page++) {
+    const query = new URLSearchParams({ notes: NOTE, per_page: '1000', page: String(page) });
+    const body = await api(env, `/zones/${env.ZONE_ID}/firewall/access_rules/rules?${query}`);
+    rules.push(...body.result);
+    if (page >= (body.result_info?.total_pages ?? 1)) break;
+  }
+  return rules;
 }
 
 async function run(env) {
@@ -98,24 +98,26 @@ async function run(env) {
   });
   const probes = events.data?.viewer?.zones?.[0]?.firewallEventsAdaptive ?? [];
 
-  const existing = await listItems(env);
-  const listed = new Set(existing.map((item) => item.ip));
-  const additions = new Map();
+  const existing = await ourBans(env);
+  const banned = new Set(existing.map((rule) => rule.configuration?.value));
+  let added = 0;
   for (const probe of probes) {
     if (neverBan.some((safe) => probe.clientIP === safe || probe.clientIP.startsWith(safe))) continue;
-    const target = banTarget(probe.clientIP);
-    if (listed.has(target) || additions.has(target)) continue;
-    additions.set(target, { ip: target, comment: `Probed ${probe.clientRequestPath.slice(0, 120)} on ${probe.datetime.slice(0, 10)}` });
-  }
-  if (additions.size > 0) {
-    await api(env, `/accounts/${env.ACCOUNT_ID}/rules/lists/${env.LIST_ID}/items`, { method: 'POST', body: JSON.stringify([...additions.values()]) });
+    const configuration = banTarget(probe.clientIP);
+    if (banned.has(configuration.value)) continue;
+    banned.add(configuration.value);
+    await api(env, `/zones/${env.ZONE_ID}/firewall/access_rules/rules`, {
+      method: 'POST',
+      body: JSON.stringify({ mode: 'block', configuration, notes: `${NOTE}: probed ${probe.clientRequestPath.slice(0, 100)} on ${probe.datetime.slice(0, 10)}` }),
+    });
+    added++;
   }
 
   // Lift bans older than BAN_DAYS.
   const cutoff = Date.now() - banDays * 24 * 3600 * 1000;
-  const expired = existing.filter((item) => Date.parse(item.created_on) < cutoff).map((item) => ({ id: item.id }));
-  if (expired.length > 0) {
-    await api(env, `/accounts/${env.ACCOUNT_ID}/rules/lists/${env.LIST_ID}/items`, { method: 'DELETE', body: JSON.stringify({ items: expired }) });
+  const expired = existing.filter((rule) => Date.parse(rule.created_on) < cutoff);
+  for (const rule of expired) {
+    await api(env, `/zones/${env.ZONE_ID}/firewall/access_rules/rules/${rule.id}`, { method: 'DELETE' });
   }
-  console.log(`autoban: ${probes.length} probe events, ${additions.size} new bans, ${expired.length} expired`);
+  console.log(`autoban: ${probes.length} probe events, ${added} new bans, ${expired.length} expired`);
 }

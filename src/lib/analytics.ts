@@ -54,6 +54,11 @@ export function initAnalytics(): void {
         (queue.q ??= []).push(args);
       };
       window.clarity ??= queue;
+      // Cookieless, whatever the Clarity project is set to: with storage
+      // consent denied (Consent API v2, queued before the tag loads) Clarity
+      // sets no cookies and shares nothing with Microsoft Ads. Each visit is
+      // recorded on its own instead of being linked to earlier ones.
+      window.clarity('consentv2', { ad_Storage: 'denied', analytics_Storage: 'denied' });
       addScript(`https://www.clarity.ms/tag/${encodeURIComponent(CLARITY_ID)}`);
     }
   };

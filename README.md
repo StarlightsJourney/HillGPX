@@ -97,7 +97,7 @@ After the site is live on hillgpx.com:
 Both are optional and switched on by build settings, so forks and local builds send nothing (`src/lib/analytics.ts`); the Privacy page describes whichever is on.
 
 - **Cloudflare Web Analytics** (free, no cookies): visits, pages, countries, referrers and load speed. On Cloudflare Pages: the project → **Metrics** → enable **Web Analytics** (one click), or create a site under **Analytics & Logs → Web Analytics** and set its token as `VITE_CF_ANALYTICS_TOKEN`.
-- **Microsoft Clarity** (free, a Contentsquare-style tool): heatmaps, scroll depth, rage clicks and session replays with typed text masked. Create a project at [clarity.microsoft.com](https://clarity.microsoft.com), set **Settings → Setup → Cookies** to off, and set its id as `VITE_CLARITY_ID`. The site also sends a few named events to it (search, opening and downloading routes, uploads, reviews, reports, expanding the map).
+- **Microsoft Clarity** (free, a Contentsquare-style tool): heatmaps, scroll depth, rage clicks and session replays with typed text masked. Create a project at [clarity.microsoft.com](https://clarity.microsoft.com) and set its id as `VITE_CLARITY_ID` (live on hillgpx.com). The site tells Clarity storage consent is denied before it starts, so it runs without cookies. The site also sends a few named events to it (search, opening and downloading routes, uploads, reviews, reports, expanding the map).
 
 Both load after the page has painted, so they do not slow it down.
 

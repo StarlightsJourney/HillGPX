@@ -115,6 +115,17 @@ export function totalDistanceM(points: RoutePoint[]): number {
   return total;
 }
 
+/** Cumulative distance along the track in metres, one entry per point (index 0 is 0). */
+export function cumulativeDistances(points: RoutePoint[]): number[] {
+  const distances = [0];
+  for (let i = 1; i < points.length; i++) {
+    distances.push(
+      distances[i - 1] + haversineM(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]),
+    );
+  }
+  return distances;
+}
+
 /** Moving-average smoothing over the elevation channel. */
 function smoothElevation(points: RoutePoint[], window: number): number[] {
   const eles = points.map((p) => p[2]);

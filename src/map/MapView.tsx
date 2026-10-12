@@ -103,6 +103,8 @@ interface MapViewProps {
   selectedVenue: Venue | null;
   routes: Route[];
   activeRoute: RoutePoint[] | null;
+  /** Kept point range while a dropped GPX is being trimmed; the ends outside it draw ghosted. */
+  activeRouteTrim?: [number, number] | null;
   onSelectVenue: (slug: string | null) => void;
   hoveredSlug?: string | null;
   onHover?: (slug: string | null) => void;
@@ -404,6 +406,7 @@ export function MapView({
   selectedVenue,
   routes,
   activeRoute,
+  activeRouteTrim,
   onSelectVenue,
   hoveredSlug,
   onHover,
@@ -625,7 +628,7 @@ export function MapView({
               [event.point.x - 6, event.point.y - 6],
               [event.point.x + 6, event.point.y + 6],
             ],
-            { layers: ['active-route-line'] },
+            { layers: ['active-route-line', 'active-route-cut-line'] },
           );
           const points = activeRouteRef.current;
           if (features.length === 0 || !points?.length) {
@@ -888,11 +891,16 @@ export function MapView({
     routeMarkersRef.current?.setState(selectedRouteSlug, hoveredRouteSlug);
   }, [selectedRouteSlug, hoveredRouteSlug, allRoutes, mode, ready]);
 
+  const lastDrawnRouteRef = useRef<RoutePoint[] | null>(null);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    return animateActiveRoute(map, activeRoute);
-  }, [activeRoute, ready]);
+    // The reveal plays once per track. A trim drag redraws in place — re-running
+    // the animation on every tick would replay the line endlessly.
+    const isNewTrack = activeRoute !== lastDrawnRouteRef.current;
+    lastDrawnRouteRef.current = activeRoute;
+    return animateActiveRoute(map, activeRoute, activeRouteTrim ?? null, isNewTrack ? 1100 : 0);
+  }, [activeRoute, activeRouteTrim, ready]);
 
   // The camera does not need the basemap style, so frame the route straight
   // away. Waiting for `ready` left the map parked on Singapore for seconds

@@ -102,6 +102,16 @@ function loadTile(key: string, size: number): Promise<Venue[]> {
 /** Above this span the map shows only each tile's tallest few, from the index. */
 const MAX_TILES = 16;
 
+/**
+ * Results are memoised by what is on screen, not by call: a pan or zoom inside
+ * the same tiles gets the same array back, so `setWorldPeaks` bails on the
+ * identical reference and the map, marker and list cascade never re-runs.
+ * Before this, every move rebuilt thousands of Venue objects and re-rendered
+ * the whole page even when the visible summits had not changed.
+ */
+let topCache: { size: number; photos: Map<string, PeakPhoto>; venues: Venue[] } | null = null;
+let viewCache: { sig: string; photos: Map<string, PeakPhoto>; venues: Venue[] } | null = null;
+
 /** Summits for a viewport: full tiles when zoomed in, the index's highlights when not. */
 export async function peaksInView(view: Bounds): Promise<Venue[]> {
   const index = await loadPeakIndex();
@@ -115,11 +125,18 @@ export async function peaksInView(view: Bounds): Promise<Venue[]> {
       if (index.cells[key]) keys.add(key);
     }
   }
+  const photos = await loadPeakPhotos();
   if (keys.size > MAX_TILES) {
-    const photos = await loadPeakPhotos();
-    return index.top.map((row) => toVenue(row, size, photos));
+    if (!topCache || topCache.size !== size || topCache.photos !== photos) {
+      topCache = { size, photos, venues: index.top.map((row) => toVenue(row, size, photos)) };
+    }
+    return topCache.venues;
   }
-  return (await Promise.all([...keys].map((key) => loadTile(key, size)))).flat();
+  const sig = [...keys].sort().join('|');
+  if (viewCache?.sig === sig && viewCache.photos === photos) return viewCache.venues;
+  const venues = (await Promise.all([...keys].map((key) => loadTile(key, size)))).flat();
+  viewCache = { sig, photos, venues };
+  return venues;
 }
 
 /** Find one summit by slug (for links and favourites), loading just its tile. */

@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import type { Route, RouteActivity, Venue } from '../types';
-import { computeGain } from '../lib/elevation';
+import { computeGain, cumulativeDistances, totalDistanceM } from '../lib/elevation';
 import { routeFromPoints } from '../lib/routes';
 import { HEIGHT_LABEL, venueHeight } from '../lib/venues';
-import { ACTIVITY_LABEL, findOverlaps } from '../lib/routeAnalysis';
+import { ACTIVITY_LABEL, findOverlaps, routeFingerprint } from '../lib/routeAnalysis';
 import { DuplicateRouteError, loadAuthor, publishRoute, saveAuthor, uploadRouteThumb } from '../lib/api';
 import type { LoadedGpx } from './GpxDropzone';
 import { ElevationProfile } from './ElevationProfile';
+import { RouteTrim } from './RouteTrim';
 import { TypeGlyph } from './TypeGlyph';
 import { useUnits } from './UnitsContext';
 import { downloadRoute } from './VenueCard';
@@ -17,6 +18,11 @@ interface GpxPanelProps {
   loaded: LoadedGpx;
   venuesBySlug: Map<string, Venue>;
   allRoutes: Route[];
+  /** Places inside the kept range — the App re-links them as the trim moves. */
+  venueSlugs: string[];
+  /** Kept point range while trimming; the ends outside it draw ghosted on the map. */
+  trim: [number, number] | null;
+  onTrimChange: (trim: [number, number] | null) => void;
   hoverIndex: number | null;
   onHoverIndex: (index: number | null) => void;
   onClose: () => void;
@@ -33,6 +39,9 @@ export function GpxPanel({
   loaded,
   venuesBySlug,
   allRoutes,
+  venueSlugs,
+  trim,
+  onTrimChange,
   hoverIndex,
   onHoverIndex,
   onClose,
@@ -48,13 +57,27 @@ export function GpxPanel({
   const [author, setAuthor] = useState(loadAuthor);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const route = useMemo(
-    () => routeFromPoints(name.trim() || loaded.name, loaded.points, loaded.venueSlugs),
-    [loaded, name],
+  // Everything the panel reports and publishes comes from the kept slice; the
+  // map still shows the whole track so the cut is visible.
+  const keptPoints = useMemo(
+    () => (trim ? loaded.points.slice(trim[0], trim[1] + 1) : loaded.points),
+    [loaded, trim],
   );
-  const { minM, maxM } = useMemo(() => computeGain(loaded.points), [loaded.points]);
+  const route = useMemo(
+    () => routeFromPoints(name.trim() || loaded.name, keptPoints, venueSlugs),
+    [loaded, keptPoints, name, venueSlugs],
+  );
+  const { gainM, lossM, minM, maxM } = useMemo(() => computeGain(keptPoints), [keptPoints]);
+  const keptDistanceM = useMemo(() => totalDistanceM(keptPoints), [keptPoints]);
+  // Where the kept range sits on the profile's distance axis, as 0–1 fractions.
+  const keepRange = useMemo<[number, number] | null>(() => {
+    if (!trim) return null;
+    const distances = cumulativeDistances(loaded.points);
+    const total = distances[distances.length - 1] || 1;
+    return [distances[trim[0]] / total, distances[trim[1]] / total];
+  }, [loaded.points, trim]);
   const overlaps = useMemo(() => findOverlaps(loaded.points, allRoutes), [loaded.points, allRoutes]);
-  const linkedVenues = loaded.venueSlugs
+  const linkedVenues = venueSlugs
     .map((slug) => venuesBySlug.get(slug))
     .filter((venue): venue is Venue => Boolean(venue));
 
@@ -66,10 +89,12 @@ export function GpxPanel({
       const stored = await publishRoute({
         route,
         activity,
-        fingerprint: loaded.fingerprint,
+        // A trimmed track is a different track: its fingerprint — and the file
+        // stored in the archive — describe the kept range, not the original.
+        fingerprint: trim ? routeFingerprint(keptPoints) : loaded.fingerprint,
         recordedAt: loaded.recordedAt,
         elevationSource: loaded.elevationSource,
-        originalGpx: loaded.originalGpx,
+        originalGpx: trim ? null : loaded.originalGpx,
         contributor: author,
         licence: 'CC BY 4.0',
       });
@@ -112,9 +137,9 @@ export function GpxPanel({
 
       <div className="gpx-stats">
         {[
-          ['Distance', units.distance(loaded.distanceM)],
-          ['EG', units.height(loaded.gainM)],
-          ['EL', units.height(loaded.lossM)],
+          ['Distance', units.distance(keptDistanceM)],
+          ['EG', units.height(gainM)],
+          ['EL', units.height(lossM)],
           ['Highest', units.height(maxM)],
           ['Lowest', units.height(minM)],
         ].map(([label, value]) => (
@@ -151,7 +176,14 @@ export function GpxPanel({
 
       <OverlapChips overlaps={overlaps} onShowRoute={onShowRoute} />
 
-      <ElevationProfile points={loaded.points} height={96} hoverIndex={hoverIndex} onHoverIndex={onHoverIndex} />
+      <ElevationProfile
+        points={loaded.points}
+        height={96}
+        hoverIndex={hoverIndex}
+        onHoverIndex={onHoverIndex}
+        keepRange={keepRange}
+      />
+      {!published && <RouteTrim points={loaded.points} trim={trim} onChange={onTrimChange} />}
 
       {published ? (
         <p className="gpx-published" role="status">

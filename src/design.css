@@ -2239,6 +2239,49 @@
   color: #24572a;
   font-size: 14px;
 }
+
+/* ─── Route trimming on upload ─────────────────────────────────────────────
+   The trim track lines up exactly under the profile chart: the chart is
+   offset 34 px for its height labels and the range handles hang 13 px past
+   the track ends, so the block is pulled 21 px right and 13 px into the
+   panel's right padding to make all three edges coincide. */
+.route-trim {
+  margin: 6px -13px 4px 21px;
+}
+.route-trim-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 13px;
+}
+.route-trim-head strong {
+  font-size: 13px;
+}
+.route-trim-summary {
+  margin: 10px 13px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The part of the profile being trimmed off: whitened out, with the cut line
+   marked in accent — the same "kept in colour, dropped in grey" the map draws. */
+.profile-trim-shade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgb(255 255 255 / 74%);
+  pointer-events: none;
+}
+.profile-trim-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  pointer-events: none;
+}
 .gpx-panel {
   max-height: min(70dvh, 640px);
   overflow-x: hidden;

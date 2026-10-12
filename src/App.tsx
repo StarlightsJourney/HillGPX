@@ -8,7 +8,7 @@ import { FilterBar, type BrowseMode } from './components/FilterBar';
 import { VenueDetail, VenueDetailSkeleton } from './components/VenueDetail';
 import { RoutesList } from './components/RoutesList';
 import { RoutePanel } from './components/RoutePanel';
-import { NO_ROUTE_FILTERS, filterRoutes, routeBounds, type RouteFilters } from './lib/routes';
+import { NO_ROUTE_FILTERS, filterRoutes, linkVenues, routeBounds, type RouteFilters } from './lib/routes';
 import { boundsFromHash } from './lib/regions';
 import { ElevationModel } from './lib/elevation';
 import {
@@ -161,6 +161,10 @@ function MapApp() {
   const [localRoutes, setLocalRoutes] = useState<Route[]>(loadLocalRoutes);
   const [droppedGpx, setDroppedGpx] = useState<LoadedGpx | null>(null);
   const [gpxHoverIndex, setGpxHoverIndex] = useState<number | null>(null);
+  // The kept range of the dropped track while it is being trimmed: null means
+  // the whole file. Indices into droppedGpx.points, so map, profile and panel
+  // all talk about the same two numbers.
+  const [gpxTrim, setGpxTrim] = useState<[number, number] | null>(null);
   const [focus, setFocus] = useState<{ lng: number; lat: number; nonce: number } | null>(null);
   const [focusBounds, setFocusBounds] = useState<{ bounds: Bounds; nonce: number } | null>(null);
   const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null);
@@ -308,6 +312,18 @@ function MapApp() {
   }, [dataset, worldPeaks, savedPeaks, linkedPeak]);
 
   const venueTypes = useMemo(() => presentVenueTypes(allVenues), [allVenues]);
+
+  // The part of the dropped track the trim handles keep. The map still draws
+  // the whole thing so the cut is visible, but everything downstream — stats,
+  // linked places, the published route — works from this slice.
+  const gpxKeptPoints = useMemo(() => {
+    if (!droppedGpx) return null;
+    return gpxTrim ? droppedGpx.points.slice(gpxTrim[0], gpxTrim[1] + 1) : droppedGpx.points;
+  }, [droppedGpx, gpxTrim]);
+  const gpxVenueSlugs = useMemo(() => {
+    if (!droppedGpx || !gpxKeptPoints) return [];
+    return gpxTrim ? linkVenues(gpxKeptPoints, allVenues) : droppedGpx.venueSlugs;
+  }, [droppedGpx, gpxKeptPoints, gpxTrim, allVenues]);
 
   // One filtered list feeds the map, the list and the search box, so the chips
   // mean the same thing everywhere. Memoised on the filters object alone: this
@@ -748,7 +764,8 @@ function MapApp() {
                   }
                   setMapExpanded(!mapExpanded);
                 }}
-                injectedVenueSlugs={droppedGpx?.venueSlugs ?? []}
+                injectedVenueSlugs={gpxVenueSlugs}
+                activeRouteTrim={droppedGpx ? gpxTrim : null}
                 hoverPoint={gpxHoverPoint ?? routeHoverPoint}
                 onRouteHover={droppedGpx ? setGpxHoverIndex : setRouteHoverIndex}
                 routePanelOpen={Boolean(droppedGpx || selectedRoute)}
@@ -828,12 +845,16 @@ function MapApp() {
                 loaded={droppedGpx}
                 venuesBySlug={venueBySlug}
                 allRoutes={allRoutes}
+                venueSlugs={gpxVenueSlugs}
+                trim={gpxTrim}
+                onTrimChange={setGpxTrim}
                 hoverIndex={gpxHoverIndex}
                 onHoverIndex={setGpxHoverIndex}
                 onClose={() => {
                   setDroppedGpx(null);
                   setPublishedRoute(null);
                   setGpxHoverIndex(null);
+                  setGpxTrim(null);
                   setSpotlight(null);
                 }}
                 onPublished={onPublished}
@@ -890,6 +911,7 @@ function MapApp() {
                 setPublishedRoute(null);
                 setDroppedGpx(loaded);
                 setGpxHoverIndex(null);
+                setGpxTrim(null);
                 setSpotlight(null);
                 setGpxOpen(false);
                 setListOpen(false);

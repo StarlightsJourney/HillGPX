@@ -163,9 +163,28 @@ export function addRouteLayers(map: MlMap): void {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
   });
+  map.addSource('active-route-cut', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+  });
   map.addSource('route-hover', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
+  });
+
+  // Ends being trimmed off an upload: still drawn so the cut can be judged
+  // against the rest of the track, but ghosted — it is about to be dropped.
+  map.addLayer({
+    id: 'active-route-cut-line',
+    type: 'line',
+    source: 'active-route-cut',
+    layout: { 'line-cap': 'butt', 'line-join': 'round' },
+    paint: {
+      'line-color': '#9d9d9d',
+      'line-width': 4,
+      'line-opacity': 0.7,
+      'line-dasharray': [1.8, 1.4],
+    },
   });
 
   map.addLayer({
@@ -217,32 +236,72 @@ export function addRouteLayers(map: MlMap): void {
  * Draw the active route on, start to finish, rather than snapping it in. The
  * reveal is the cue that tells you where the route begins and which way it
  * runs, which a static line cannot. Returns a cancel function.
+ *
+ * `trim` is the inclusive point range a dropped GPX is being trimmed to: only
+ * that slice draws as the route, while the dropped ends stay on the map as a
+ * ghosted line. Pass `durationMs` 0 to redraw in place — the reveal is for a
+ * new track, not for every tick of a trim drag.
  */
 export function animateActiveRoute(
   map: MlMap,
   coordinates: [number, number, number][] | null,
+  trim: [number, number] | null = null,
   durationMs = 1100,
 ): () => void {
   const ends = map.getSource('active-route-ends') as GeoJSONSource | undefined;
+  const cut = map.getSource('active-route-cut') as GeoJSONSource | undefined;
+  const kept = coordinates && trim ? coordinates.slice(trim[0], trim[1] + 1) : coordinates;
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!coordinates || coordinates.length < 2 || reduce) {
-    setActiveRoute(map, coordinates);
-    ends?.setData(endsFeature(coordinates));
+  if (!kept || kept.length < 2 || reduce || durationMs <= 0) {
+    cut?.setData(cutFeatures(coordinates, trim));
+    setActiveRoute(map, kept);
+    ends?.setData(endsFeature(kept));
     return () => {};
   }
   let frame = 0;
   const start = performance.now();
-  ends?.setData(endsFeature(coordinates.slice(0, 1)));
+  cut?.setData({ type: 'FeatureCollection', features: [] });
+  ends?.setData(endsFeature(kept.slice(0, 1)));
   const tick = (now: number) => {
     const t = Math.min(1, (now - start) / durationMs);
     const eased = 1 - Math.pow(1 - t, 3);
-    const count = Math.max(2, Math.ceil(eased * coordinates.length));
-    setActiveRoute(map, coordinates.slice(0, count));
-    if (t < 1) frame = requestAnimationFrame(tick);
-    else ends?.setData(endsFeature(coordinates));
+    const count = Math.max(2, Math.ceil(eased * kept.length));
+    setActiveRoute(map, kept.slice(0, count));
+    if (t < 1) {
+      frame = requestAnimationFrame(tick);
+    } else {
+      ends?.setData(endsFeature(kept));
+      cut?.setData(cutFeatures(coordinates, trim));
+    }
   };
   frame = requestAnimationFrame(tick);
   return () => cancelAnimationFrame(frame);
+}
+
+/** The sections outside the kept range as one MultiLineString — empty when nothing is trimmed. */
+function cutFeatures(
+  coordinates: [number, number, number][] | null,
+  trim: [number, number] | null,
+): FeatureCollection {
+  if (!coordinates || !trim) return { type: 'FeatureCollection', features: [] };
+  const parts: [number, number][][] = [];
+  // The boundary point is included so the ghosted ends meet the kept line exactly.
+  const head = coordinates.slice(0, trim[0] + 1);
+  const tail = coordinates.slice(trim[1]);
+  for (const part of [head, tail]) {
+    if (part.length > 1) parts.push(part.map(([lng, lat]) => [lng, lat]));
+  }
+  if (parts.length === 0) return { type: 'FeatureCollection', features: [] };
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'MultiLineString', coordinates: parts },
+      },
+    ],
+  };
 }
 
 function endsFeature(coordinates: [number, number, number][] | null): FeatureCollection {

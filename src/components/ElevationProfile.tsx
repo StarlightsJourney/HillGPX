@@ -1,7 +1,7 @@
 import { useId, useMemo } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { RoutePoint } from '../types';
-import { haversineM } from '../lib/elevation';
+import { cumulativeDistances } from '../lib/elevation';
 import { useUnits } from './UnitsContext';
 
 interface ElevationProfileProps {
@@ -10,6 +10,12 @@ interface ElevationProfileProps {
   hoverIndex?: number | null;
   /** Called with the point index the pointer is over, for map cross-highlighting. */
   onHoverIndex?: (index: number | null) => void;
+  /**
+   * The kept range as 0–1 fractions of total distance, while a route is being
+   * trimmed. Everything outside it is dimmed — matching the ghosted ends on
+   * the map — so the cut reads the same way in both places.
+   */
+  keepRange?: [number, number] | null;
 }
 
 /**
@@ -24,6 +30,7 @@ export function ElevationProfile({
   height = 120,
   hoverIndex = null,
   onHoverIndex,
+  keepRange = null,
 }: ElevationProfileProps) {
   // Labels and the hover tooltip change with units. The path itself is drawn in
   // a unitless 1000×100 box, so its geometry does not need recomputing.
@@ -32,12 +39,7 @@ export function ElevationProfile({
 
   const geometry = useMemo(() => {
     if (points.length < 2) return null;
-    const distances: number[] = [0];
-    for (let i = 1; i < points.length; i++) {
-      distances.push(
-        distances[i - 1] + haversineM(points[i - 1][0], points[i - 1][1], points[i][0], points[i][1]),
-      );
-    }
+    const distances = cumulativeDistances(points);
     const total = distances[distances.length - 1] || 1;
     const elevations = points.map((point) => point[2]);
     const minEle = Math.min(...elevations);
@@ -117,6 +119,14 @@ export function ElevationProfile({
           <path d={line} fill="none" stroke="var(--accent)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
           {active && <line className="profile-guide" x1={active.x} x2={active.x} y1={0} y2={H} />}
         </svg>
+        {keepRange && (
+          <>
+            <span className="profile-trim-shade" style={{ left: 0, width: `${keepRange[0] * 100}%` }} />
+            <span className="profile-trim-shade" style={{ left: `${keepRange[1] * 100}%`, width: `${(1 - keepRange[1]) * 100}%` }} />
+            <span className="profile-trim-edge" style={{ left: `${keepRange[0] * 100}%` }} />
+            <span className="profile-trim-edge" style={{ left: `${keepRange[1] * 100}%` }} />
+          </>
+        )}
         <div className="profile-y-labels" aria-hidden="true">
           <span>{units.height(maxEle)}</span>
           <span>{units.height(minEle)}</span>

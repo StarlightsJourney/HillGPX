@@ -206,7 +206,10 @@ function ResultsListInner({
 }: ResultsListProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [page, setPage] = useState(0);
-  const [shownKey, setShownKey] = useState('');
+  // The page of cards last revealed. A new page keeps showing these until its
+  // images have loaded, so panning or zooming the map never flashes skeletons
+  // over cards that were fine a second ago — skeletons are for the first load.
+  const [shown, setShown] = useState<{ key: string; rows: Venue[] }>({ key: '', rows: [] });
 
   useEffect(() => setPage(0), [venues, bounds]);
 
@@ -246,11 +249,11 @@ function ResultsListInner({
     [inView, currentPage],
   );
   const pageKey = useMemo(() => rows.map((row) => row.slug).join('|'), [rows]);
-  const loading = pageKey !== shownKey;
+  const loading = pageKey !== shown.key;
 
   useEffect(() => {
     if (!pageKey) {
-      setShownKey('');
+      setShown({ key: '', rows: [] });
       return;
     }
 
@@ -258,7 +261,7 @@ function ResultsListInner({
     let earliestPassed = false;
     let settled = false;
     const reveal = () => {
-      if (!cancelled && earliestPassed && settled) setShownKey(pageKey);
+      if (!cancelled && earliestPassed && settled) setShown({ key: pageKey, rows });
     };
     const earliest = window.setTimeout(() => {
       earliestPassed = true;
@@ -324,7 +327,7 @@ function ResultsListInner({
         </div>
       ) : (
         <ul className="results-grid" aria-busy={loading}>
-          {loading
+          {loading && shown.rows.length === 0
             ? rows.map((venue) => (
                 <li key={venue.slug} className="skeleton-card" aria-hidden="true">
                   <span className="sk-thumb" />
@@ -333,7 +336,7 @@ function ResultsListInner({
                   <span className="sk-line" />
                 </li>
               ))
-            : rows.map((venue, index) => (
+            : shown.rows.map((venue, index) => (
                 <ResultCard
                   key={venue.slug}
                   venue={venue}

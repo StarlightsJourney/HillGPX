@@ -1,4 +1,5 @@
 import type { DemHeader, RoutePoint } from '../types';
+import { API_BASE } from './api';
 
 /**
  * Terrain model for Singapore, bundled with the app.
@@ -18,7 +19,7 @@ export class ElevationModel {
     private readonly grid: Int16Array,
   ) {}
 
-  static async load(baseUrl = `${import.meta.env.BASE_URL}data/dem`): Promise<ElevationModel> {
+  static async load(baseUrl = `${API_BASE || import.meta.env.BASE_URL.replace(/\/$/, '')}/data/dem`): Promise<ElevationModel> {
     const [header, buffer] = await Promise.all([
       fetch(`${baseUrl}/sg-dem.json`).then((r) => {
         if (!r.ok) throw new Error(`DEM header missing (${r.status}) — run scripts/fetch_dem.py`);

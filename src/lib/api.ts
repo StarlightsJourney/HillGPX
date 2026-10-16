@@ -1,20 +1,19 @@
 /**
- * Community storage: reviews, photos and GPX routes, shared through Supabase.
+ * Community storage: reviews, photos and GPX routes, shared through the
+ * HillGPX API (api/ — FastAPI + MongoDB/GridFS behind nginx).
  *
- * The browser talks to Supabase's REST and Storage APIs directly with the
- * project's *publishable* key. That key is meant to be public: row-level
- * security only lets anonymous visitors insert new rows and read approved
- * ones (see supabase/migrations/). Photos wait for a maintainer's approval;
- * reviews and routes publish immediately. No account is needed to contribute.
+ * The browser talks to the API directly. Anyone can insert; reads of photos
+ * and route photos return only approved rows. Photos wait for a maintainer's
+ * approval; reviews and routes publish immediately. No account is needed.
  *
- * Point a fork at its own project with VITE_SUPABASE_URL and VITE_SUPABASE_KEY.
+ * Set VITE_API_BASE to the API origin (e.g. http://localhost:8000 for local
+ * development, or empty when nginx proxies /api on the same origin).
  */
 import { track } from './analytics';
 import type { Route, RouteActivity, RoutePoint } from '../types';
 import { toGpx } from './gpx';
 
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || 'https://dzpgnebkyubeptitzjlj.supabase.co';
-const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_KEY as string | undefined) || 'sb_publishable_invDmVPb4d4aKqTMTRp72w_hpFBZ0AI';
+export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) || '';
 
 export interface Review {
   id: string;
@@ -85,9 +84,9 @@ export function apiErrorMessage(body: string, status: number): string {
 }
 
 async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${SUPABASE_URL}${path}`, {
+  const response = await fetch(`${API_BASE}/api${path}`, {
     ...init,
-    headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+    headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
   });
   if (!response.ok) {
     const body = await response.text().catch(() => '');
@@ -97,16 +96,16 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 async function upload(bucket: string, path: string, body: Blob, contentType: string): Promise<string> {
-  const response = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+  const response = await fetch(`${API_BASE}/api/files/${bucket}/${path}`, {
     method: 'POST',
-    headers: { apikey: SUPABASE_KEY, 'Content-Type': contentType, 'x-upsert': 'false' },
+    headers: { 'Content-Type': contentType },
     body,
   });
   if (!response.ok) throw new ApiError(apiErrorMessage(await response.text().catch(() => ''), response.status), response.status);
   return publicUrl(bucket, path);
 }
 
-const publicUrl = (bucket: string, path: string) => `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+const publicUrl = (bucket: string, path: string) => `${API_BASE}/api/files/${bucket}/${path}`;
 
 const id = () => crypto.randomUUID();
 const storageSafe = (text: string) => text.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'x';
@@ -134,7 +133,7 @@ const toReview = (row: ReviewRow): Review => ({
 
 export async function fetchReviews(venueSlug: string): Promise<Review[]> {
   const rows = await rest<ReviewRow[]>(
-    `/rest/v1/reviews?venue_slug=eq.${enc(venueSlug)}&select=id,venue_slug,rating,comment,author,created_at&order=created_at.desc&limit=200`,
+    `/reviews?venue_slug=${enc(venueSlug)}&limit=200`,
   );
   return rows.map(toReview);
 }
@@ -148,9 +147,8 @@ export async function submitReview(input: { venueSlug: string; rating: number; c
     author: input.author.trim().slice(0, 60) || 'Anonymous',
     createdAt: new Date().toISOString(),
   };
-  await rest('/rest/v1/reviews', {
+  await rest('/reviews', {
     method: 'POST',
-    headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({ id: review.id, venue_slug: review.venueSlug, rating: review.rating, comment: review.comment, author: review.author }),
   });
   track('review_post', review.venueSlug);
@@ -183,7 +181,7 @@ interface PhotoRow {
 
 export async function fetchPhotos(venueSlug: string): Promise<CommunityPhoto[]> {
   const rows = await rest<PhotoRow[]>(
-    `/rest/v1/photos?venue_slug=eq.${enc(venueSlug)}&select=id,venue_slug,storage_path,credit,licence,author,created_at&order=created_at.desc&limit=60`,
+    `/photos?venue_slug=${enc(venueSlug)}&limit=60`,
   );
   return rows.map((row) => ({
     id: row.id,
@@ -215,9 +213,8 @@ export async function submitPhoto(input: { venueSlug: string; file: File; credit
   const photoId = id();
   const path = `${storageSafe(input.venueSlug)}/${photoId}.jpg`;
   await upload('photos', path, blob, 'image/jpeg');
-  await rest('/rest/v1/photos', {
+  await rest('/photos', {
     method: 'POST',
-    headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({
       id: photoId,
       venue_slug: input.venueSlug,
@@ -249,8 +246,6 @@ interface RouteRow {
   created_at: string;
 }
 
-const ROUTE_FIELDS = 'slug,name,activity,recorded_at,distance_m,gain_m,loss_m,elevation_source,venue_slugs,points,gpx_path,contributor,licence,created_at';
-
 function toRoute(row: RouteRow): Route {
   const first = row.points[0];
   const last = row.points[row.points.length - 1];
@@ -275,7 +270,7 @@ function toRoute(row: RouteRow): Route {
 }
 
 export async function fetchCommunityRoutes(): Promise<Route[]> {
-  const rows = await rest<RouteRow[]>(`/rest/v1/routes?select=${ROUTE_FIELDS}&order=created_at.desc&limit=1000`);
+  const rows = await rest<RouteRow[]>(`/community/routes?limit=1000`);
   return rows.map(toRoute);
 }
 
@@ -320,8 +315,6 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
     contributor: input.contributor.trim().slice(0, 60) || null,
     licence: input.licence,
   };
-  const existing = await rest<{ slug: string }[]>(`/rest/v1/routes?geom_hash=eq.${enc(input.fingerprint)}&select=slug&limit=1`);
-  if (existing.length > 0) throw new DuplicateRouteError('This exact track is already in the community archive.');
   // Heart rate, cadence, power and other device extensions are personal data
   // and most of a watch file's size: the archive keeps the track, not the body.
   const original = input.originalGpx?.replace(/<extensions>[\s\S]*?<\/extensions>/g, '');
@@ -334,7 +327,7 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
     if (!(error instanceof ApiError && (error.status === 409 || error.message.includes('Duplicate')))) throw error;
   }
   try {
-    await rest('/rest/v1/routes', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(row) });
+    await rest('/community/routes', { method: 'POST', body: JSON.stringify(row) });
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) throw new DuplicateRouteError('This track is already in the community archive.');
     throw error;
@@ -348,7 +341,7 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
 let statsPromise: Promise<CommunityStats | null> | null = null;
 
 export function communityStats(): Promise<CommunityStats | null> {
-  statsPromise ??= rest<CommunityStats>('/rest/v1/rpc/community_stats', { method: 'POST', body: '{}' }).catch(() => {
+  statsPromise ??= rest<CommunityStats>('/community/stats').catch(() => {
     statsPromise = null;
     return null;
   });
@@ -363,9 +356,8 @@ export type ReportTarget = 'venue' | 'route' | 'photo' | 'route_photo' | 'review
 
 /** File a report for a maintainer to review (wrong details, hazards, closures, a bad photo). */
 export async function submitReport(input: { targetType: ReportTarget; targetSlug: string; kind: ReportKind; message: string; author: string }): Promise<void> {
-  await rest('/rest/v1/reports', {
+  await rest('/reports', {
     method: 'POST',
-    headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({
       target_type: input.targetType,
       target_slug: input.targetSlug,
@@ -405,7 +397,7 @@ interface RoutePhotoRow {
 
 export async function fetchRoutePhotos(routeSlug: string): Promise<RoutePhoto[]> {
   const rows = await rest<RoutePhotoRow[]>(
-    `/rest/v1/route_photos?route_slug=eq.${enc(routeSlug)}&select=id,route_slug,lng,lat,kind,caption,storage_path,author,created_at&order=created_at.desc&limit=200`,
+    `/route_photos?route_slug=${enc(routeSlug)}&limit=200`,
   );
   return rows.map((row) => ({
     id: row.id,
@@ -427,9 +419,8 @@ export async function submitRoutePhoto(input: { routeSlug: string; lng: number; 
   const photoId = id();
   const path = `route-${storageSafe(input.routeSlug).slice(0, 70)}/${photoId}.jpg`;
   await upload('photos', path, blob, 'image/jpeg');
-  await rest('/rest/v1/route_photos', {
+  await rest('/route_photos', {
     method: 'POST',
-    headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({
       id: photoId,
       route_slug: input.routeSlug,

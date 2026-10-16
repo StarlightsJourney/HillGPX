@@ -1,0 +1,65 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "27017:27017"
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017}
+      MONGO_DB: ${MONGO_DB:-hillgpx}
+      STATIC_DIR: /srv/public
+    volumes:
+      - ./public:/srv/public:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongo
+
+  # One-shot seeder: `docker compose --profile seed up seed`
+  seed:
+    build: ./api
+    profiles: ["seed"]
+    command: ["python", "seed.py", "/srv/public/data"]
+    env_file: .env
+    environment:
+      MONGO_URI: ${MONGO_URI:-mongodb://mongo:27017}
+      MONGO_DB: ${MONGO_DB:-hillgpx}
+    volumes:
+      - ./public:/srv/public:ro
+    depends_on:
+      - mongo
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        # Empty = same-origin; nginx proxies /api, /data, /photos, /route-thumbs.
+        VITE_API_BASE: ""
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+  # Expose the web container through a Cloudflare Tunnel. Needs a tunnel token
+  # from the Zero Trust dashboard in CLOUDFLARED_TUNNEL_TOKEN (.env).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARED_TUNNEL_TOKEN}
+    depends_on:
+      - web
+
+volumes:
+  mongo-data:

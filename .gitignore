@@ -9,6 +9,16 @@ dist/
 .env
 .env.local
 .env.*.local
+.env.production
+.env.docker
+
+# Local MongoDB data (if mongod is ever run against the repo checkout)
+mongo-data/
+mongodb-data/
+
+# Cloudflare Tunnel credentials/certificates if a named tunnel is configured locally
+cloudflared/
+*.pem
 
 # Python (data scripts)
 __pycache__/

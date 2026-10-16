@@ -186,3 +186,11 @@ After two materially different unsuccessful attempts at the same technical block
 - Mobbin UX/flow reference: `.devin/skills/mobbin/SKILL.md`
 - Vertical-slice workflow skill: `.devin/skills/hillgpx-workflow/SKILL.md`
 - Architecture: `docs/ARCHITECTURE.md`
+
+## Self-hosted backend (new, replaces Supabase for local+production)
+
+- `api/` is a FastAPI + Motor service: community data (reviews, photos, route photos, reports, community routes, route thumbs) lives in MongoDB, uploaded files in GridFS, and the built datasets (`venues.json`, `routes.json`, `stats.json`, `descriptions.json`) are seeded into the `datasets` collection by `api/seed.py`. Bulk static files (peak tiles, DEM, photo library, route thumbs) are served from `./public` mounted at `/srv/public` — same URL paths (`/data`, `/photos`, `/route-thumbs`) as the Pages build.
+- Moderation keeps the old RLS semantics: anonymous insert, `status: pending` on photos/route_photos/reports, approved-only reads. Admin endpoints (`/api/admin/<collection>`, `POST .../{id}?status=approved|rejected`) need `X-Admin-Token` = `ADMIN_TOKEN`.
+- Frontend: `VITE_API_BASE` selects the API origin (empty = same-origin via nginx proxy; `http://localhost:8000` in `.env.local` for `npm run dev` against docker). `DATA_BASE`, `photoSrc`, `ElevationModel.load` and route-thumb URLs all follow it; no component changes.
+- Docker: `docker-compose.yml` runs `mongo`, `api`, `web` (nginx serves `dist/` and proxies API paths), plus profiles `seed` (one-shot `seed.py`) and `tunnel` (`cloudflared`, needs `CLOUDFLARED_TUNNEL_TOKEN`). Env template: `.env.example` → `.env`.
+- Local workflow: `cp .env.example .env` → `docker compose up mongo api` → `docker compose --profile seed up seed` → `VITE_API_BASE=http://localhost:8000 npm run dev`, or `docker compose up web` for the full stack on :8080.

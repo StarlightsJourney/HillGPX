@@ -237,3 +237,8 @@ export async function fetchMyRoutes(): Promise<MyUpload[]> {
     gpxUrl: `${API_BASE}/api/files/gpx/${row.gpx_path}`,
   }));
 }
+
+/** Remove a route the signed-in user published. 204 on success, 404 if not theirs. */
+export async function deleteMyRoute(slug: string): Promise<void> {
+  await authFetch(`/me/routes/${encodeURIComponent(slug)}`, { method: 'DELETE' });
+}

@@ -2380,6 +2380,16 @@
 .uploads-empty {
   padding: 8px 0;
 }
+.uploads-remove {
+  flex: none;
+  font-size: 13px;
+}
+.uploads-confirm {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 
 /* Download count on a route card: a small icon+number chip on the meta line. */
 .card-dls {

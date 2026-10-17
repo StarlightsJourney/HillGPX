@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchMyRoutes, type MyUpload } from '../lib/auth';
+import { deleteMyRoute, fetchMyRoutes, type MyUpload } from '../lib/auth';
 import type { RouteActivity } from '../types';
 import { ActivityIcon } from './ActivityIcon';
 import { Modal } from './Modal';
@@ -13,6 +13,22 @@ export function MyUploadsModal({ onClose }: { onClose: () => void }) {
   const units = useUnits();
   const [routes, setRoutes] = useState<MyUpload[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const remove = async (slug: string) => {
+    setDeleting(slug);
+    setError(null);
+    try {
+      await deleteMyRoute(slug);
+      setRoutes((rows) => rows?.filter((route) => route.slug !== slug) ?? null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setDeleting(null);
+      setConfirming(null);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -54,6 +70,25 @@ export function MyUploadsModal({ onClose }: { onClose: () => void }) {
               <a className="btn btn-light btn-sm" href={route.gpxUrl} download={`${route.slug}.gpx`}>
                 GPX
               </a>
+              {confirming === route.slug ? (
+                <span className="uploads-confirm">
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    disabled={deleting === route.slug}
+                    onClick={() => void remove(route.slug)}
+                  >
+                    {deleting === route.slug ? 'Deleting…' : 'Delete?'}
+                  </button>
+                  <button type="button" className="profile-link" onClick={() => setConfirming(null)}>
+                    Keep
+                  </button>
+                </span>
+              ) : (
+                <button type="button" className="profile-link danger uploads-remove" onClick={() => setConfirming(route.slug)}>
+                  Delete
+                </button>
+              )}
             </li>
           ))}
         </ul>

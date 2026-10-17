@@ -722,6 +722,32 @@ async def my_routes(user: dict[str, Any] = Depends(current_user)) -> list[dict[s
     return [doc(r) async for r in cur]
 
 
+async def delete_file(bucket: str, path: str) -> None:
+    if not path:
+        return
+    f = await db["fs.files"].find_one({"metadata.bucket": bucket, "metadata.path": path})
+    if f:
+        await fs.delete(f["_id"])
+
+
+@app.delete("/api/auth/me/routes/{slug}", status_code=204)
+async def delete_my_route(slug: str, user: dict[str, Any] = Depends(current_user)) -> Response:
+    route = await db.routes.find_one({"slug": slug, "user_id": user["id"]})
+    if not route:
+        raise HTTPException(404, "No such route on your account.")
+    await db.routes.delete_one({"slug": slug})
+    # The route, its stored GPX, rendered card thumbnails, its download
+    # counter and pinned route photos all go together.
+    await delete_file("gpx", route.get("gpx_path", ""))
+    async for f in db["fs.files"].find(
+        {"metadata.bucket": "route-thumbs", "metadata.path": {"$regex": f"^{re.escape(slug)}-"}}
+    ):
+        await fs.delete(f["_id"])
+    await db.route_downloads.delete_one({"slug": slug})
+    await db.route_photos.delete_many({"route_slug": slug})
+    return Response(status_code=204)
+
+
 @app.post("/api/auth/logout", status_code=204)
 async def logout(authorization: str = Header(default="")) -> Response:
     if authorization.startswith("Bearer "):

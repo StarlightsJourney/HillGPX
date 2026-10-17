@@ -98,7 +98,7 @@ export function GpxPanel({
         recordedAt: loaded.recordedAt,
         elevationSource: loaded.elevationSource,
         originalGpx: trim ? null : loaded.originalGpx,
-        contributor: author,
+        contributor: user ? user.username : author,
         licence: 'CC BY 4.0',
         anonymous,
       });
@@ -223,16 +223,23 @@ export function GpxPanel({
               ))}
             </div>
           </div>
-          {(!user || !anonymous) && (
+          {user ? (
+            <div className="field">
+              <span>Credit</span>
+              <div className="chip-row" role="radiogroup" aria-label="Credit">
+                <button type="button" role="radio" aria-checked={!anonymous} className={`chip${anonymous ? '' : ' on'}`} onClick={() => setAnonymous(false)}>
+                  {user.username}
+                </button>
+                <button type="button" role="radio" aria-checked={anonymous} className={`chip${anonymous ? ' on' : ''}`} onClick={() => setAnonymous(true)}>
+                  Anonymous
+                </button>
+              </div>
+              {anonymous && <span className="photo-note">Not linked to your account and it will not appear in My uploads.</span>}
+            </div>
+          ) : (
             <label className="field">
               <span>Credit as (optional)</span>
               <input value={author} onChange={(event) => setAuthor(event.target.value)} maxLength={60} placeholder="Your name or handle" />
-            </label>
-          )}
-          {user && (
-            <label className="consent">
-              <input type="checkbox" checked={anonymous} onChange={(event) => setAnonymous(event.target.checked)} />
-              <span>Publish anonymously — not linked to your account, no name shown, and it will not appear in My uploads.</span>
             </label>
           )}
           <p className="photo-note publish-note">

@@ -89,7 +89,7 @@ def to_gpx(name: str, xy: list[tuple[float, float]], eles: list[float], start: d
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-n", "--count", type=int, default=3, help="files to write (cycles the shapes)")
-    ap.add_argument("--out", default="/tmp/hillgpx-gpx", help="output directory (default /tmp/hillgpx-gpx)")
+    ap.add_argument("--out", default="dummy_gpx", help="output directory (default dummy_gpx/, gitignored)")
     ap.add_argument("--lat", type=float, default=1.2903, help="centre latitude (default Southern Ridges, SG)")
     ap.add_argument("--lng", type=float, default=103.8020, help="centre longitude")
     ap.add_argument("--gain", type=float, default=140, help="metres of elevation gain to fake")

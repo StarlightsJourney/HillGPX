@@ -15,6 +15,7 @@ immediately. Moderation endpoints require X-Admin-Token.
 
 import os
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
@@ -34,11 +35,24 @@ ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
 CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "60")) * 1024 * 1024
 
-client = AsyncIOMotorClient(MONGO_URI)
-db = client[MONGO_DB]
-fs = AsyncIOMotorGridFSBucket(db)
+# Created inside the lifespan so Motor binds to uvicorn's running loop —
+# a module-level client attaches to the import-time loop and every request
+# fails with "attached to a different loop".
+db: Any = None
+fs: Any = None
 
-app = FastAPI(title="HillGPX API")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    global db, fs
+    client = AsyncIOMotorClient(MONGO_URI)
+    db = client[MONGO_DB]
+    fs = AsyncIOMotorGridFSBucket(db)
+    yield
+    client.close()
+
+
+app = FastAPI(title="HillGPX API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
@@ -309,14 +323,14 @@ async def create_report(report: ReportIn) -> dict[str, Any]:
 
 # ─── Moderation (X-Admin-Token) ─────────────────────────────────────────────
 
-MODERATED = {"photos": db.photos, "route_photos": db.route_photos, "reports": db.reports}
+MODERATED = {"photos", "route_photos", "reports"}
 
 
 @app.get("/api/admin/{collection}", dependencies=[Depends(admin)])
 async def admin_list(collection: str, status: str = "pending") -> list[dict[str, Any]]:
     if collection not in MODERATED:
         raise HTTPException(404)
-    return [doc(r) async for r in MODERATED[collection].find({"status": status}).limit(500)]
+    return [doc(r) async for r in db[collection].find({"status": status}).limit(500)]
 
 
 @app.post("/api/admin/{collection}/{row_id}", dependencies=[Depends(admin)])
@@ -325,7 +339,7 @@ async def admin_set_status(collection: str, row_id: str, status: str) -> dict[st
         raise HTTPException(404)
     if status not in {"approved", "rejected"}:
         raise HTTPException(400, "status must be approved or rejected")
-    result = await MODERATED[collection].update_one({"id": row_id}, {"$set": {"status": status}})
+    result = await db[collection].update_one({"id": row_id}, {"$set": {"status": status}})
     if not result.matched_count:
         raise HTTPException(404)
     return {"id": row_id, "status": status}

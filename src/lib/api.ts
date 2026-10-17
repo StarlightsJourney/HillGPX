@@ -361,6 +361,18 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
   return toRoute({ ...row, created_at: new Date().toISOString(), contributor: row.contributor, recorded_at: row.recorded_at });
 }
 
+/* ─── Download counts ──────────────────────────────────────────────────── */
+
+/** {slug: downloads} for every route, community and curated alike. */
+export async function fetchRouteDownloads(): Promise<Record<string, number>> {
+  return rest<Record<string, number>>('/routes/downloads');
+}
+
+/** Count one download. Fire-and-forget — the file matters, not the number. */
+export function recordRouteDownload(slug: string): void {
+  void rest(`/routes/${enc(slug)}/download`, { method: 'POST', body: '{}' }).catch(() => {});
+}
+
 /* ─── Stats ────────────────────────────────────────────────────────────── */
 
 let statsPromise: Promise<CommunityStats | null> | null = null;

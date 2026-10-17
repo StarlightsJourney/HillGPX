@@ -31,6 +31,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from pydantic import BaseModel, Field
+from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 load_dotenv()
@@ -348,6 +349,39 @@ async def create_community_route(route: RouteIn, user: dict[str, Any] | None = D
     row["created_at"] = now()
     await db.routes.insert_one(row)
     return doc(row)
+
+
+# ─── Download counts (all routes) ──────────────────────────────────────────
+#
+# The browser builds the GPX client-side, so downloads never touch a file
+# URL — every route counts here instead. Community slugs keep the counter on
+# their row; everything else lives in `route_downloads`.
+
+
+@app.post("/api/routes/{slug}/download")
+async def count_route_download(slug: str) -> dict[str, Any]:
+    slug = slug[:120]
+    hit = await db.routes.update_one({"slug": slug}, {"$inc": {"downloads": 1}})
+    if hit.matched_count:
+        row = await db.routes.find_one({"slug": slug}, {"downloads": 1})
+        return {"slug": slug, "downloads": row["downloads"]}
+    r = await db.route_downloads.find_one_and_update(
+        {"slug": slug},
+        {"$inc": {"count": 1}, "$setOnInsert": {"slug": slug}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    return {"slug": slug, "downloads": r["count"]}
+
+
+@app.get("/api/routes/downloads")
+async def route_downloads() -> dict[str, int]:
+    out: dict[str, int] = {}
+    async for r in db.route_downloads.find():
+        out[r["slug"]] = r["count"]
+    async for r in db.routes.find({"downloads": {"$gt": 0}}, {"slug": 1, "downloads": 1}):
+        out[r["slug"]] = r["downloads"]
+    return out
 
 
 @app.get("/api/community/stats")

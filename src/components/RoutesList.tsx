@@ -88,7 +88,8 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
                     <ActivityTag activity={routeActivity(route)} />
                   </span>
                   <span className="result-card-meta">
-                    {[region, route.loop ? 'Loop' : 'Point to point', route.source === 'local' ? 'On this device' : null]
+                    {[region, route.loop ? 'Loop' : 'Point to point', route.source === 'local' ? 'On this device' : null,
+                      route.downloads !== undefined ? `${route.downloads} ${route.downloads === 1 ? 'download' : 'downloads'}` : null]
                       .filter(Boolean)
                       .join(' · ')}
                   </span>

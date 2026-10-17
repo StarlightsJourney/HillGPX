@@ -88,10 +88,15 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
                     <ActivityTag activity={routeActivity(route)} />
                   </span>
                   <span className="result-card-meta">
-                    {[region, route.loop ? 'Loop' : 'Point to point', route.source === 'local' ? 'On this device' : null,
-                      route.downloads !== undefined ? `${route.downloads} ${route.downloads === 1 ? 'download' : 'downloads'}` : null]
+                    {[region, route.loop ? 'Loop' : 'Point to point', route.source === 'local' ? 'On this device' : null]
                       .filter(Boolean)
                       .join(' · ')}
+                    {route.downloads !== undefined && (
+                      <span className="card-dls">
+                        <DownloadIcon size={11} />
+                        {route.downloads}
+                      </span>
+                    )}
                   </span>
                   <span className="result-card-gain">
                     <strong>{units.distance(route.distanceM)}</strong> · <strong>{routeHasElevation(route) ? `${units.height(route.gainM)} EG` : 'Elevation unavailable'}</strong>

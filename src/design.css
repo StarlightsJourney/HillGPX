@@ -2381,6 +2381,24 @@
   padding: 8px 0;
 }
 
+/* Download count on a route card: a small icon+number chip on the meta line. */
+.card-dls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+.card-dls svg {
+  flex: none;
+}
+
 /* ─── GPX import ──────────────────────────────────────────────────────── */
 
 .gpx-drop {

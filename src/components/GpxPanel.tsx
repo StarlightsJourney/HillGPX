@@ -4,7 +4,7 @@ import { computeGain, cumulativeDistances, totalDistanceM } from '../lib/elevati
 import { routeFromPoints } from '../lib/routes';
 import { HEIGHT_LABEL, venueHeight } from '../lib/venues';
 import { ACTIVITY_LABEL, findOverlaps, routeFingerprint } from '../lib/routeAnalysis';
-import { DuplicateRouteError, loadAuthor, publishRoute, saveAuthor, uploadRouteThumb } from '../lib/api';
+import { DuplicateRouteError, publishRoute, uploadRouteThumb } from '../lib/api';
 import { useAuthUser } from '../lib/auth';
 import type { LoadedGpx } from './GpxDropzone';
 import { ElevationProfile } from './ElevationProfile';
@@ -56,7 +56,6 @@ export function GpxPanel({
   const user = useAuthUser();
   const [name, setName] = useState(loaded.name);
   const [activity, setActivity] = useState<RouteActivity>(loaded.activity);
-  const [author, setAuthor] = useState(loadAuthor);
   const [anonymous, setAnonymous] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +86,6 @@ export function GpxPanel({
   const publish = async () => {
     setBusy(true);
     setError(null);
-    saveAuthor(author);
     try {
       const stored = await publishRoute({
         route,
@@ -98,9 +96,9 @@ export function GpxPanel({
         recordedAt: loaded.recordedAt,
         elevationSource: loaded.elevationSource,
         originalGpx: trim ? null : loaded.originalGpx,
-        contributor: user ? user.username : author,
+        contributor: user ? user.username : '',
         licence: 'CC BY 4.0',
-        anonymous,
+        anonymous: !user || anonymous,
       });
       onPublished(stored);
       // The card image is a nicety: render it after publishing, never block on it.
@@ -223,7 +221,7 @@ export function GpxPanel({
               ))}
             </div>
           </div>
-          {user ? (
+          {user && (
             <div className="field">
               <span>Credit</span>
               <div className="chip-row" role="radiogroup" aria-label="Credit">
@@ -236,11 +234,6 @@ export function GpxPanel({
               </div>
               {anonymous && <span className="photo-note">Not linked to your account and it will not appear in My uploads.</span>}
             </div>
-          ) : (
-            <label className="field">
-              <span>Credit as (optional)</span>
-              <input value={author} onChange={(event) => setAuthor(event.target.value)} maxLength={60} placeholder="Your name or handle" />
-            </label>
           )}
           <p className="photo-note publish-note">
             Free for everyone under CC BY 4.0, credited to you.

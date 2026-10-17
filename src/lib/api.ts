@@ -83,10 +83,29 @@ export function apiErrorMessage(body: string, status: number): string {
   return message || `Something went wrong (HTTP ${status}).`;
 }
 
+/**
+ * The bearer token from the session owned by src/lib/auth.ts. Read-only here:
+ * it stamps uploads with the uploader's id so "My uploads" can list them;
+ * anonymous posts still send no header.
+ */
+function sessionToken(): string | null {
+  try {
+    const raw = localStorage.getItem('hillgpx:session');
+    return raw ? ((JSON.parse(raw) as { token?: string }).token ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = sessionToken();
   const response = await fetch(`${API_BASE}/api${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers ?? {}),
+    },
   });
   if (!response.ok) {
     const body = await response.text().catch(() => '');
@@ -96,9 +115,10 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 async function upload(bucket: string, path: string, body: Blob, contentType: string): Promise<string> {
+  const token = sessionToken();
   const response = await fetch(`${API_BASE}/api/files/${bucket}/${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': contentType },
+    headers: { 'Content-Type': contentType, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body,
   });
   if (!response.ok) throw new ApiError(apiErrorMessage(await response.text().catch(() => ''), response.status), response.status);
@@ -243,6 +263,7 @@ interface RouteRow {
   gpx_path: string;
   contributor: string | null;
   licence: string;
+  downloads?: number;
   created_at: string;
 }
 
@@ -266,6 +287,7 @@ function toRoute(row: RouteRow): Route {
     recordedAt: row.recorded_at ?? undefined,
     elevationSource: row.elevation_source,
     gpxUrl: publicUrl('gpx', row.gpx_path),
+    downloads: row.downloads ?? 0,
   };
 }
 
@@ -285,6 +307,8 @@ export interface PublishRouteInput {
   originalGpx: string | null;
   contributor: string;
   licence: string;
+  /** Signed-in uploaders may opt out: no user_id stamp, no public credit. */
+  anonymous?: boolean;
 }
 
 /** Store the GPX file and its row. The database rejects a second copy of the same track. */
@@ -312,8 +336,9 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
     venue_slugs: route.venueSlugs.slice(0, 200),
     points: route.coordinates.slice(0, 5000),
     gpx_path: gpxPath,
-    contributor: input.contributor.trim().slice(0, 60) || null,
+    contributor: input.anonymous ? null : input.contributor.trim().slice(0, 60) || null,
     licence: input.licence,
+    anonymous: Boolean(input.anonymous),
   };
   // Heart rate, cadence, power and other device extensions are personal data
   // and most of a watch file's size: the archive keeps the track, not the body.
@@ -334,6 +359,18 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
   }
   track('gpx_upload', row.slug);
   return toRoute({ ...row, created_at: new Date().toISOString(), contributor: row.contributor, recorded_at: row.recorded_at });
+}
+
+/* ─── Download counts ──────────────────────────────────────────────────── */
+
+/** {slug: downloads} for every route, community and curated alike. */
+export async function fetchRouteDownloads(): Promise<Record<string, number>> {
+  return rest<Record<string, number>>('/routes/downloads');
+}
+
+/** Count one download. Fire-and-forget — the file matters, not the number. */
+export function recordRouteDownload(slug: string): void {
+  void rest(`/routes/${enc(slug)}/download`, { method: 'POST', body: '{}' }).catch(() => {});
 }
 
 /* ─── Stats ────────────────────────────────────────────────────────────── */

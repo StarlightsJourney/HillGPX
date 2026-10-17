@@ -22,7 +22,7 @@ describe('api', () => {
     expect(review.comment).toBe('Solid');
     expect(review.author).toBe('Anonymous');
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toContain('/rest/v1/reviews');
+    expect(url).toContain('/api/reviews');
     const body = JSON.parse(String(init.body)) as Record<string, unknown>;
     expect(body).not.toHaveProperty('status');
     expect(body.venue_slug).toBe('test-hill');

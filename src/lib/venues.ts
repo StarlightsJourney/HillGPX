@@ -1,5 +1,5 @@
 import type { Route, RouteDataset, Venue, VenueDataset, VenuePhoto, VenueType } from '../types';
-import { API_BASE } from './api';
+import { API_BASE, fetchRouteDownloads } from './api';
 import { haversineM } from './elevation';
 import { formatDistanceIn, type Units } from './units';
 
@@ -154,6 +154,14 @@ async function fetchDataset(baseUrl: string): Promise<Dataset> {
 
   const venues = venueData.venues;
   const routes = routeData.routes;
+
+  // Public download counts ride along; no API (Pages build) just skips them.
+  try {
+    const downloads = await fetchRouteDownloads();
+    for (const route of routes) route.downloads ??= downloads[route.slug] ?? 0;
+  } catch {
+    // Counts are a nicety — the dataset still loads.
+  }
 
   return {
     venues,

@@ -74,6 +74,8 @@ export type TrackedEvent =
   | 'photo_upload'
   | 'review_post'
   | 'report_sent'
+  | 'sign_up'
+  | 'log_in'
   | 'map_expand';
 
 /** Record one product action (and an optional short label, e.g. the route). */

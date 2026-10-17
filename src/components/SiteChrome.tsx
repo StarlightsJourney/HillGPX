@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { REPO_URL, addPlaceUrl, openImportHere } from '../lib/contribute';
+import { AccountMenu } from './AccountMenu';
 import { HeaderControls } from './HeaderControls';
 import { MilestoneBar } from './Milestones';
 import { GitHubIcon, Mark } from './icons';
@@ -42,6 +43,7 @@ export function SiteHeader({ center, sticky = false }: { center?: ReactNode; sti
             <span className="hide-narrow">Add a GPX</span>
           </a>
           <HeaderControls />
+          <AccountMenu />
         </div>
       </div>
     </header>

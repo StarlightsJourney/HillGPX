@@ -83,10 +83,29 @@ export function apiErrorMessage(body: string, status: number): string {
   return message || `Something went wrong (HTTP ${status}).`;
 }
 
+/**
+ * The bearer token from the session owned by src/lib/auth.ts. Read-only here:
+ * it stamps uploads with the uploader's id so "My uploads" can list them;
+ * anonymous posts still send no header.
+ */
+function sessionToken(): string | null {
+  try {
+    const raw = localStorage.getItem('hillgpx:session');
+    return raw ? ((JSON.parse(raw) as { token?: string }).token ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = sessionToken();
   const response = await fetch(`${API_BASE}/api${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers ?? {}),
+    },
   });
   if (!response.ok) {
     const body = await response.text().catch(() => '');
@@ -96,9 +115,10 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 async function upload(bucket: string, path: string, body: Blob, contentType: string): Promise<string> {
+  const token = sessionToken();
   const response = await fetch(`${API_BASE}/api/files/${bucket}/${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': contentType },
+    headers: { 'Content-Type': contentType, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body,
   });
   if (!response.ok) throw new ApiError(apiErrorMessage(await response.text().catch(() => ''), response.status), response.status);

@@ -96,6 +96,37 @@ def admin(x_admin_token: str = Header(default="")) -> None:
         raise HTTPException(403, "Bad admin token")
 
 
+# Session lookup lives here (before the endpoints): contribution inserts use
+# maybe_user to stamp uploads with the uploader's id when signed in.
+
+
+def token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+async def lookup_session_user(token: str) -> dict[str, Any] | None:
+    session = await db.sessions.find_one({"token_hash": token_hash(token)})
+    if not session:
+        return None
+    expires = session["expires_at"]
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires < datetime.now(timezone.utc):
+        return None
+    user = await db.users.find_one({"id": session["user_id"]})
+    if not user:
+        return None
+    user["_session_hash"] = session["token_hash"]
+    return user
+
+
+async def maybe_user(authorization: str = Header(default="")) -> dict[str, Any] | None:
+    """Like current_user but quiet: anonymous contributions keep working."""
+    if not authorization.startswith("Bearer "):
+        return None
+    return await lookup_session_user(authorization[7:])
+
+
 # ─── Built datasets ─────────────────────────────────────────────────────────
 
 
@@ -291,12 +322,14 @@ async def list_community_routes(limit: int = 1000) -> list[dict[str, Any]]:
 
 
 @app.post("/api/community/routes", status_code=201)
-async def create_community_route(route: RouteIn) -> dict[str, Any]:
+async def create_community_route(route: RouteIn, user: dict[str, Any] | None = Depends(maybe_user)) -> dict[str, Any]:
     if await db.routes.find_one({"geom_hash": route.geom_hash}) or await db.routes.find_one(
         {"slug": route.slug}
     ):
         raise HTTPException(409, "This track is already in the community archive.")
     row = route.model_dump()
+    # Signed-in uploaders get their id stamped so "My uploads" can list them.
+    row["user_id"] = user["id"] if user else None
     row["name"] = row["name"][:120]
     row["venue_slugs"] = row["venue_slugs"][:200]
     row["points"] = row["points"][:5000]
@@ -387,10 +420,6 @@ def check_password(password: str, stored: str) -> bool:
         return False
 
 
-def token_hash(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
 async def create_session(user_id: str) -> str:
     token = secrets.token_urlsafe(32)
     await db.sessions.insert_one(
@@ -419,18 +448,9 @@ def public_user(user: dict[str, Any]) -> dict[str, Any]:
 async def current_user(authorization: str = Header(default="")) -> dict[str, Any]:
     if not authorization.startswith("Bearer "):
         raise HTTPException(401, "Sign in first.")
-    session = await db.sessions.find_one({"token_hash": token_hash(authorization[7:])})
-    if not session:
-        raise HTTPException(401, "Session expired — sign in again.")
-    expires = session["expires_at"]
-    if expires.tzinfo is None:
-        expires = expires.replace(tzinfo=timezone.utc)
-    if expires < datetime.now(timezone.utc):
-        raise HTTPException(401, "Session expired — sign in again.")
-    user = await db.users.find_one({"id": session["user_id"]})
+    user = await lookup_session_user(authorization[7:])
     if not user:
-        raise HTTPException(401, "Account not found.")
-    user["_session_hash"] = session["token_hash"]
+        raise HTTPException(401, "Session expired — sign in again.")
     return user
 
 
@@ -649,6 +669,12 @@ async def delete_account(body: DeleteIn, user: dict[str, Any] = Depends(current_
     await db.sessions.delete_many({"user_id": user["id"]})
     await db.users.delete_one({"id": user["id"]})
     return Response(status_code=204)
+
+
+@app.get("/api/auth/me/routes")
+async def my_routes(user: dict[str, Any] = Depends(current_user)) -> list[dict[str, Any]]:
+    cur = db.routes.find({"user_id": user["id"]}).sort("created_at", -1).limit(500)
+    return [doc(r) async for r in cur]
 
 
 @app.post("/api/auth/logout", status_code=204)

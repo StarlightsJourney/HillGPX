@@ -197,3 +197,40 @@ export async function deleteAccount(password: string): Promise<void> {
   });
   setSession(null);
 }
+
+/* ─── My uploads ─────────────────────────────────────────────────────── */
+
+export interface MyUpload {
+  slug: string;
+  name: string;
+  activity: string;
+  distanceM: number;
+  gainM: number;
+  createdAt: string;
+  gpxUrl: string;
+}
+
+interface MyUploadRow {
+  slug: string;
+  name: string;
+  activity: string;
+  distance_m: number;
+  gain_m: number;
+  created_at: string;
+  gpx_path: string;
+}
+
+/** Community routes the signed-in user published (stamped with their id). */
+export async function fetchMyRoutes(): Promise<MyUpload[]> {
+  const response = await authFetch('/me/routes');
+  const rows = (await response.json()) as MyUploadRow[];
+  return rows.map((row) => ({
+    slug: row.slug,
+    name: row.name,
+    activity: row.activity,
+    distanceM: row.distance_m,
+    gainM: row.gain_m,
+    createdAt: row.created_at,
+    gpxUrl: `${API_BASE}/api/files/gpx/${row.gpx_path}`,
+  }));
+}

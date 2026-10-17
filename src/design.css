@@ -2331,6 +2331,56 @@
   gap: 12px;
 }
 
+/* My uploads: rows like the search results — icon, title + stats, action. */
+.uploads-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.uploads-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--hairline);
+}
+.uploads-row:last-child {
+  border-bottom: none;
+}
+.uploads-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--bg-raised);
+  color: var(--ink-2);
+}
+.uploads-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.uploads-info strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.uploads-info small {
+  color: var(--muted);
+  font-size: 13px;
+}
+.uploads-empty {
+  padding: 8px 0;
+}
+
 /* ─── GPX import ──────────────────────────────────────────────────────── */
 
 .gpx-drop {

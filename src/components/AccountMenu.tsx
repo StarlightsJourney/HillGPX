@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { API_BASE } from '../lib/api';
 import { logOut, useAuthUser } from '../lib/auth';
 import { AuthModal } from './AuthModal';
+import { MyUploadsModal } from './MyUploadsModal';
 import { ProfileModal } from './ProfileModal';
 import { UserIcon } from './icons';
 
@@ -15,6 +16,7 @@ export function AccountMenu() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [uploadsOpen, setUploadsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -68,6 +70,16 @@ export function AccountMenu() {
             role="menuitem"
             onClick={() => {
               setMenuOpen(false);
+              setUploadsOpen(true);
+            }}
+          >
+            My uploads
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setMenuOpen(false);
               setProfileOpen(true);
             }}
           >
@@ -87,6 +99,7 @@ export function AccountMenu() {
       )}
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
       {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
+      {uploadsOpen && <MyUploadsModal onClose={() => setUploadsOpen(false)} />}
     </div>
   );
 }

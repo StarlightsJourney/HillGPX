@@ -1,0 +1,62 @@
+import { useEffect, useState } from 'react';
+import { fetchMyRoutes, type MyUpload } from '../lib/auth';
+import type { RouteActivity } from '../types';
+import { ActivityIcon } from './ActivityIcon';
+import { Modal } from './Modal';
+import { useUnits } from './UnitsContext';
+
+/**
+ * The signed-in user's published GPX uploads (routes stamped with their id
+ * at publish time). Each row links straight to the downloadable file.
+ */
+export function MyUploadsModal({ onClose }: { onClose: () => void }) {
+  const units = useUnits();
+  const [routes, setRoutes] = useState<MyUpload[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMyRoutes()
+      .then((rows) => !cancelled && setRoutes(rows))
+      .catch((err: Error) => !cancelled && setError(err.message));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <Modal title="My uploads" onClose={onClose} wide>
+      {error && <p className="review-error">{error}</p>}
+      {!routes && !error && <p className="profile-note">Loading…</p>}
+      {routes && routes.length === 0 && (
+        <div className="uploads-empty">
+          <p className="profile-note">
+            Nothing published yet. Routes you share through <strong>Add a GPX</strong> while signed in show up here,
+            ready to download again.
+          </p>
+        </div>
+      )}
+      {routes && routes.length > 0 && (
+        <ul className="uploads-list">
+          {routes.map((route) => (
+            <li key={route.slug} className="uploads-row">
+              <span className="uploads-icon">
+                <ActivityIcon activity={route.activity as RouteActivity} size={16} />
+              </span>
+              <span className="uploads-info">
+                <strong>{route.name}</strong>
+                <small>
+                  {units.distance(route.distanceM)} · {units.height(route.gainM)} EG ·{' '}
+                  {new Date(route.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                </small>
+              </span>
+              <a className="btn btn-light btn-sm" href={route.gpxUrl} download={`${route.slug}.gpx`}>
+                GPX
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Modal>
+  );
+}

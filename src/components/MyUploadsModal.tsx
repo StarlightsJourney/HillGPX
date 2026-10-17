@@ -9,7 +9,7 @@ import { useUnits } from './UnitsContext';
  * The signed-in user's published GPX uploads (routes stamped with their id
  * at publish time). Each row links straight to the downloadable file.
  */
-export function MyUploadsModal({ onClose }: { onClose: () => void }) {
+export function UploadsList() {
   const units = useUnits();
   const [routes, setRoutes] = useState<MyUpload[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export function MyUploadsModal({ onClose }: { onClose: () => void }) {
   }, []);
 
   return (
-    <Modal title="My uploads" onClose={onClose} wide>
+    <>
       {error && <p className="review-error">{error}</p>}
       {!routes && !error && <p className="profile-note">Loading…</p>}
       {routes && routes.length === 0 && (
@@ -67,6 +67,13 @@ export function MyUploadsModal({ onClose }: { onClose: () => void }) {
                   {new Date(route.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
                 </small>
               </span>
+              <a
+                className="btn btn-light btn-sm"
+                href="#routes"
+                onClick={() => sessionStorage.setItem('hillgpx:pendingRoute', route.slug)}
+              >
+                View
+              </a>
               <a className="btn btn-light btn-sm" href={route.gpxUrl} download={`${route.slug}.gpx`}>
                 GPX
               </a>
@@ -93,6 +100,14 @@ export function MyUploadsModal({ onClose }: { onClose: () => void }) {
           ))}
         </ul>
       )}
+    </>
+  );
+}
+
+export function MyUploadsModal({ onClose }: { onClose: () => void }) {
+  return (
+    <Modal title="My uploads" onClose={onClose} wide>
+      <UploadsList />
     </Modal>
   );
 }

@@ -38,7 +38,7 @@ function Avatar({ url, username, size = 72 }: { url: string | null; username: st
  * The signed-in account sheet: photo, username and email, password, and the
  * delete zone. Sections save independently; errors show where they happened.
  */
-export function ProfileModal({ onClose }: { onClose: () => void }) {
+export function ProfileForm({ onClose }: { onClose?: () => void }) {
   const user = useAuthUser();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -81,8 +81,7 @@ export function ProfileModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Modal title="Account" onClose={onClose} wide>
-      <div className="profile-form">
+    <div className="profile-form">
         <section className="profile-section">
           <div className="profile-photo-row">
             <Avatar url={user.avatarUrl} username={user.username} />
@@ -219,7 +218,7 @@ export function ProfileModal({ onClose }: { onClose: () => void }) {
                   onClick={() =>
                     void run('delete', async () => {
                       await deleteAccount(deletePw);
-                      onClose();
+                      onClose?.();
                     })
                   }
                 >
@@ -234,6 +233,14 @@ export function ProfileModal({ onClose }: { onClose: () => void }) {
           )}
         </section>
       </div>
+  );
+}
+
+/** The same sheet as a modal, for anywhere a dialog still fits better. */
+export function ProfileModal({ onClose }: { onClose: () => void }) {
+  return (
+    <Modal title="Account" onClose={onClose} wide>
+      <ProfileForm onClose={onClose} />
     </Modal>
   );
 }

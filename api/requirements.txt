@@ -1,0 +1,9 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+motor>=3.6
+pydantic>=2.8
+python-multipart>=0.0.9
+python-dotenv>=1.0
+# One-time Supabase migration (migrate_supabase.py) — async HTTP + write models.
+httpx>=0.27
+pymongo>=4.8

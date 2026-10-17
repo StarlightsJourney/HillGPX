@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import type { Route } from '../types';
 import { THUMB_H as H, THUMB_W as W, thumbPath, thumbView } from '../lib/thumbView';
-import { communityThumbUrl, uploadRouteThumb } from '../lib/api';
+import { API_BASE, communityThumbUrl, uploadRouteThumb } from '../lib/api';
 
 /**
  * A route's own shape as its cover image.
@@ -71,10 +71,12 @@ export function RouteThumb({ route, animate = true }: { route: Route; animate?: 
         .join(' ') + ` L${W} ${H} L0 ${H} Z`;
 
     // Committed routes ship their basemap with the site; community uploads have
-    // one rendered in the uploader's browser and stored in Supabase.
+    // one rendered in the uploader's browser and stored by the API.
     const image = route.source === 'community' && route.gpxUrl
       ? communityThumbUrl(route.slug, view.key)
-      : `${import.meta.env.BASE_URL}${thumbPath(route.slug, view)}`;
+      : API_BASE
+        ? `${API_BASE}/${thumbPath(route.slug, view)}`
+        : `${import.meta.env.BASE_URL}${thumbPath(route.slug, view)}`;
     return { line, profile, start: proj[0], end: proj[proj.length - 1], image, viewKey: view.key, key: `${route.slug}-${view.key}` };
   }, [route.coordinates, route.slug, route.source, route.gpxUrl]);
 

@@ -1,0 +1,56 @@
+services:
+  api:
+    build: ./api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # MongoDB runs as a local app on the host; containers reach it via
+      # host.docker.internal (built in on Docker Desktop for Mac).
+      MONGO_URI: ${MONGO_URI:-mongodb://host.docker.internal:27017}
+      MONGO_DB: ${MONGO_DB:-hillgpx}
+      STATIC_DIR: /srv/public
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./public:/srv/public:ro
+    ports:
+      - "8000:8000"
+
+  # One-shot seeder: `docker compose --profile seed up seed`
+  seed:
+    build: ./api
+    profiles: ["seed"]
+    command: ["python", "seed.py", "/srv/public/data"]
+    env_file: .env
+    environment:
+      MONGO_URI: ${MONGO_URI:-mongodb://host.docker.internal:27017}
+      MONGO_DB: ${MONGO_DB:-hillgpx}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./public:/srv/public:ro
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        # Empty = same-origin; nginx proxies /api, /data, /photos, /route-thumbs.
+        VITE_API_BASE: ""
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
+  # Expose the web container through a Cloudflare Tunnel. Needs a tunnel token
+  # from the Zero Trust dashboard in CLOUDFLARED_TUNNEL_TOKEN (.env).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARED_TUNNEL_TOKEN}
+    depends_on:
+      - web

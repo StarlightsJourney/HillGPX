@@ -232,7 +232,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           <InfoTip>
             <RecordedLine recordedAt={route.recordedAt} />
             {hasElevation && <ElevationSourceLine source={elevation.fromTerrain ? 'terrain' : route.elevationSource ?? 'gps'} />}
-            <span className="route-meta muted">{[ACTIVITY_LABEL[routeActivity(route)], region, route.loop ? 'Loop' : 'Point to point'].filter(Boolean).join(' · ')}</span>
+            <span className="route-meta muted">{[ACTIVITY_LABEL[routeActivity(route)], region, route.loop ? 'Loop' : 'Point to point', route.downloads ? `${route.downloads} ${route.downloads === 1 ? 'download' : 'downloads'}` : null].filter(Boolean).join(' · ')}</span>
             <RouteCredit route={route} />
             <button type="button" className="info-tip-action" onClick={() => setReporting(true)}>
               <FlagIcon />

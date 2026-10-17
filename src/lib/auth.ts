@@ -206,6 +206,7 @@ export interface MyUpload {
   activity: string;
   distanceM: number;
   gainM: number;
+  downloads: number;
   createdAt: string;
   gpxUrl: string;
 }
@@ -216,6 +217,7 @@ interface MyUploadRow {
   activity: string;
   distance_m: number;
   gain_m: number;
+  downloads?: number;
   created_at: string;
   gpx_path: string;
 }
@@ -230,6 +232,7 @@ export async function fetchMyRoutes(): Promise<MyUpload[]> {
     activity: row.activity,
     distanceM: row.distance_m,
     gainM: row.gain_m,
+    downloads: row.downloads ?? 0,
     createdAt: row.created_at,
     gpxUrl: `${API_BASE}/api/files/gpx/${row.gpx_path}`,
   }));

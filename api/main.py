@@ -184,6 +184,9 @@ async def get_file(bucket: str, path: str) -> Response:
     row = await db["fs.files"].find_one({"metadata.bucket": bucket, "metadata.path": path})
     if not row:
         raise HTTPException(404)
+    if bucket == "gpx":
+        # Every fetch of a community route's file counts one download.
+        await db.routes.update_one({"gpx_path": path}, {"$inc": {"downloads": 1}})
     grid_out = await fs.open_download_stream(row["_id"])
     return Response(
         content=await grid_out.read(),
@@ -313,6 +316,8 @@ class RouteIn(BaseModel):
     gpx_path: str
     contributor: str | None = None
     licence: str = "CC0"
+    # Signed-in uploaders may opt out of attribution: no user_id, no name.
+    anonymous: bool = False
 
 
 @app.get("/api/community/routes")
@@ -328,12 +333,14 @@ async def create_community_route(route: RouteIn, user: dict[str, Any] | None = D
     ):
         raise HTTPException(409, "This track is already in the community archive.")
     row = route.model_dump()
-    # Signed-in uploaders get their id stamped so "My uploads" can list them.
-    row["user_id"] = user["id"] if user else None
+    # Signed-in uploaders get their id stamped so "My uploads" can list them;
+    # the anonymous flag withholds both the stamp and the public credit.
+    row["user_id"] = None if row["anonymous"] or not user else user["id"]
     row["name"] = row["name"][:120]
     row["venue_slugs"] = row["venue_slugs"][:200]
     row["points"] = row["points"][:5000]
-    row["contributor"] = (row["contributor"] or "")[:60] or None
+    row["contributor"] = None if row["anonymous"] else ((row["contributor"] or "")[:60] or None)
+    row["downloads"] = 0
     row["created_at"] = now()
     await db.routes.insert_one(row)
     return doc(row)

@@ -263,6 +263,7 @@ interface RouteRow {
   gpx_path: string;
   contributor: string | null;
   licence: string;
+  downloads?: number;
   created_at: string;
 }
 
@@ -286,6 +287,7 @@ function toRoute(row: RouteRow): Route {
     recordedAt: row.recorded_at ?? undefined,
     elevationSource: row.elevation_source,
     gpxUrl: publicUrl('gpx', row.gpx_path),
+    downloads: row.downloads ?? 0,
   };
 }
 
@@ -305,6 +307,8 @@ export interface PublishRouteInput {
   originalGpx: string | null;
   contributor: string;
   licence: string;
+  /** Signed-in uploaders may opt out: no user_id stamp, no public credit. */
+  anonymous?: boolean;
 }
 
 /** Store the GPX file and its row. The database rejects a second copy of the same track. */
@@ -332,8 +336,9 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
     venue_slugs: route.venueSlugs.slice(0, 200),
     points: route.coordinates.slice(0, 5000),
     gpx_path: gpxPath,
-    contributor: input.contributor.trim().slice(0, 60) || null,
+    contributor: input.anonymous ? null : input.contributor.trim().slice(0, 60) || null,
     licence: input.licence,
+    anonymous: Boolean(input.anonymous),
   };
   // Heart rate, cadence, power and other device extensions are personal data
   // and most of a watch file's size: the archive keeps the track, not the body.

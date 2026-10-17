@@ -5,6 +5,7 @@ import { routeFromPoints } from '../lib/routes';
 import { HEIGHT_LABEL, venueHeight } from '../lib/venues';
 import { ACTIVITY_LABEL, findOverlaps, routeFingerprint } from '../lib/routeAnalysis';
 import { DuplicateRouteError, loadAuthor, publishRoute, saveAuthor, uploadRouteThumb } from '../lib/api';
+import { useAuthUser } from '../lib/auth';
 import type { LoadedGpx } from './GpxDropzone';
 import { ElevationProfile } from './ElevationProfile';
 import { RouteTrim } from './RouteTrim';
@@ -52,9 +53,11 @@ export function GpxPanel({
   onShowRoute,
 }: GpxPanelProps) {
   const units = useUnits();
+  const user = useAuthUser();
   const [name, setName] = useState(loaded.name);
   const [activity, setActivity] = useState<RouteActivity>(loaded.activity);
   const [author, setAuthor] = useState(loadAuthor);
+  const [anonymous, setAnonymous] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Everything the panel reports and publishes comes from the kept slice; the
@@ -97,6 +100,7 @@ export function GpxPanel({
         originalGpx: trim ? null : loaded.originalGpx,
         contributor: author,
         licence: 'CC BY 4.0',
+        anonymous,
       });
       onPublished(stored);
       // The card image is a nicety: render it after publishing, never block on it.
@@ -219,10 +223,18 @@ export function GpxPanel({
               ))}
             </div>
           </div>
-          <label className="field">
-            <span>Credit as (optional)</span>
-            <input value={author} onChange={(event) => setAuthor(event.target.value)} maxLength={60} placeholder="Your name or handle" />
-          </label>
+          {(!user || !anonymous) && (
+            <label className="field">
+              <span>Credit as (optional)</span>
+              <input value={author} onChange={(event) => setAuthor(event.target.value)} maxLength={60} placeholder="Your name or handle" />
+            </label>
+          )}
+          {user && (
+            <label className="consent">
+              <input type="checkbox" checked={anonymous} onChange={(event) => setAnonymous(event.target.checked)} />
+              <span>Publish anonymously — not linked to your account, no name shown, and it will not appear in My uploads.</span>
+            </label>
+          )}
           <p className="photo-note publish-note">
             Free for everyone under CC BY 4.0, credited to you.
             <InfoTip label="What is stored">

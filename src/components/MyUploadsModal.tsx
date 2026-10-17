@@ -47,6 +47,7 @@ export function MyUploadsModal({ onClose }: { onClose: () => void }) {
                 <strong>{route.name}</strong>
                 <small>
                   {units.distance(route.distanceM)} · {units.height(route.gainM)} EG ·{' '}
+                  {route.downloads} {route.downloads === 1 ? 'download' : 'downloads'} ·{' '}
                   {new Date(route.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
                 </small>
               </span>

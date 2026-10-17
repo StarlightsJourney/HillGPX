@@ -318,11 +318,14 @@ class RouteIn(BaseModel):
     licence: str = "CC0"
     # Signed-in uploaders may opt out of attribution: no user_id, no name.
     anonymous: bool = False
+    # Only "public" exists so far; the field is the seam for a future private tier.
+    visibility: str = "public"
 
 
 @app.get("/api/community/routes")
 async def list_community_routes(limit: int = 1000) -> list[dict[str, Any]]:
-    cur = db.routes.find().sort("created_at", -1).limit(min(limit, 5000))
+    # Rows without a visibility flag predate the field — they are all public.
+    cur = db.routes.find({"visibility": {"$ne": "private"}}).sort("created_at", -1).limit(min(limit, 5000))
     return [doc(r) async for r in cur]
 
 
@@ -340,6 +343,7 @@ async def create_community_route(route: RouteIn, user: dict[str, Any] | None = D
     row["venue_slugs"] = row["venue_slugs"][:200]
     row["points"] = row["points"][:5000]
     row["contributor"] = None if row["anonymous"] else ((row["contributor"] or "")[:60] or None)
+    row["visibility"] = "public"
     row["downloads"] = 0
     row["created_at"] = now()
     await db.routes.insert_one(row)

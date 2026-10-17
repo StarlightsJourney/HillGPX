@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { API_BASE } from '../lib/api';
 import { logOut, useAuthUser } from '../lib/auth';
 import { AuthModal } from './AuthModal';
+import { ProfileModal } from './ProfileModal';
 import { UserIcon } from './icons';
 
 /**
@@ -12,6 +14,7 @@ export function AccountMenu() {
   const user = useAuthUser();
   const [menuOpen, setMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,7 +45,11 @@ export function AccountMenu() {
         onClick={() => (user ? setMenuOpen((open) => !open) : setAuthOpen(true))}
       >
         {user ? (
-          <span className="account-initial">{user.username.slice(0, 1).toUpperCase()}</span>
+          user.avatarUrl ? (
+            <img className="account-avatar" src={`${API_BASE}${user.avatarUrl}`} alt="" />
+          ) : (
+            <span className="account-initial">{user.username.slice(0, 1).toUpperCase()}</span>
+          )
         ) : (
           <>
             <UserIcon size={16} />
@@ -61,6 +68,16 @@ export function AccountMenu() {
             role="menuitem"
             onClick={() => {
               setMenuOpen(false);
+              setProfileOpen(true);
+            }}
+          >
+            Account settings
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setMenuOpen(false);
               void logOut();
             }}
           >
@@ -69,6 +86,7 @@ export function AccountMenu() {
         </div>
       )}
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
+      {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
     </div>
   );
 }

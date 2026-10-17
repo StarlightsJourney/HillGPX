@@ -146,13 +146,17 @@ def file_url(bucket: str, path: str) -> str:
 
 @app.get("/api/files/{bucket}/{path:path}")
 async def get_file(bucket: str, path: str) -> Response:
-    grid = await fs.find({"metadata.bucket": bucket, "metadata.path": path}).to_list(1)
-    if not grid:
+    # Avatars are readable by everyone (they show on profiles) but writable
+    # only through /api/auth/me/avatar — they are not in ALLOWED_BUCKETS.
+    if bucket not in ALLOWED_BUCKETS and bucket != "avatars":
         raise HTTPException(404)
-    f = grid[0]
+    row = await db["fs.files"].find_one({"metadata.bucket": bucket, "metadata.path": path})
+    if not row:
+        raise HTTPException(404)
+    grid_out = await fs.open_download_stream(row["_id"])
     return Response(
-        content=await f.read(),
-        media_type=(f.metadata or {}).get("content_type", "application/octet-stream"),
+        content=await grid_out.read(),
+        media_type=(row.get("metadata") or {}).get("content_type", "application/octet-stream"),
         headers={"Cache-Control": "public, max-age=31536000, immutable"},
     )
 
@@ -406,6 +410,8 @@ def public_user(user: dict[str, Any]) -> dict[str, Any]:
         "id": user["id"],
         "username": user["username"],
         "email": user["email"],
+        "providers": user.get("providers", ["password"]),
+        "avatarUrl": file_url("avatars", user["avatar_path"]) if user.get("avatar_path") else None,
         "createdAt": user["created_at"],
     }
 
@@ -424,6 +430,7 @@ async def current_user(authorization: str = Header(default="")) -> dict[str, Any
     user = await db.users.find_one({"id": session["user_id"]})
     if not user:
         raise HTTPException(401, "Account not found.")
+    user["_session_hash"] = session["token_hash"]
     return user
 
 
@@ -532,6 +539,116 @@ async def google_login(body: GoogleIn) -> dict[str, Any]:
 @app.get("/api/auth/me")
 async def me(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     return {"user": public_user(user)}
+
+
+class ProfileIn(BaseModel):
+    username: str | None = None
+    email: str | None = None
+
+
+@app.patch("/api/auth/me")
+async def update_profile(body: ProfileIn, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    updates: dict[str, Any] = {}
+    if body.username is not None:
+        username = body.username.strip()
+        if not USERNAME_RE.match(username):
+            raise HTTPException(400, "Usernames are 3–24 letters, numbers, dots, dashes or underscores.")
+        clash = await db.users.find_one({"username_lower": username.lower()})
+        if clash and clash["id"] != user["id"]:
+            raise HTTPException(409, "That username is taken.")
+        updates.update({"username": username, "username_lower": username.lower()})
+    if body.email is not None:
+        email = body.email.strip().lower()
+        if not EMAIL_RE.match(email):
+            raise HTTPException(400, "That email does not look right.")
+        clash = await db.users.find_one({"email": email})
+        if clash and clash["id"] != user["id"]:
+            raise HTTPException(409, "That email is already registered.")
+        updates["email"] = email
+    if not updates:
+        raise HTTPException(400, "Nothing to change.")
+    try:
+        await db.users.update_one({"id": user["id"]}, {"$set": updates})
+    except DuplicateKeyError:
+        raise HTTPException(409, "That username or email is taken.") from None
+    return {"user": public_user({**user, **updates})}
+
+
+class PasswordIn(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@app.post("/api/auth/me/password", dependencies=[Depends(auth_rate_limit)])
+async def change_password(body: PasswordIn, user: dict[str, Any] = Depends(current_user)) -> dict[str, str]:
+    if not user.get("password_hash"):
+        raise HTTPException(400, "This account uses Google sign-in — there is no password to change.")
+    if not check_password(body.current_password, user["password_hash"]):
+        raise HTTPException(401, "That is not your current password.")
+    if not 8 <= len(body.new_password) <= 128:
+        raise HTTPException(400, "Passwords need at least 8 characters.")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": hash_password(body.new_password)}})
+    # Sign out everywhere else; the session making this call stays valid.
+    await db.sessions.delete_many({"user_id": user["id"], "token_hash": {"$ne": user["_session_hash"]}})
+    return {"status": "ok"}
+
+
+# ─── Profile photo ──────────────────────────────────────────────────────────
+
+AVATAR_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+MAX_AVATAR_BYTES = 8 * 1024 * 1024
+
+
+async def delete_avatar(user: dict[str, Any]) -> None:
+    path = user.get("avatar_path")
+    if not path:
+        return
+    old = await db["fs.files"].find_one({"metadata.bucket": "avatars", "metadata.path": path})
+    if old:
+        await fs.delete(old["_id"])
+
+
+@app.post("/api/auth/me/avatar")
+async def upload_avatar(request: Request, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    content_type = request.headers.get("content-type", "")
+    if content_type not in AVATAR_TYPES:
+        raise HTTPException(400, "Send a JPEG, PNG or WebP image.")
+    body = await request.body()
+    if not body or len(body) > MAX_AVATAR_BYTES:
+        raise HTTPException(413, "Image too large — keep it under 8 MB.")
+    await delete_avatar(user)
+    path = f"{user['id']}/{uuid.uuid4().hex}.{AVATAR_TYPES[content_type]}"
+    await fs.upload_from_stream(
+        path,
+        body,
+        metadata={"bucket": "avatars", "path": path, "content_type": content_type},
+    )
+    await db.users.update_one({"id": user["id"]}, {"$set": {"avatar_path": path}})
+    return {"user": public_user({**user, "avatar_path": path})}
+
+
+@app.delete("/api/auth/me/avatar")
+async def remove_avatar(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    await delete_avatar(user)
+    await db.users.update_one({"id": user["id"]}, {"$unset": {"avatar_path": ""}})
+    user.pop("avatar_path", None)
+    return {"user": public_user(user)}
+
+
+class DeleteIn(BaseModel):
+    password: str | None = None
+
+
+@app.delete("/api/auth/me", status_code=204)
+async def delete_account(body: DeleteIn, user: dict[str, Any] = Depends(current_user)) -> Response:
+    # Password accounts confirm with their password; Google-only accounts have
+    # nothing to check against and delete straight away.
+    if user.get("password_hash") and not check_password(body.password or "", user["password_hash"]):
+        raise HTTPException(401, "Enter your password to delete the account.")
+    await delete_avatar(user)
+    await db.sessions.delete_many({"user_id": user["id"]})
+    await db.users.delete_one({"id": user["id"]})
+    return Response(status_code=204)
 
 
 @app.post("/api/auth/logout", status_code=204)

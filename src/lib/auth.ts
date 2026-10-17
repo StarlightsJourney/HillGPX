@@ -15,6 +15,8 @@ export interface AuthUser {
   id: string;
   username: string;
   email: string;
+  providers: string[];
+  avatarUrl: string | null;
   createdAt: string;
 }
 
@@ -127,4 +129,71 @@ export async function logOut(): Promise<void> {
       headers: { Authorization: `Bearer ${token}` },
     }).catch(() => {});
   }
+}
+
+/* ─── Profile ────────────────────────────────────────────────────────── */
+
+/** Merge a fresh user object into the stored session (after profile edits). */
+function updateUser(user: AuthUser): void {
+  if (session) setSession({ token: session.token, user });
+}
+
+async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  if (!session) throw new Error('Sign in first.');
+  const response = await fetch(`${API_BASE}/api/auth${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${session.token}`, ...(init.headers ?? {}) },
+  });
+  if (response.status === 401) setSession(null);
+  if (!response.ok) {
+    throw new ApiError(apiErrorMessage(await response.text().catch(() => ''), response.status), response.status);
+  }
+  return response;
+}
+
+/** Change username and/or email; updates the stored session. */
+export async function updateProfile(input: { username?: string; email?: string }): Promise<void> {
+  const response = await authFetch('/me', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const { user } = (await response.json()) as { user: AuthUser };
+  updateUser(user);
+  saveAuthor(user.username);
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await authFetch('/me/password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
+/** Replace the profile photo. `blob` is already resized by the caller. */
+export async function uploadAvatar(blob: Blob): Promise<void> {
+  const response = await authFetch('/me/avatar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'image/jpeg' },
+    body: blob,
+  });
+  const { user } = (await response.json()) as { user: AuthUser };
+  updateUser(user);
+}
+
+export async function removeAvatar(): Promise<void> {
+  const response = await authFetch('/me/avatar', { method: 'DELETE' });
+  const { user } = (await response.json()) as { user: AuthUser };
+  updateUser(user);
+}
+
+/** Delete the account and drop the local session. */
+export async function deleteAccount(password: string): Promise<void> {
+  await authFetch('/me', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: password || null }),
+  });
+  setSession(null);
 }

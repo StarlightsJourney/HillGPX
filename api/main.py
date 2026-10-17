@@ -13,18 +13,25 @@ photos and route photos return only approved rows, routes and reviews publish
 immediately. Moderation endpoints require X-Admin-Token.
 """
 
+import hashlib
+import hmac
 import os
+import re
+import secrets
+import time
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import httpx
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from pydantic import BaseModel, Field
+from pymongo.errors import DuplicateKeyError
 
 load_dotenv()
 
@@ -34,6 +41,14 @@ STATIC_DIR = os.environ.get("STATIC_DIR", "/srv/public")
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
 CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "60")) * 1024 * 1024
+
+# Accounts: Google OAuth client ID (the audience ID tokens must carry) and the
+# bearer-session lifetime. Passwords are PBKDF2-SHA256 — no extra dependency.
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+SESSION_TTL_DAYS = int(os.environ.get("SESSION_TTL_DAYS", "30"))
+PBKDF2_ITERATIONS = 210_000
+USERNAME_RE = re.compile(r"^[A-Za-z0-9_.-]{3,24}$")
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 # Created inside the lifespan so Motor binds to uvicorn's running loop —
 # a module-level client attaches to the import-time loop and every request
@@ -48,6 +63,11 @@ async def lifespan(_: FastAPI):
     client = AsyncIOMotorClient(MONGO_URI)
     db = client[MONGO_DB]
     fs = AsyncIOMotorGridFSBucket(db)
+    # Unique logins; sessions expire on their `expires_at` date.
+    await db.users.create_index("email", unique=True)
+    await db.users.create_index("username_lower", unique=True)
+    await db.sessions.create_index("token_hash", unique=True)
+    await db.sessions.create_index("expires_at", expireAfterSeconds=0)
     yield
     client.close()
 
@@ -319,6 +339,206 @@ async def create_report(report: ReportIn) -> dict[str, Any]:
     row["created_at"] = now()
     await db.reports.insert_one(row)
     return doc(row)
+
+
+# ─── Accounts ───────────────────────────────────────────────────────────────
+#
+# Email+password sign-up with a public username, or Google sign-in (the
+# frontend sends the ID token from Google Identity Services; the API checks it
+# against tokeninfo and the configured audience). Both end the same way: an
+# opaque bearer token stored as a SHA-256 hash in `sessions`, returned to the
+# browser which keeps it in localStorage (`hillgpx:session`). Sessions are not
+# JWTs — they are revocable rows that expire after SESSION_TTL_DAYS.
+
+PBKDF2_ALGO = "sha256"
+
+
+class SignupIn(BaseModel):
+    username: str
+    email: str
+    password: str
+
+
+class LoginIn(BaseModel):
+    identifier: str  # email or username
+    password: str
+
+
+class GoogleIn(BaseModel):
+    credential: str  # ID token from Google Identity Services
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac(PBKDF2_ALGO, password.encode(), salt, PBKDF2_ITERATIONS)
+    return f"pbkdf2${PBKDF2_ITERATIONS}${salt.hex()}${digest.hex()}"
+
+
+def check_password(password: str, stored: str) -> bool:
+    try:
+        _, iters, salt_hex, digest_hex = stored.split("$")
+        digest = hashlib.pbkdf2_hmac(PBKDF2_ALGO, password.encode(), bytes.fromhex(salt_hex), int(iters))
+        return hmac.compare_digest(digest.hex(), digest_hex)
+    except (ValueError, AttributeError):
+        return False
+
+
+def token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+async def create_session(user_id: str) -> str:
+    token = secrets.token_urlsafe(32)
+    await db.sessions.insert_one(
+        {
+            "token_hash": token_hash(token),
+            "user_id": user_id,
+            "created_at": now(),
+            # A real datetime so the TTL index can collect it.
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=SESSION_TTL_DAYS),
+        }
+    )
+    return token
+
+
+def public_user(user: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "email": user["email"],
+        "createdAt": user["created_at"],
+    }
+
+
+async def current_user(authorization: str = Header(default="")) -> dict[str, Any]:
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(401, "Sign in first.")
+    session = await db.sessions.find_one({"token_hash": token_hash(authorization[7:])})
+    if not session:
+        raise HTTPException(401, "Session expired — sign in again.")
+    expires = session["expires_at"]
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires < datetime.now(timezone.utc):
+        raise HTTPException(401, "Session expired — sign in again.")
+    user = await db.users.find_one({"id": session["user_id"]})
+    if not user:
+        raise HTTPException(401, "Account not found.")
+    return user
+
+
+# Cheap guard for the credential endpoints: 30 tries per IP per 5 minutes.
+_auth_hits: dict[str, list[float]] = {}
+
+
+def auth_rate_limit(request: Request) -> None:
+    ip = request.client.host if request.client else "unknown"
+    cutoff = time.time() - 300
+    hits = [t for t in _auth_hits.get(ip, []) if t > cutoff]
+    if len(hits) >= 30:
+        raise HTTPException(429, "Too many attempts — wait a few minutes and try again.")
+    hits.append(time.time())
+    _auth_hits[ip] = hits
+
+
+async def unique_username(seed: str) -> str:
+    base = re.sub(r"[^a-z0-9_.-]+", "-", seed.lower()).strip("-._")[:20] or "climber"
+    if len(base) < 3:
+        base += "-" * (3 - len(base))
+    for suffix in ["", *(f"-{i}" for i in range(2, 100))]:
+        candidate = f"{base}{suffix}"
+        if not await db.users.find_one({"username_lower": candidate.lower()}):
+            return candidate
+    return f"{base[:16]}-{secrets.token_hex(3)}"
+
+
+async def insert_user(username: str, email: str, password: str | None, providers: list[str]) -> dict[str, Any]:
+    row = {
+        "id": uuid.uuid4().hex,
+        "username": username,
+        "username_lower": username.lower(),
+        "email": email,
+        "password_hash": hash_password(password) if password else None,
+        "providers": providers,
+        "created_at": now(),
+    }
+    await db.users.insert_one(row)
+    return row
+
+
+@app.post("/api/auth/signup", status_code=201, dependencies=[Depends(auth_rate_limit)])
+async def signup(body: SignupIn) -> dict[str, Any]:
+    username = body.username.strip()
+    email = body.email.strip().lower()
+    if not USERNAME_RE.match(username):
+        raise HTTPException(400, "Usernames are 3–24 letters, numbers, dots, dashes or underscores.")
+    if not EMAIL_RE.match(email):
+        raise HTTPException(400, "That email does not look right.")
+    if not 8 <= len(body.password) <= 128:
+        raise HTTPException(400, "Passwords need at least 8 characters.")
+    if await db.users.find_one({"username_lower": username.lower()}):
+        raise HTTPException(409, "That username is taken.")
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(409, "That email is already registered — try logging in.")
+    try:
+        user = await insert_user(username, email, body.password, ["password"])
+    except DuplicateKeyError:
+        raise HTTPException(409, "That username or email is taken.") from None
+    return {"token": await create_session(user["id"]), "user": public_user(user)}
+
+
+@app.post("/api/auth/login", dependencies=[Depends(auth_rate_limit)])
+async def login(body: LoginIn) -> dict[str, Any]:
+    ident = body.identifier.strip().lower()
+    user = await db.users.find_one({"$or": [{"email": ident}, {"username_lower": ident}]})
+    if not user or not user.get("password_hash") or not check_password(body.password, user["password_hash"]):
+        raise HTTPException(401, "Wrong email or password.")
+    return {"token": await create_session(user["id"]), "user": public_user(user)}
+
+
+@app.post("/api/auth/google", dependencies=[Depends(auth_rate_limit)])
+async def google_login(body: GoogleIn) -> dict[str, Any]:
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(503, "Google sign-in is not configured on this server.")
+    async with httpx.AsyncClient(timeout=10) as client:
+        check = await client.get("https://oauth2.googleapis.com/tokeninfo", params={"id_token": body.credential})
+    if check.status_code != 200:
+        raise HTTPException(401, "Google did not recognise that sign-in. Try again.")
+    claims = check.json()
+    if claims.get("aud") != GOOGLE_CLIENT_ID:
+        raise HTTPException(401, "That Google sign-in is for a different app.")
+    if claims.get("email_verified") not in (True, "true") or not claims.get("email"):
+        raise HTTPException(400, "That Google account has no verified email.")
+    email = str(claims["email"]).lower()
+    user = await db.users.find_one({"email": email})
+    if user:
+        if "google" not in user.get("providers", []):
+            await db.users.update_one({"id": user["id"]}, {"$addToSet": {"providers": "google"}})
+    else:
+        # Username comes from the email's local part, made unique. Google's
+        # "name" is a display name, not a handle, so it is only a fallback.
+        seed = email.split("@", 1)[0] or str(claims.get("name") or "climber")
+        for _ in range(5):
+            try:
+                user = await insert_user(await unique_username(seed), email, None, ["google"])
+                break
+            except DuplicateKeyError:
+                continue
+        else:
+            raise HTTPException(409, "Could not pick a username — try signing up with email instead.")
+    return {"token": await create_session(user["id"]), "user": public_user(user)}
+
+
+@app.get("/api/auth/me")
+async def me(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    return {"user": public_user(user)}
+
+
+@app.post("/api/auth/logout", status_code=204)
+async def logout(authorization: str = Header(default="")) -> Response:
+    if authorization.startswith("Bearer "):
+        await db.sessions.delete_one({"token_hash": token_hash(authorization[7:])})
+    return Response(status_code=204)
 
 
 # ─── Moderation (X-Admin-Token) ─────────────────────────────────────────────

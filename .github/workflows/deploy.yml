@@ -57,6 +57,8 @@ jobs:
           # sitemap (scripts/build_seo.mjs). Set by the "Site address" step.
           VITE_SITE_URL: ${{ steps.site.outputs.url }}
           SITE_URL: ${{ steps.site.outputs.url }}
+          # VITE_GOOGLE_CLIENT_ID is deliberately not set: Pages is static,
+          # there is no /api to sign in against, so the button stays hidden.
 
       - uses: actions/upload-pages-artifact@v3
         with:

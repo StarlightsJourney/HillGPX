@@ -33,7 +33,9 @@ import { CloseIcon, ListIcon, LocationArrowIcon, MapIcon } from './components/ic
 import { loadLocalRoutes, saveLocalRoutes } from './lib/localRoutes';
 import { logSession } from './lib/training';
 import { TrainingPanel } from './components/TrainingPanel';
+import { AccountPage } from './components/AccountPage';
 import { InfoPage, type InfoPageId } from './components/InfoPage';
+import { MyUploadsPage } from './components/MyUploadsPage';
 import { UnitsProvider } from './components/UnitsContext';
 import { Modal } from './components/Modal';
 import { SiteFooter, SiteHeader } from './components/SiteChrome';
@@ -54,7 +56,7 @@ const NO_PHOTOS: RoutePhoto[] = [];
 // fetched once someone actually opens it.
 const MapView = lazy(() => import('./map/MapView').then((m) => ({ default: m.MapView })));
 
-type View = 'landing' | 'map' | 'training' | InfoPageId;
+type View = 'landing' | 'map' | 'training' | 'account' | 'uploads' | InfoPageId;
 
 const INFO_PAGES: ReadonlySet<string> = new Set<InfoPageId>(['privacy', 'terms', 'contact']);
 
@@ -62,6 +64,8 @@ function viewFromHash(): View {
   const hash = window.location.hash;
   if (hash === '#map' || hash === '#routes' || hash === '#import' || hash.startsWith('#map/') || hash.startsWith('#venue/')) return 'map';
   if (hash === '#training') return 'training';
+  if (hash === '#account') return 'account';
+  if (hash === '#uploads') return 'uploads';
   if (INFO_PAGES.has(hash.slice(1))) return hash.slice(1) as InfoPageId;
   return 'landing';
 }
@@ -97,6 +101,10 @@ export default function App() {
         <Landing />
       ) : view === 'training' ? (
         <TrainingPanel />
+      ) : view === 'account' ? (
+        <AccountPage />
+      ) : view === 'uploads' ? (
+        <MyUploadsPage />
       ) : view !== 'map' ? (
         <InfoPage page={view} />
       ) : (
@@ -439,8 +447,8 @@ function MapApp() {
     const pending = sessionStorage.getItem('hillgpx:pendingRoute');
     if (!pending) return;
     sessionStorage.removeItem('hillgpx:pendingRoute');
-    if (dataset.routeBySlug.has(pending)) selectRoute(pending);
-  }, [dataset, selectRoute]);
+    if (allRoutes.some((route) => route.slug === pending)) selectRoute(pending);
+  }, [dataset, allRoutes, selectRoute]);
 
   const routeHoverPoint: [number, number] | null =
     selectedRoute && routeHoverIndex != null && selectedRoute.coordinates[routeHoverIndex]

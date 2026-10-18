@@ -150,6 +150,8 @@ The sibling `.bin` file is a row-major `Int16Array` of size `width * height`. Va
 
 - Favourites: `localStorage` key owned by `src/lib/venues.ts`.
 - Saved local routes: `localStorage` key owned by `src/lib/localRoutes.ts`.
+- Contributor name: `hillgpx:authorName`, owned by `src/lib/api.ts`.
+- Auth session: `hillgpx:session` (bearer token + user), owned by `src/lib/auth.ts`. The API keeps the SHA-256 hash of the token in a `sessions` collection with a TTL; `/api/auth/me` revalidates it on load. Profile edits go through `PATCH /api/auth/me`, photos through `POST /api/auth/me/avatar` (256 px JPEG, GridFS `avatars` bucket, public-read).
 
 Neither is considered authoritative for the public dataset. To publish a route, add the GPX to `data/routes/` and rebuild.
 

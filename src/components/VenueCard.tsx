@@ -1,4 +1,5 @@
 import { track } from '../lib/analytics';
+import { recordRouteDownload } from '../lib/api';
 import type { Route, Venue } from '../types';
 import { HEIGHT_LABEL, townName, venueHeight, venueKindLabel, venuePhotos } from '../lib/venues';
 import { PhotoCredit, VenueThumb } from './VenueThumb';
@@ -9,6 +10,8 @@ import { toGpx } from '../lib/gpx';
 
 export function downloadRoute(route: Route) {
   track('gpx_download', route.slug);
+  // Every download counts publicly; device-saved routes are not in the archive.
+  if (route.source !== 'local') recordRouteDownload(route.slug);
   const gpx = toGpx(route.name, route.coordinates, [], route.elevationAvailable !== false);
   const blob = new Blob([gpx], { type: 'application/gpx+xml' });
   const url = URL.createObjectURL(blob);

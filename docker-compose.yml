@@ -37,6 +37,8 @@ services:
       args:
         # Empty = same-origin; nginx proxies /api, /data, /photos, /route-thumbs.
         VITE_API_BASE: ""
+        # Google OAuth client ID for the sign-in button (empty = hidden).
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
     restart: unless-stopped
     ports:
       - "3000:80"

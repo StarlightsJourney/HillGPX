@@ -131,6 +131,8 @@ export interface Route {
   elevationSource?: 'gps' | 'terrain' | 'dem';
   /** Original file, for routes contributed through the site. */
   gpxUrl?: string;
+  /** Community routes only: how often the GPX file was fetched. */
+  downloads?: number;
 }
 
 /**

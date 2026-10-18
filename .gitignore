@@ -50,3 +50,4 @@ npm-debug.*
 test-results/
 playwright-report/
 
+dummy_gpx/

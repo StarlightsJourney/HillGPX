@@ -255,6 +255,8 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           ['Distance', units.distance(route.distanceM)],
           ['EG', hasElevation ? units.height(elevation.gainM) : unavailable],
           ['EL', hasElevation ? units.height(elevation.lossM) : unavailable],
+          // Community routes only: curated files have no counter.
+          ...(route.downloads !== undefined ? [['Downloads', String(route.downloads)]] : []),
         ].map(([label, value]) => (
           <div className="gpx-stat" key={label}>
             <strong>{value}</strong>

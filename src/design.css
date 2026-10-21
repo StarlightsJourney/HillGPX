@@ -117,7 +117,7 @@
 }
 .home-nav .home-shell,
 .home-main.home-shell,
-.home-hero .home-shell,
+.trail-hero .home-shell,
 .home-foot .home-shell {
   max-width: 1280px;
 }
@@ -1890,76 +1890,6 @@
   color: var(--accent);
 }
 
-/* ─── Home hero ─────────────────────────────────────────────────────────── */
-
-.home-hero {
-  padding: 12px 0 24px;
-  background: #fff;
-  border-bottom: 1px solid var(--hairline);
-}
-
-.home-hero-title {
-  margin: 0 0 12px;
-  font-size: clamp(28px, 5vw, 44px);
-  line-height: 1.05;
-  letter-spacing: -0.03em;
-  color: var(--ink);
-}
-
-.home-hero-lead {
-  margin: 0 0 20px;
-  font-size: 17px;
-  line-height: 1.5;
-  color: var(--muted);
-  max-width: 560px;
-}
-
-.home-hero-stats {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 22px;
-}
-.home-hero-stats > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.home-hero-stats strong {
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--ink);
-}
-.home-hero-stats span {
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.home-hero-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.home-hero-chip {
-  padding: 8px 14px;
-  border: 1px solid var(--hairline);
-  border-radius: 24px;
-  background: #fff;
-  color: var(--ink-2);
-  font: 600 14px/1 var(--font-sans);
-  cursor: pointer;
-  transition: transform 0.15s var(--ease-out), box-shadow 0.15s ease, border-color 0.15s ease;
-}
-.home-hero-chip:hover {
-  transform: translateY(-2px);
-  border-color: #ddd;
-  box-shadow: var(--shadow-pill);
-}
-.home-hero-chip:active {
-  transform: scale(0.97);
-}
-
 /* ─── Shared modal (GPX import, coverage, photos) ─────────────────────── */
 
 .modal-root {
@@ -3230,32 +3160,6 @@
   }
 }
 
-/* ─── Landing hero + milestone board ──────────────────────────────────── */
-
-.home-hero {
-  padding: 28px 0 36px;
-  border-bottom: none;
-}
-.home-hero-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 28px;
-  align-items: center;
-}
-@media (min-width: 950px) {
-  .home-hero-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 470px);
-    gap: 48px;
-  }
-}
-.home-hero .home-search {
-  margin: 0 0 16px;
-  max-width: 560px;
-}
-.home-hero .home-search-what {
-  padding-right: 72px;
-}
-
 @keyframes topo-drift {
   from { transform: scale(1.05) translate(0, 0); }
   to { transform: scale(1.12) translate(-14px, 8px); }
@@ -3921,17 +3825,261 @@
 
 /* ─── Landing: hero, rows ──────────────────────────────────────────────── */
 
-.home-hero {
-  padding: 28px 0 8px;
-}
-.home-hero-search .home-search {
-  margin: 0 auto;
-}
 
 .home-more {
   display: flex;
   justify-content: center;
   margin: 40px 0 8px;
+}
+
+/* ─── Landing hero: "May the trail be with you" (TrailHero.tsx) ──────────
+   The promise, what the site is, two ways in, then how it works as three
+   steps on a ridge that draws itself from the start to the summit flag. Each
+   step's dot lands as the line reaches it. The SVG stretches to the width,
+   so the dots are placed in the same 1000 × 140 box: x as a share of the
+   width, y in pixels. The drawn line scales with it (a non-scaling stroke
+   breaks pathLength, and the draw stopped short of the flag); the trail is
+   wide and shallow, so the stretch does not show. */
+.trail-hero {
+  padding: 48px 0 8px;
+  text-align: center;
+}
+.trail-hero-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(32px, 4.6vw, 52px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+.trail-hero-title span {
+  color: var(--accent);
+}
+.trail-hero-lead {
+  max-width: 560px;
+  margin: 14px auto 0;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.5;
+}
+.trail-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+.trail {
+  --draw: 2.4s;
+  --lead-in: 0.3s;
+  position: relative;
+  max-width: 1080px;
+  margin: 36px auto 0;
+}
+.trail-line {
+  display: block;
+  width: 100%;
+  height: 140px;
+  overflow: visible;
+}
+.trail-ghost,
+.trail-path {
+  fill: none;
+  stroke-linecap: round;
+}
+.trail-ghost {
+  vector-effect: non-scaling-stroke;
+  stroke: var(--border);
+  stroke-width: 2;
+  stroke-dasharray: 2 7;
+}
+.trail-path {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  /* Constant speed, so each dot's delay (its x) matches when the line gets there. */
+  animation: trail-draw var(--draw) linear var(--lead-in) forwards;
+}
+@keyframes trail-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.trail-end {
+  position: absolute;
+}
+.trail-end.start {
+  top: 112px;
+  left: 1%;
+  width: 12px;
+  height: 12px;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  background: #fff;
+  transform: translate(-50%, -50%);
+}
+.trail-end.finish {
+  top: 28px;
+  left: 99%;
+  color: var(--accent);
+  line-height: 0;
+  transform: translate(-3px, -100%);
+  opacity: 0;
+  animation: trail-pop 0.4s var(--ease-out) calc(var(--lead-in) + var(--draw)) forwards;
+}
+.trail-end.finish path {
+  fill: currentColor;
+  fill-opacity: 0.18;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.trail-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.trail-steps li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.trail-steps strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+.trail-steps li > span:last-child {
+  max-width: 280px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+/* On the line: placed against .trail, landing as the draw reaches its x. */
+.trail-dot {
+  position: absolute;
+  top: calc(var(--y) * 1px);
+  left: calc(var(--x) * 1%);
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--accent);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--accent);
+  font: 700 13px/26px var(--font-sans);
+  text-align: center;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  animation: trail-pop 0.4s var(--ease-out) calc(var(--lead-in) + var(--draw) * var(--x) / 100) forwards;
+}
+@keyframes trail-pop {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+/* Phones: the steps stack, joined by a vertical trail drawn top to bottom. */
+@media (max-width: 743px) {
+  .trail-hero {
+    padding: 32px 0 0;
+  }
+  .trail-hero-lead {
+    font-size: 16px;
+  }
+  .trail-hero-actions .btn {
+    flex: 1 1 0;
+    padding: 0 12px;
+    font-size: 15px;
+    white-space: nowrap;
+  }
+  .trail {
+    --draw: 1.6s;
+    max-width: 420px;
+    margin-top: 28px;
+    text-align: left;
+  }
+  .trail-line,
+  .trail-end {
+    display: none;
+  }
+  .trail-steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    margin: 0;
+  }
+  /* One segment from each dot down to the next, drawn in turn, so the line
+     ends at the last dot however tall the text beside it is. */
+  .trail-steps li:not(:last-child)::before,
+  .trail-steps li:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 30px;
+    bottom: -20px;
+    left: 14px;
+  }
+  .trail-steps li:not(:last-child)::before {
+    border-left: 2px dashed var(--border);
+  }
+  .trail-steps li:not(:last-child)::after {
+    width: 3px;
+    margin-left: -0.5px;
+    background: var(--accent);
+    transform: scaleY(0);
+    transform-origin: top;
+    animation: trail-down calc(var(--draw) / 2) linear calc(var(--lead-in) + var(--draw) * var(--i) / 2) forwards;
+  }
+  .trail-steps li {
+    position: relative;
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    column-gap: 14px;
+    align-items: start;
+  }
+  .trail-steps strong,
+  .trail-steps li > span:last-child {
+    grid-column: 2;
+  }
+  .trail-steps strong {
+    padding-top: 4px;
+  }
+  .trail-dot {
+    position: relative;
+    z-index: 1;
+    top: auto;
+    left: auto;
+    grid-row: span 2;
+    transform: none;
+    animation-delay: calc(var(--lead-in) + var(--draw) * var(--i) / 2);
+  }
+}
+@keyframes trail-down {
+  to {
+    transform: scaleY(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trail-path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .trail-steps li::after {
+    animation: none;
+    transform: none;
+  }
+  .trail-dot,
+  .trail-end.finish {
+    animation: none;
+    opacity: 1;
+  }
 }
 
 .peak-art {
@@ -4519,9 +4667,6 @@
     width: 100%;
     height: 42px;
   }
-}
-.home-hero {
-  padding: 16px 0 4px;
 }
 
 /* Shared placeholder art for places without a photo */

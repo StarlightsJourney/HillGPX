@@ -13,6 +13,7 @@ import { ActivityTag } from './ActivityIcon';
 import { routeActivity } from '../lib/routeAnalysis';
 import { errorText } from '../lib/api';
 import { VenueThumb } from './VenueThumb';
+import { TrailHero } from './TrailHero';
 import { useUnits } from './UnitsContext';
 
 type Mode = 'climbs' | 'routes';
@@ -36,9 +37,9 @@ const climbsIn = (bounds: Bounds): MapLink => ({ href: boundsToHash(bounds), mod
 const ROUTES_LINK: MapLink = { href: '#routes', mode: 'routes' };
 
 /**
- * The front door, modelled on Airbnb's home: a header with the two things you
- * can browse, one search that takes you somewhere, and rows of real listings
- * underneath. No hero copy to read — the rows are the pitch.
+ * The front door, modelled on Airbnb's home: one search that takes you
+ * somewhere, a short hero that says what the site is and how it works, then
+ * rows of real listings underneath.
  */
 export function Landing() {
   const [dataset, setDataset] = useState<Dataset | null>(null);
@@ -75,7 +76,7 @@ export function Landing() {
     <div className="home">
       <SiteHeader sticky center={<SiteSearch />} />
 
-      <HeroBlock />
+      <TrailHero />
 
       <main className="home-shell home-main">
         {loadError && (
@@ -116,16 +117,6 @@ export function Landing() {
 
       <SiteFooter />
     </div>
-  );
-}
-
-/* ─── Hero ─────────────────────────────────────────────────────────────── */
-
-function HeroBlock() {
-  return (
-    <section className="home-hero">
-      <h1 className="visually-hidden">hillGPX: hills, mountains and GPX routes worldwide</h1>
-    </section>
   );
 }
 

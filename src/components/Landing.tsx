@@ -61,8 +61,12 @@ export function Landing() {
     [dataset],
   );
 
-  const placeRow = (row: RowSpec, half = false) => (
-    <Row key={row.title} half={half} title={row.title} link={climbsIn(row.bounds)} loading={!rows} collage={collageOf(row.venues)}>
+  // Local rows first (Singapore, Malaysia, then the rest), topped up with
+  // "Highest peaks in …" rows to COUNTRY_ROWS in all.
+  const worldShown = rows ? worldList.slice(0, Math.max(0, COUNTRY_ROWS - rows.length)) : [];
+
+  const placeRow = (row: RowSpec) => (
+    <Row key={row.title} title={row.title} link={climbsIn(row.bounds)} loading={!rows} collage={collageOf(row.venues)}>
       {row.venues.map((venue, i) => <PlaceTile key={venue.slug} venue={venue} index={i} showKind={row.showKind} />)}
     </Row>
   );
@@ -86,12 +90,26 @@ export function Landing() {
             <Row title="Routes worth running" link={ROUTES_LINK} loading={!routes}>
               {routes?.map((route, i) => <RouteTile key={route.slug} route={route} index={i} />)}
             </Row>
-            {/* Singapore's two short rows read as one place: side by side, not two thin strips. */}
-            <div className="home-row-pair">
-              {(rows ?? PLACEHOLDER_ROWS).slice(0, 2).map((row) => placeRow(row, true))}
-            </div>
-            {(rows ?? PLACEHOLDER_ROWS).slice(2).map((row) => placeRow(row))}
-            {countries && <WorldRows list={worldList} />}
+            {(rows ?? PLACEHOLDER_ROWS).slice(0, COUNTRY_ROWS).map(placeRow)}
+            {worldShown.map((country) => (
+              <Row
+                key={country.code}
+                title={`Highest peaks in ${country.name}`}
+                link={climbsIn(country.bounds)}
+                loading={false}
+                collage={collageOf(country.peaks)}
+              >
+                {/* The title already says what and where, so the tiles carry just the name and height. */}
+                {country.peaks.map((venue, i) => <PlaceTile key={venue.slug} venue={venue} index={i} />)}
+              </Row>
+            ))}
+            {rows && (
+              <div className="home-more">
+                <a className="btn btn-light" href="#map" onClick={() => rememberMode('climbs')}>
+                  See every country on the map
+                </a>
+              </div>
+            )}
           </>
         )}
       </main>
@@ -126,8 +144,12 @@ function useCountries(): CountrySummary[] | null {
 }
 
 const WORLD_SKIP = new Set(['SG', 'MY', 'TW', 'HK']);
-/** Countries revealed per scroll step, and the most the page will show. */
-const WORLD_BATCH = 4;
+/**
+ * Country rows under "Routes worth running": with it, 8 rows in all. The page
+ * is a taster; every other country is one search or one map away.
+ */
+const COUNTRY_ROWS = 7;
+/** Countries checked for a world row, so a country never gets a local row too. */
 const WORLD_MAX = 24;
 /** A row needs enough summits to scroll; tiny territories stay on the map. */
 const WORLD_MIN_PEAKS = 6;
@@ -135,58 +157,6 @@ const WORLD_MIN_PEAKS = 6;
 /** The countries that get a "Highest peaks in …" row, in page order. */
 function worldRowCountries(countries: CountrySummary[] | null): CountrySummary[] {
   return (countries ?? []).filter((c) => !WORLD_SKIP.has(c.code) && c.peaks.length >= WORLD_MIN_PEAKS).slice(0, WORLD_MAX);
-}
-
-/**
- * More countries as you scroll, Airbnb-style: a skeleton row appears, then
- * the next countries' tallest summits fill in.
- */
-function WorldRows({ list }: { list: CountrySummary[] }) {
-  const [shown, setShown] = useState(WORLD_BATCH);
-  const [loading, setLoading] = useState(false);
-  const sentinel = useRef<HTMLDivElement>(null);
-  const done = shown >= list.length;
-
-  // Seeing the sentinel starts a short skeleton; the timer below then reveals
-  // the next batch. Kept as two effects so starting the skeleton does not
-  // cancel its own timer.
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el || done || loading) return;
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) setLoading(true);
-    }, { rootMargin: '200px' });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [done, loading, list.length]);
-
-  useEffect(() => {
-    if (!loading) return;
-    const timer = window.setTimeout(() => {
-      setShown((n) => n + WORLD_BATCH);
-      setLoading(false);
-    }, 700);
-    return () => window.clearTimeout(timer);
-  }, [loading]);
-
-  return (
-    <>
-      {list.slice(0, shown).map((country) => (
-        <Row
-          key={country.code}
-          title={`Highest peaks in ${country.name}`}
-          link={climbsIn(country.bounds)}
-          loading={false}
-          collage={collageOf(country.peaks)}
-        >
-          {/* The title already says what and where, so the tiles carry just the name and height. */}
-          {country.peaks.map((venue, i) => <PlaceTile key={venue.slug} venue={venue} index={i} />)}
-        </Row>
-      ))}
-      {loading && <Row title="" link={null} loading>{null}</Row>}
-      {!done && <div ref={sentinel} className="home-sentinel" aria-hidden="true" />}
-    </>
-  );
 }
 
 /* ─── Search ──────────────────────────────────────────────────────────── */
@@ -202,8 +172,7 @@ interface RowSpec {
 const SINGAPORE = DESTINATIONS[0].bounds;
 
 const PLACEHOLDER_ROWS: RowSpec[] = [
-  { title: 'Hills and summits in Singapore', venues: [], bounds: SINGAPORE, showKind: true },
-  { title: 'Stair training in Singapore', venues: [], bounds: SINGAPORE, showKind: true },
+  { title: 'Climbs in Singapore', venues: [], bounds: SINGAPORE, showKind: true },
   { title: 'Summits across Malaysia', venues: [], bounds: DESTINATIONS[5].bounds, showKind: false },
 ];
 
@@ -230,9 +199,14 @@ function buildRows(venues: Venue[], worldRows: ReadonlySet<string>): RowSpec[] {
   const boundsFor = (region: string, list: Venue[]): Bounds => boundsOf(list) ?? regionBounds(region) ?? SINGAPORE;
   const sg = byRegion.get('Singapore') ?? [];
   const malaysia = byRegion.get('Malaysia') ?? [];
+  // Singapore's hills and its stairs and blocks share one row, taking turns,
+  // so neither kind crowds the other out.
+  const sgClimbs = interleave(
+    showcase(sg.filter((v) => v.type === 'hill' || v.type === 'park')),
+    showcase(sg.filter((v) => v.type === 'stairs' || v.type === 'hdb_block')),
+  ).slice(0, 12);
   const rows: RowSpec[] = [
-    { title: 'Hills and summits in Singapore', venues: showcase(sg.filter((v) => v.type === 'hill' || v.type === 'park')), bounds: SINGAPORE, showKind: true },
-    { title: 'Stair training in Singapore', venues: showcase(sg.filter((v) => v.type === 'stairs' || v.type === 'hdb_block')), bounds: SINGAPORE, showKind: true },
+    { title: 'Climbs in Singapore', venues: sgClimbs, bounds: SINGAPORE, showKind: true },
     { title: 'Summits across Malaysia', venues: showcase(malaysia), bounds: boundsFor('Malaysia', malaysia), showKind: false },
   ];
   for (const [region, list] of byRegion) {
@@ -242,17 +216,26 @@ function buildRows(venues: Venue[], worldRows: ReadonlySet<string>): RowSpec[] {
   return rows.filter((row) => row.venues.length > 0);
 }
 
+/** a1, b1, a2, b2, …, then whatever is left of the longer list. */
+function interleave<T>(a: T[], b: T[]): T[] {
+  const out: T[] = [];
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if (i < a.length) out.push(a[i]);
+    if (i < b.length) out.push(b[i]);
+  }
+  return out;
+}
+
 /** Up to three of a row's photos for its "See all" card. */
 function collageOf(venues: Venue[]): string[] {
   return venues.flatMap((venue) => (venue.photo?.file ? [photoSrc(venue.photo)] : [])).slice(0, 3);
 }
 
-function Row({ title, link, loading, children, half = false, collage = [] }: {
+function Row({ title, link, loading, children, collage = [] }: {
   title: string;
   link: MapLink | null;
   loading: boolean;
   children: React.ReactNode;
-  half?: boolean;
   collage?: string[];
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -271,7 +254,7 @@ function Row({ title, link, loading, children, half = false, collage = [] }: {
   };
 
   return (
-    <section className={`home-row${half ? ' half' : ''}`}>
+    <section className="home-row">
       <header className="home-row-head">
         {title === '' || !link ? <span className="sk-line sk-heading" aria-hidden="true" /> : (
           // Airbnb's pattern: the title is the link, a chevron says so.

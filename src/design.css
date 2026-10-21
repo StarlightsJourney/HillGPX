@@ -3928,29 +3928,10 @@
   margin: 0 auto;
 }
 
-.home-row-pair {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 36px;
-  margin-top: 36px;
-}
-.home-row-pair .home-row + .home-row {
-  margin-top: 0;
-}
-@media (min-width: 950px) {
-  .home-row-pair {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 32px;
-  }
-  .home-row.half .home-row-track {
-    --cols: 3;
-  }
-}
-.home-row-pair + .home-row {
-  margin-top: 36px;
-}
-.home-sentinel {
-  height: 1px;
+.home-more {
+  display: flex;
+  justify-content: center;
+  margin: 40px 0 8px;
 }
 
 .peak-art {

@@ -13,11 +13,12 @@ import {
   type Area,
   type Bounds,
 } from '../lib/venues';
-import { COUNTRY_ALIASES, DESTINATIONS, boundsToHash, geocodePlace } from '../lib/regions';
+import { COUNTRY_ALIASES, DESTINATIONS, geocodePlace } from '../lib/regions';
+import { openMapWith } from '../lib/mapIntent';
 import { countrySummaries, notablePeakCountry, notablePeaks, peaksInView } from '../lib/worldPeaks';
 import { normaliseQuery } from '../lib/streetTerms';
 import { useUnits } from './UnitsContext';
-import { SearchIcon } from './icons';
+import { LocateIcon, SearchIcon } from './icons';
 import { SearchHint } from './SearchHint';
 import { track } from '../lib/analytics';
 
@@ -32,7 +33,20 @@ interface SearchBarProps {
   onFitBounds: (bounds: Bounds) => void;
   /** Pressing Search with nothing typed (pages without a map open it). Default: focus the box. */
   onEmptySubmit?: () => void;
+  /** The locate button beside the pill. Default: open the map on routes near you. */
+  onLocate?: () => void;
 }
+
+/**
+ * Search on a page without the map: every pick opens the map, which shows
+ * the routes there (or the climbs, when there are none).
+ */
+export const SEARCH_OPENS_MAP: Pick<SearchBarProps, 'onPick' | 'onFitBounds'> = {
+  onPick: (slug) => openMapWith({ kind: 'place', slug }),
+  onFitBounds: (bounds) => openMapWith({ kind: 'area', bounds }),
+};
+
+const locateNearMe = () => openMapWith({ kind: 'near-me' });
 
 /** A country or a curated destination: somewhere to go rather than something to climb. */
 interface Place {
@@ -160,7 +174,7 @@ function matchPlaces(places: Place[], q: string): { exact: Place | null; prefix:
  * where it was. At ~18k venues a lowercase substring scan is a few
  * milliseconds, so there is no index and no debounce.
  */
-export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit }: SearchBarProps) {
+export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit, onLocate = locateNearMe }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [lookup, setLookup] = useState<Lookup>({ state: 'idle' });
@@ -318,80 +332,86 @@ export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit }: Search
     ) : null;
 
   // The same pill as the landing page's search, so the header keeps one shape
-  // and one position on every page and at every width.
+  // and one position on every page and at every width. The locate button sits
+  // just left of it (inside its left end on phones).
   return (
-    <form
-      ref={rootRef}
-      className={`home-search map-search${open ? ' focused' : ''}`}
-      role="search"
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit();
-      }}
-    >
-      <label className="home-search-field home-search-where">
-        <input
-          ref={inputRef}
-          type="search"
-          value={query}
-          aria-label="Search countries, hills, blocks and streets"
-          autoComplete="off"
-          onFocus={() => setOpen(true)}
-          onChange={(e) => {
-            lookupIdRef.current += 1;
-            setLookup({ state: 'idle' });
-            setQuery(e.target.value);
-            setOpen(true);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') reset();
-          }}
-        />
-        <SearchHint hidden={query.length > 0} />
-      </label>
-      <button type="submit" className="home-search-go" aria-label="Search">
-        <SearchIcon size={16} />
-        <span>Search</span>
+    <div className="header-search">
+      <button type="button" className="locate-btn" onClick={onLocate} aria-label="Show routes near me" data-tip="Routes near me">
+        <LocateIcon size={18} />
       </button>
-      {open && (status !== null || hasLocal) && (
-        <div className="searchbar-results">
-          {status}
-          {placeRows.map((place) => (
-            <button type="button" key={place.key} className="result-row area-row" onClick={() => pickPlace(place)}>
-              <span className="result-name">{place.name}</span>
-              <span className="result-meta small muted">{place.meta}</span>
-            </button>
-          ))}
-          {areaHits.map((area) => (
-            <button type="button" key={area.code} className="result-row area-row" onClick={() => pickArea(area)}>
-              <span className="result-name">{area.name}</span>
-              <span className="result-meta small muted">Area · {area.venueCount} places mapped</span>
-            </button>
-          ))}
-          {results.map((venue) => {
-            const height = venueHeight(venue);
-            return (
-              <button type="button" key={venue.slug} className="result-row" onClick={() => pick(venue.slug)}>
-                <span className="result-name">{venue.name}</span>
-                <span className="result-meta small muted">
-                  {venueKindLabel(venue)}
-                  {height && ` · ${units.height(height.value)} ${HEIGHT_LABEL[height.kind]}`}
-                  {notablePeakCountry(venue.slug) && ` · ${notablePeakCountry(venue.slug)}`}
-                </span>
+      <form
+        ref={rootRef}
+        className={`home-search map-search${open ? ' focused' : ''}`}
+        role="search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+      >
+        <label className="home-search-field home-search-where">
+          <input
+            ref={inputRef}
+            type="search"
+            value={query}
+            aria-label="Search countries, hills, blocks and streets"
+            autoComplete="off"
+            onFocus={() => setOpen(true)}
+            onChange={(e) => {
+              lookupIdRef.current += 1;
+              setLookup({ state: 'idle' });
+              setQuery(e.target.value);
+              setOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') reset();
+            }}
+          />
+          <SearchHint hidden={query.length > 0} />
+        </label>
+        <button type="submit" className="home-search-go" aria-label="Search">
+          <SearchIcon size={16} />
+          <span>Search</span>
+        </button>
+        {open && (status !== null || hasLocal) && (
+          <div className="searchbar-results">
+            {status}
+            {placeRows.map((place) => (
+              <button type="button" key={place.key} className="result-row area-row" onClick={() => pickPlace(place)}>
+                <span className="result-name">{place.name}</span>
+                <span className="result-meta small muted">{place.meta}</span>
               </button>
-            );
-          })}
-        </div>
-      )}
-    </form>
+            ))}
+            {areaHits.map((area) => (
+              <button type="button" key={area.code} className="result-row area-row" onClick={() => pickArea(area)}>
+                <span className="result-name">{area.name}</span>
+                <span className="result-meta small muted">Area · {area.venueCount} places mapped</span>
+              </button>
+            ))}
+            {results.map((venue) => {
+              const height = venueHeight(venue);
+              return (
+                <button type="button" key={venue.slug} className="result-row" onClick={() => pick(venue.slug)}>
+                  <span className="result-name">{venue.name}</span>
+                  <span className="result-meta small muted">
+                    {venueKindLabel(venue)}
+                    {height && ` · ${units.height(height.value)} ${HEIGHT_LABEL[height.kind]}`}
+                    {notablePeakCountry(venue.slug) && ` · ${notablePeakCountry(venue.slug)}`}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </form>
+    </div>
   );
 }
 
 /**
  * The header search on pages without a map (landing, info, training): the
  * same SearchBar as the map page, over the same data, so a search finds the
- * same things everywhere. A pick opens the place page; an area opens the map
- * framed on it.
+ * same things everywhere. Every pick opens the map on that place's routes
+ * (its climbs when it has none).
  */
 export function SiteSearch() {
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -407,11 +427,6 @@ export function SiteSearch() {
     };
   }, []);
   return (
-    <SearchBar
-      venues={venues}
-      onPick={(slug) => (window.location.hash = `#venue/${slug}`)}
-      onFitBounds={(bounds) => (window.location.hash = boundsToHash(bounds))}
-      onEmptySubmit={() => (window.location.hash = '#map')}
-    />
+    <SearchBar venues={venues} {...SEARCH_OPENS_MAP} onEmptySubmit={() => (window.location.hash = '#map')} />
   );
 }

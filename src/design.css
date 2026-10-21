@@ -4905,10 +4905,47 @@
    round icons at every width (Add a GPX says what it is on hover), which
    keeps both sides narrow enough for a centred, full-width pill. */
 .site-header-row {
-  grid-template-columns: minmax(max-content, 1fr) minmax(0, 560px) minmax(max-content, 1fr);
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, 608px) minmax(max-content, 1fr);
 }
 .site-header .home-search {
   width: 100%;
+}
+
+/* "Routes near me": a round button just left of the pill, the same weight as
+   the header's other round buttons. With it, the centre column is the pill's
+   560 px plus the button and its gap. */
+.header-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.header-search .home-search {
+  flex: 1;
+  min-width: 0;
+}
+.locate-btn {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.locate-btn:hover {
+  border-color: var(--ink);
+}
+.locate-btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 /* Phones and narrow windows: still one row — the mark, the pill filling the
    middle, then + and m/ft — so the header is the same shape as on a wide
@@ -4938,6 +4975,26 @@
     --field-pad: 16px;
     justify-content: center;
     padding-left: 16px;
+  }
+  /* No room for a button beside the pill: it sits inside the pill's left end. */
+  .header-search {
+    position: relative;
+    gap: 0;
+  }
+  .header-search .locate-btn {
+    position: absolute;
+    top: 50%;
+    left: 4px;
+    z-index: 2;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    transform: translateY(-50%);
+  }
+  .site-header .header-search .home-search-field {
+    --field-pad: 40px;
+    padding-left: 40px;
   }
   .site-header .home-search-field input {
     padding: 0;
@@ -6624,11 +6681,13 @@
   }
 }
 
-/* "Add a GPX" is a round +; hovering or focusing it says what it does. */
+/* "Add a GPX" (a round +) and "Routes near me" (a crosshair): hovering or
+   focusing either says what it does. */
 .site-header-cta {
   position: relative;
 }
-.site-header-cta[data-tip]::after {
+.site-header-cta[data-tip]::after,
+.locate-btn[data-tip]::after {
   content: attr(data-tip);
   position: absolute;
   top: calc(100% + 8px);
@@ -6646,7 +6705,9 @@
   pointer-events: none;
 }
 .site-header-cta:hover::after,
-.site-header-cta:focus-visible::after {
+.site-header-cta:focus-visible::after,
+.locate-btn:hover::after,
+.locate-btn:focus-visible::after {
   opacity: 1;
   transform: translate(-50%, 0);
 }

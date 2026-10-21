@@ -10,7 +10,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import type { AuthError, User } from '@supabase/supabase-js';
-import { ApiError, apiErrorMessage, loadAuthor, publicUrl, saveAuthor, supabase } from './api';
+import { ApiError, apiErrorMessage, isSchemaError, loadAuthor, publicUrl, saveAuthor, supabase } from './api';
 import { track } from './analytics';
 
 export interface AuthUser {
@@ -165,7 +165,7 @@ function dbError(error: { message: string; code?: string }): ApiError {
     return new ApiError('That username is taken.', 409);
   }
   // Pass the errcode through so deliberate P0001 sentences reach the form.
-  return new ApiError(apiErrorMessage(JSON.stringify({ message: error.message, code: error.code }), 400), 400);
+  return new ApiError(apiErrorMessage(JSON.stringify({ message: error.message, code: error.code }), 400), 400, error.code);
 }
 
 /** After any sign-in, an empty contributor name inherits the username. */
@@ -389,9 +389,10 @@ export async function fetchMyRoutes(): Promise<MyUpload[]> {
       .order('created_at', { ascending: false })
       .limit(500);
   let { data, error } = await query(fields);
-  // Before the accounts migration adds routes.downloads — fetch without it.
-  if (error && /schema cache|does not exist/i.test(error.message)) {
-    ({ data, error } = await query(fields.replace(',downloads', '')));
+  // Before the accounts migration adds routes.downloads/anonymous — fetch
+  // without them (user_id itself must exist; without it there are no owners).
+  if (error && isSchemaError(error)) {
+    ({ data, error } = await query(fields.replace(',downloads', '').replace(',anonymous', '')));
   }
   if (error) throw dbError(error);
   // The column list is a variable (the fallback drops downloads), so the
@@ -415,7 +416,7 @@ export async function deleteMyRoute(slug: string): Promise<void> {
   if (!error) return;
   // The RPC lives in the accounts migration — say so rather than leaking
   // PostgREST's "could not find the function" wording.
-  if (/schema cache|could not find|does not exist/i.test(error.message)) {
+  if (isSchemaError(error)) {
     throw new ApiError('This route could not be deleted right now — please try again later.', 500);
   }
   throw dbError(error);

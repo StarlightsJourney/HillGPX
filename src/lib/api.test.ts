@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { apiErrorMessage, combinedRating, fetchReviews, loadAuthor, saveAuthor, submitReview } from './api';
+import { ApiError, apiErrorMessage, combinedRating, fetchReviews, isSchemaError, loadAuthor, saveAuthor, submitReview } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -35,6 +35,14 @@ describe('api', () => {
 
   it('explains a storage refusal as the upload ceiling', () => {
     expect(apiErrorMessage('{"message":"new row violates row-level security policy"}', 403)).toMatch(/Uploads are paused/);
+  });
+
+  it('genericizes engine noise but keeps its errcode for fallbacks', () => {
+    expect(apiErrorMessage('{"code":"42703","message":"column routes.anonymous does not exist"}', 400)).toBe('Something went wrong (HTTP 400).');
+    expect(isSchemaError(new ApiError('x', 400, '42703'))).toBe(true);
+    expect(isSchemaError(new ApiError('x', 400, 'PGRST202'))).toBe(true);
+    expect(isSchemaError(new ApiError('x', 400, 'P0001'))).toBe(false);
+    expect(isSchemaError(new ApiError('x', 409, '23505'))).toBe(false);
   });
 
   it('maps review rows', async () => {

@@ -313,7 +313,7 @@ export async function fetchCommunityRoutes(): Promise<Route[]> {
   } catch (error) {
     // Before the accounts migration runs, routes has no downloads column —
     // degrade to the column set that has always existed rather than failing.
-    if (error instanceof ApiError && error.message.includes('does not exist')) {
+    if (error instanceof ApiError && /schema cache|does not exist/i.test(error.message)) {
       const rows = await rest<RouteRow[]>(`/rest/v1/routes?select=${ROUTE_FIELDS.replace(',downloads', '')}&order=created_at.desc&limit=1000`);
       return rows.map(toRoute);
     }
@@ -378,11 +378,26 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
     // The same slug means the same file name and track hash; anything else is a real failure.
     if (!(error instanceof ApiError && (error.status === 409 || error.message.includes('Duplicate')))) throw error;
   }
+  const insert = (payload: Record<string, unknown>) =>
+    rest('/rest/v1/routes', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) });
   try {
-    await rest('/rest/v1/routes', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(row) });
+    await insert(row);
   } catch (error) {
-    if (error instanceof ApiError && error.status === 409) throw new DuplicateRouteError('This track is already in the community archive.');
-    throw error;
+    if (!(error instanceof ApiError)) throw error;
+    if (error.status === 409) throw new DuplicateRouteError('This track is already in the community archive.');
+    // Before the accounts migration runs, routes has no anonymous column —
+    // publish without it rather than failing.
+    if (!/schema cache|does not exist/i.test(error.message)) throw error;
+    const fallback = { ...row } as Record<string, unknown>;
+    delete fallback.anonymous;
+    try {
+      await insert(fallback);
+    } catch (retryError) {
+      if (retryError instanceof ApiError && retryError.status === 409) {
+        throw new DuplicateRouteError('This track is already in the community archive.');
+      }
+      throw retryError;
+    }
   }
   track('gpx_upload', row.slug);
   return toRoute({ ...row, created_at: new Date().toISOString(), contributor: row.contributor, recorded_at: row.recorded_at });

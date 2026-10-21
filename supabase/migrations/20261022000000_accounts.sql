@@ -10,12 +10,17 @@
 --
 -- Apply in the Supabase dashboard (SQL editor → paste this file → Run), or
 -- with `supabase db push`. Dashboard settings the app needs alongside it:
---   * Authentication → Providers → Email → "Confirm email" OFF, so sign-up
---     returns a session straight away (the site has no "check your inbox"
---     flow).
+--   * Authentication → Providers → Email → "Confirm email" either way: ON
+--     shows the sign-up modal's check-your-inbox screen (supabase-js picks
+--     the session out of the link's URL hash), OFF signs in straight away.
 --   * Authentication → Providers → Google → enabled, Client IDs = the same
 --     OAuth client the site renders (VITE_GOOGLE_CLIENT_ID).
---   * Authentication → URL Configuration → Site URL = the site address.
+--   * Authentication → URL Configuration → Site URL = the site address,
+--     which must also sit in Redirect URLs (sign-up, resend and
+--     password-reset calls all pass redirect_to = VITE_SITE_URL, always
+--     the canonical site). Reset links land as recovery sessions; the
+--     site collects the new password in a dialog. Email bodies live in
+--     Authentication → Emails → Templates.
 
 -- ─── Profiles ────────────────────────────────────────────────────────────
 -- The public handle behind an account. Usernames are public — they are the

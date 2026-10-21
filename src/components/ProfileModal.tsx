@@ -7,6 +7,7 @@ import {
   uploadAvatar,
   useAuthUser,
 } from '../lib/auth';
+import { errorText } from '../lib/api';
 import { Modal } from './Modal';
 
 /** Centre-crop to a square and resize to 256 px JPEG — small enough for any use. */
@@ -64,7 +65,7 @@ export function ProfileForm({ onClose }: { onClose?: () => void }) {
       await work();
       setSaved(at);
     } catch (err) {
-      setError({ at, text: (err as Error).message });
+      setError({ at, text: errorText(err) });
     } finally {
       setBusy(null);
     }

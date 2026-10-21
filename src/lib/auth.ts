@@ -10,7 +10,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import type { AuthError, User } from '@supabase/supabase-js';
-import { ApiError, apiErrorMessage, loadAuthor, publicUrl, saveAuthor, supabase } from './api';
+import { ApiError, apiErrorMessage, isSchemaError, loadAuthor, publicUrl, saveAuthor, supabase } from './api';
 import { track } from './analytics';
 
 export interface AuthUser {
@@ -25,6 +25,16 @@ export interface AuthUser {
 /** Google OAuth client ID for the rendered button; empty = Google sign-in off. */
 export const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) || '';
 
+/**
+ * Where email links bring the visitor back: always the canonical site
+ * (VITE_SITE_URL, set from public/CNAME at build — hillgpx.com), even when
+ * the sign-up happened on a preview or the dev server. Must be allow-listed
+ * under Supabase → Authentication → URL Configuration → Redirect URLs.
+ */
+function siteUrl(): string {
+  return (import.meta.env.VITE_SITE_URL as string | undefined) || 'https://hillgpx.com';
+}
+
 interface ProfileRow {
   username: string;
   avatar_path: string | null;
@@ -35,6 +45,10 @@ const listeners = new Set<() => void>();
 let started = false;
 // Latest auth.users id being resolved; stale profile fetches drop out.
 let resolving = 0;
+// True while a password-recovery session is active. Read from the URL hash
+// before supabase-js consumes it; the auth event in start() catches any
+// session established after this module loaded.
+let recovering = typeof window !== 'undefined' && /type=recovery/.test(window.location.hash);
 
 function apply(next: AuthUser | null): void {
   user = next;
@@ -51,12 +65,29 @@ function start(): void {
   if (started) return;
   started = true;
   void supabase.auth.getSession().then(({ data }) => syncUser(data.session?.user ?? null));
-  supabase.auth.onAuthStateChange((_event, session) => void syncUser(session?.user ?? null));
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY' && !recovering) {
+      recovering = true;
+      listeners.forEach((listener) => listener());
+    }
+    void syncUser(session?.user ?? null);
+  });
 }
 
 /** The signed-in user (or null), live across tabs and components. */
 export function useAuthUser(): AuthUser | null {
   return useSyncExternalStore(subscribe, () => user);
+}
+
+/** True while a reset-password session is live — the site shows the new-password dialog. */
+export function usePasswordRecovery(): boolean {
+  return useSyncExternalStore(subscribe, () => recovering);
+}
+
+/** Dismiss the new-password dialog (the recovery session itself stays live). */
+export function clearPasswordRecovery(): void {
+  recovering = false;
+  listeners.forEach((listener) => listener());
 }
 
 /** Fold an auth user plus their public profile into the app's user shape. */
@@ -122,7 +153,10 @@ function authError(error: AuthError): ApiError {
   if (/password/i.test(error.message) && /(weak|short|least)/i.test(error.message)) {
     return new ApiError('Passwords need at least 8 characters.', 400);
   }
-  return new ApiError(error.message, error.status ?? 500);
+  if (code.startsWith('over_') || /rate limit|too many requests/i.test(error.message)) {
+    return new ApiError('Too many emails sent — Supabase pauses them for a while. Try again in about an hour.', 429);
+  }
+  return new ApiError('Something went wrong — please try again.', error.status ?? 500);
 }
 
 /** PostgREST errors from profiles/rpc calls carry the message in .message. */
@@ -130,7 +164,8 @@ function dbError(error: { message: string; code?: string }): ApiError {
   if (error.code === '23505' || /duplicate key/i.test(error.message)) {
     return new ApiError('That username is taken.', 409);
   }
-  return new ApiError(apiErrorMessage(JSON.stringify({ message: error.message }), 400), 400);
+  // Pass the errcode through so deliberate P0001 sentences reach the form.
+  return new ApiError(apiErrorMessage(JSON.stringify({ message: error.message, code: error.code }), 400), 400, error.code);
 }
 
 /** After any sign-in, an empty contributor name inherits the username. */
@@ -138,7 +173,12 @@ function fillAuthor(): void {
   if (user && !loadAuthor()) saveAuthor(user.username);
 }
 
-export async function signUp(username: string, email: string, password: string): Promise<void> {
+/**
+ * Returns true when the account still needs email confirmation (no session
+ * yet — the modal shows a "check your inbox" screen); false when it signed
+ * in straight away.
+ */
+export async function signUp(username: string, email: string, password: string): Promise<boolean> {
   username = username.trim();
   if (!/^[A-Za-z0-9_.-]{3,24}$/.test(username)) {
     throw new ApiError('Usernames are 3–24 letters, numbers, dots, dashes or underscores.', 400);
@@ -149,12 +189,58 @@ export async function signUp(username: string, email: string, password: string):
   if (hits?.some((hit) => hit.username.toLowerCase() === username.toLowerCase())) {
     throw new ApiError('That username is taken.', 409);
   }
-  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { username } } });
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { username }, emailRedirectTo: siteUrl() },
+  });
   if (error) throw authError(error);
-  if (!data.session) throw new ApiError('Account created — confirm the email we just sent, then sign in.', 200);
+  if (!data.session) return true;
   await syncUser(data.session.user);
   fillAuthor();
   track('sign_up');
+  return false;
+}
+
+/** Resolve an email or a username to the account's email address. */
+async function emailFor(identifier: string): Promise<string | null> {
+  const id = identifier.trim();
+  if (id.includes('@')) return id;
+  const { data, error } = await supabase.rpc('email_for_username', { p_username: id });
+  if (error || !data) return null;
+  return data as string;
+}
+
+/** Send the sign-up confirmation email again (Supabase rate-limits resends).
+ *  Takes the email or the username; unknown names report success silently —
+ *  the forms cannot be used to probe for accounts. */
+export async function resendConfirmation(identifier: string): Promise<void> {
+  const email = await emailFor(identifier);
+  if (!email) return;
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email,
+    options: { emailRedirectTo: siteUrl() },
+  });
+  if (error) throw authError(error);
+}
+
+/** Email a password-reset link; it lands back on the site as a recovery
+ *  session (see recovering/usePasswordRecovery). Unknown names stay silent. */
+export async function resetPasswordForEmail(identifier: string): Promise<void> {
+  const email = await emailFor(identifier);
+  if (!email) return;
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: siteUrl() });
+  if (error) throw authError(error);
+}
+
+/** Set the new password inside the recovery session the reset link opened. */
+export async function finishPasswordReset(newPassword: string): Promise<void> {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw authError(error);
+  recovering = false;
+  listeners.forEach((listener) => listener());
+  track('password_reset');
 }
 
 export async function logIn(identifier: string, password: string): Promise<void> {
@@ -274,6 +360,7 @@ export interface MyUpload {
   distanceM: number;
   gainM: number;
   downloads: number;
+  anonymous: boolean;
   createdAt: string;
   gpxUrl: string;
 }
@@ -285,6 +372,7 @@ interface MyUploadRow {
   distance_m: number;
   gain_m: number;
   downloads?: number;
+  anonymous?: boolean;
   created_at: string;
   gpx_path: string;
 }
@@ -292,20 +380,31 @@ interface MyUploadRow {
 /** Community routes the signed-in user published (stamped with their id). */
 export async function fetchMyRoutes(): Promise<MyUpload[]> {
   const current = requireUser();
-  const { data, error } = await supabase
-    .from('routes')
-    .select('slug,name,activity,distance_m,gain_m,downloads,created_at,gpx_path')
-    .eq('user_id', current.id)
-    .order('created_at', { ascending: false })
-    .limit(500);
+  const fields = 'slug,name,activity,distance_m,gain_m,downloads,anonymous,created_at,gpx_path';
+  const query = (columns: string) =>
+    supabase
+      .from('routes')
+      .select(columns)
+      .eq('user_id', current.id)
+      .order('created_at', { ascending: false })
+      .limit(500);
+  let { data, error } = await query(fields);
+  // Before the accounts migration adds routes.downloads/anonymous — fetch
+  // without them (user_id itself must exist; without it there are no owners).
+  if (error && isSchemaError(error)) {
+    ({ data, error } = await query(fields.replace(',downloads', '').replace(',anonymous', '')));
+  }
   if (error) throw dbError(error);
-  return ((data ?? []) as MyUploadRow[]).map((row) => ({
+  // The column list is a variable (the fallback drops downloads), so the
+  // row type comes from the cast, not postgrest-js's literal parsing.
+  return ((data ?? []) as unknown as MyUploadRow[]).map((row) => ({
     slug: row.slug,
     name: row.name,
     activity: row.activity,
     distanceM: row.distance_m,
     gainM: row.gain_m,
     downloads: row.downloads ?? 0,
+    anonymous: row.anonymous ?? false,
     createdAt: row.created_at,
     gpxUrl: publicUrl('gpx', row.gpx_path),
   }));
@@ -314,5 +413,11 @@ export async function fetchMyRoutes(): Promise<MyUpload[]> {
 /** Remove a route the signed-in user published, with its files and counts. */
 export async function deleteMyRoute(slug: string): Promise<void> {
   const { error } = await supabase.rpc('delete_community_route', { p_slug: slug });
-  if (error) throw dbError(error);
+  if (!error) return;
+  // The RPC lives in the accounts migration — say so rather than leaking
+  // PostgREST's "could not find the function" wording.
+  if (isSchemaError(error)) {
+    throw new ApiError('This route could not be deleted right now — please try again later.', 500);
+  }
+  throw dbError(error);
 }

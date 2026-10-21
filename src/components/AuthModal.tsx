@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { GOOGLE_CLIENT_ID, logIn, logInWithGoogle, signUp } from '../lib/auth';
+import { GOOGLE_CLIENT_ID, finishPasswordReset, logIn, logInWithGoogle, resendConfirmation, resetPasswordForEmail, signUp } from '../lib/auth';
+import { ApiError, errorText } from '../lib/api';
 import { Modal } from './Modal';
 
 interface GoogleAccounts {
@@ -48,8 +49,15 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState('');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmEmail, setConfirmEmail] = useState('');
+  const [resent, setResent] = useState<'no' | 'busy' | 'yes'>('no');
+  const [unconfirmed, setUnconfirmed] = useState(false);
+  const [forgot, setForgot] = useState(false);
+  const [forgotId, setForgotId] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
   const googleRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -68,7 +76,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
             setError(null);
             void logInWithGoogle(credential)
               .then(() => onCloseRef.current())
-              .catch((err: Error) => setError(err.message))
+              .catch((err: unknown) => setError(errorText(err)))
               .finally(() => setBusy(false));
           },
         });
@@ -93,12 +101,44 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
   const submit = async () => {
     setBusy(true);
     setError(null);
+    setUnconfirmed(false);
     try {
-      if (mode === 'signup') await signUp(username, email, password);
-      else await logIn(identifier, password);
+      if (mode === 'signup') {
+        if (await signUp(username, email, password)) {
+          setConfirmEmail(email.trim());
+          return;
+        }
+      } else await logIn(identifier, password);
       onClose();
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorText(err));
+      // 403 from logIn means "confirm your email first" — offer a resend.
+      setUnconfirmed(err instanceof ApiError && err.status === 403);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resendFor = async (id: string) => {
+    setResent('busy');
+    setError(null);
+    try {
+      await resendConfirmation(id);
+      setResent('yes');
+    } catch (err) {
+      setError(errorText(err));
+      setResent('no');
+    }
+  };
+
+  const sendReset = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await resetPasswordForEmail(forgotId);
+      setForgotSent(true);
+    } catch (err) {
+      setError(errorText(err));
     } finally {
       setBusy(false);
     }
@@ -106,8 +146,108 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
 
   const ready =
     mode === 'signup'
-      ? username.trim().length >= 3 && /\S+@\S+\.\S+/.test(email.trim()) && password.length >= 8
+      ? username.trim().length >= 3 &&
+        /\S+@\S+\.\S+/.test(email.trim()) &&
+        password.length >= 8 &&
+        confirmPassword === password
       : identifier.trim().length > 0 && password.length > 0;
+
+  if (confirmEmail) {
+    return (
+      <Modal
+        title="Check your inbox"
+        onClose={onClose}
+        footer={
+          <button
+            type="button"
+            className="btn btn-dark"
+            onClick={() => {
+              setConfirmEmail('');
+              setMode('login');
+              setPassword('');
+              setConfirmPassword('');
+              setError(null);
+            }}
+          >
+            Back to log in
+          </button>
+        }
+      >
+        <p className="profile-note">
+          We sent a confirmation link to <strong>{confirmEmail}</strong>. Open it to activate your account, then log
+          in.
+        </p>
+        <p className="profile-note">
+          Didn&apos;t arrive? Check your spam folder, or{' '}
+          <button type="button" className="profile-link" disabled={resent !== 'no'} onClick={() => void resendFor(confirmEmail)}>
+            {resent === 'busy' ? 'Sending…' : 'send it again'}
+          </button>
+          .
+        </p>
+        {resent === 'yes' && <p className="profile-ok">Sent — give it a minute.</p>}
+        {error && <p className="review-error">{error}</p>}
+      </Modal>
+    );
+  }
+
+  if (forgot) {
+    return (
+      <Modal
+        title="Reset your password"
+        onClose={onClose}
+        footer={
+          forgotSent ? (
+            <button
+              type="button"
+              className="btn btn-dark"
+              onClick={() => {
+                setForgot(false);
+                setForgotSent(false);
+                setError(null);
+              }}
+            >
+              Back to log in
+            </button>
+          ) : (
+            <button type="button" className="btn btn-dark" disabled={busy || forgotId.trim().length < 3} onClick={() => void sendReset()}>
+              {busy ? 'Sending…' : 'Email me a reset link'}
+            </button>
+          )
+        }
+      >
+        {forgotSent ? (
+          <>
+            <p className="profile-note">
+              If an account exists for <strong>{forgotId.trim()}</strong>, a reset link is on its way to its email.
+              Open it and choose a new password — the link brings you straight back here.
+            </p>
+            {error && <p className="review-error">{error}</p>}
+          </>
+        ) : (
+          <form
+            className="auth-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!busy && forgotId.trim().length >= 3) void sendReset();
+            }}
+          >
+            <label className="field">
+              Email or username
+              <input
+                type="text"
+                autoComplete="username"
+                placeholder="you@example.com"
+                value={forgotId}
+                onChange={(event) => setForgotId(event.target.value)}
+              />
+            </label>
+            <p className="profile-note">The reset link goes to the email on the account.</p>
+            {error && <p className="review-error">{error}</p>}
+          </form>
+        )}
+      </Modal>
+    );
+  }
 
   return (
     <Modal
@@ -193,6 +333,19 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
                 onChange={(event) => setPassword(event.target.value)}
               />
             </label>
+            <label className="field">
+              Confirm password
+              <input
+                type="password"
+                autoComplete="new-password"
+                placeholder="Same password again"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+              />
+            </label>
+            {confirmPassword && confirmPassword !== password && (
+              <p className="review-error">Passwords do not match.</p>
+            )}
           </>
         ) : (
           <>
@@ -215,8 +368,97 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
                 onChange={(event) => setPassword(event.target.value)}
               />
             </label>
+            <button
+              type="button"
+              className="profile-link auth-forgot"
+              onClick={() => {
+                setForgotId(identifier.trim());
+                setForgot(true);
+                setError(null);
+                setUnconfirmed(false);
+              }}
+            >
+              Forgot password?
+            </button>
           </>
         )}
+        {error && <p className="review-error">{error}</p>}
+        {unconfirmed && (
+          <p className="profile-note">
+            <button type="button" className="profile-link" disabled={resent !== 'no'} onClick={() => void resendFor(identifier)}>
+              {resent === 'busy' ? 'Sending…' : resent === 'yes' ? 'Sent — check your inbox' : 'Resend the confirmation email'}
+            </button>
+          </p>
+        )}
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Where a reset-password email lands: the link opens a recovery session
+ * (usePasswordRecovery), so this only collects the new password — the
+ * visitor is already signed in when it closes.
+ */
+export function SetPasswordModal({ onClose }: { onClose: () => void }) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ready = password.length >= 8 && confirm === password;
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await finishPasswordReset(password);
+      onClose();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Choose a new password"
+      onClose={onClose}
+      footer={
+        <button type="button" className="btn btn-dark" disabled={busy || !ready} onClick={() => void submit()}>
+          {busy ? 'Saving…' : 'Set new password'}
+        </button>
+      }
+    >
+      <form
+        className="auth-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (ready && !busy) void submit();
+        }}
+      >
+        <p className="profile-note">Your reset link already signed you in — pick a new password and you're done.</p>
+        <label className="field">
+          New password
+          <input
+            type="password"
+            autoComplete="new-password"
+            placeholder="8 characters or more"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </label>
+        <label className="field">
+          Confirm password
+          <input
+            type="password"
+            autoComplete="new-password"
+            placeholder="Same password again"
+            value={confirm}
+            onChange={(event) => setConfirm(event.target.value)}
+          />
+        </label>
+        {confirm && confirm !== password && <p className="review-error">Passwords do not match.</p>}
         {error && <p className="review-error">{error}</p>}
       </form>
     </Modal>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import type { Route } from '../types';
 import { haversineM } from '../lib/elevation';
-import { loadAuthor, saveAuthor, submitRoutePhoto, type RoutePhoto } from '../lib/api';
+import { errorText, loadAuthor, saveAuthor, submitRoutePhoto, type RoutePhoto } from '../lib/api';
 import { Modal } from './Modal';
 import { useUnits } from './UnitsContext';
 
@@ -54,7 +54,7 @@ export function RoutePhotoModal({ route, startIndex, onPreviewIndex, onClose, on
       onAdded(await submitRoutePhoto({ routeSlug: route.slug, lng, lat, kind, caption, file, author }));
       setDone(true);
     } catch (err) {
-      setError(`Could not upload: ${(err as Error).message}`);
+      setError(`Could not upload: ${errorText(err)}`);
     } finally {
       setBusy(false);
     }

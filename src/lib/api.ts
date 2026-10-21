@@ -70,26 +70,63 @@ export function saveAuthor(author: string): void {
 }
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(message: string, readonly status: number, readonly code?: string) {
     super(message);
   }
 }
 
 /**
- * The sentence to show for a failed request. The database's spam limits
- * (supabase/migrations/20261006000000_spam_limits.sql) raise plain messages
- * meant for people; a storage policy refusal means the hourly upload ceiling.
+ * The sentence to show for a failed request. The database's spam limits and
+ * owner checks raise plain messages meant for people — those arrive with
+ * errcode P0001 and pass through as written. Everything else (PostgREST
+ * schema errors, storage refusals, raw SQL) is engine noise: the site shows
+ * one generic line instead.
  */
 export function apiErrorMessage(body: string, status: number): string {
   let message = body;
+  let code = '';
   try {
-    const parsed = JSON.parse(body) as { message?: unknown };
+    const parsed = JSON.parse(body) as { message?: unknown; code?: unknown };
     if (typeof parsed.message === 'string') message = parsed.message;
+    if (typeof parsed.code === 'string') code = parsed.code;
   } catch {
     // Not JSON: keep the text as it came.
   }
   if (/row-level security/i.test(message)) return 'Uploads are paused for a little while because of heavy traffic. Please try again later.';
-  return message || `Something went wrong (HTTP ${status}).`;
+  if (code === 'P0001') return message;
+  return `Something went wrong (HTTP ${status}).`;
+}
+
+/**
+ * The sentence a form may show for a caught error. ApiError text is written
+ * for people; anything else — a dropped connection, a parser failure — gets
+ * the generic line, never its raw message.
+ */
+export function errorText(error: unknown): string {
+  return error instanceof ApiError ? error.message : 'Something went wrong — please try again.';
+}
+
+/** PostgREST/Postgres errcode in an error body (42703 missing column,
+ *  42P01 missing table, PGRST2xx schema-cache misses). Storage errors carry
+ *  the status in `statusCode` instead — often as "409" with HTTP 400. */
+function apiErrorCode(body: string): string | undefined {
+  try {
+    const parsed = JSON.parse(body) as { code?: unknown; statusCode?: unknown };
+    const code = parsed.code ?? parsed.statusCode;
+    return typeof code === 'string' ? code : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * True for missing-column/table/function errors — the database schema
+ * predates what the call expects, so a fallback shape can retry. Matched on
+ * the errcode, never the message (messages are generic for display).
+ */
+export function isSchemaError(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && /^(42|PGRST)/.test(code);
 }
 
 /** The live session's access token, or null for anonymous calls. */
@@ -115,7 +152,8 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   if (!response.ok) {
     const body = await response.text().catch(() => '');
-    throw new ApiError(apiErrorMessage(body, response.status), response.status);
+    console.warn('hillgpx api error', response.status, body.slice(0, 300));
+    throw new ApiError(apiErrorMessage(body, response.status), response.status, apiErrorCode(body));
   }
   return (response.status === 204 || response.status === 201 ? undefined : await response.json()) as T;
 }
@@ -132,7 +170,11 @@ async function upload(bucket: string, path: string, body: Blob, contentType: str
     },
     body,
   });
-  if (!response.ok) throw new ApiError(apiErrorMessage(await response.text().catch(() => ''), response.status), response.status);
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    console.warn('hillgpx storage error', response.status, body.slice(0, 300));
+    throw new ApiError(apiErrorMessage(body, response.status), response.status, apiErrorCode(body));
+  }
   return publicUrl(bucket, path);
 }
 
@@ -240,7 +282,7 @@ async function preparePhoto(file: File): Promise<Blob> {
 }
 
 export async function submitPhoto(input: { venueSlug: string; file: File; credit: string; licence: string; author: string }): Promise<void> {
-  if (!input.file.type.startsWith('image/')) throw new Error('That file is not an image.');
+  if (!input.file.type.startsWith('image/')) throw new ApiError('That file is not an image.', 400);
   const blob = await preparePhoto(input.file);
   const photoId = id();
   const path = `${storageSafe(input.venueSlug)}/${photoId}.jpg`;
@@ -313,7 +355,7 @@ export async function fetchCommunityRoutes(): Promise<Route[]> {
   } catch (error) {
     // Before the accounts migration runs, routes has no downloads column —
     // degrade to the column set that has always existed rather than failing.
-    if (error instanceof ApiError && /schema cache|does not exist/i.test(error.message)) {
+    if (isSchemaError(error)) {
       const rows = await rest<RouteRow[]>(`/rest/v1/routes?select=${ROUTE_FIELDS.replace(',downloads', '')}&order=created_at.desc&limit=1000`);
       return rows.map(toRoute);
     }
@@ -332,7 +374,7 @@ export interface PublishRouteInput {
   originalGpx: string | null;
   contributor: string;
   licence: string;
-  /** Signed-in uploaders may opt out: no user_id stamp, no public credit. */
+  /** Signed-in uploaders may opt out of the public credit; ownership stays. */
   anonymous?: boolean;
 }
 
@@ -363,8 +405,8 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
     gpx_path: gpxPath,
     contributor: input.anonymous ? null : input.contributor.trim().slice(0, 60) || null,
     licence: input.licence,
-    // A trigger stamps user_id from the session token — the anonymous flag is
-    // the only say the client has in it (see stamp_route_owner()).
+    // A trigger stamps user_id from the session token and nulls the credit
+    // when this flag is set (see stamp_route_owner()).
     anonymous: Boolean(input.anonymous),
   };
   // Heart rate, cadence, power and other device extensions are personal data
@@ -375,8 +417,10 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
   try {
     await upload('gpx', gpxPath, body, canGzip ? 'application/gzip' : 'application/gpx+xml');
   } catch (error) {
-    // The same slug means the same file name and track hash; anything else is a real failure.
-    if (!(error instanceof ApiError && (error.status === 409 || error.message.includes('Duplicate')))) throw error;
+    // A stored file with the same name is fine — a retry after a failed
+    // publish always re-uploads it. Storage reports the duplicate as a body
+    // statusCode "409" even when the HTTP status is 400, so check the code.
+    if (!(error instanceof ApiError && (error.status === 409 || error.code === '409'))) throw error;
   }
   const insert = (payload: Record<string, unknown>) =>
     rest('/rest/v1/routes', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(payload) });
@@ -387,7 +431,7 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
     if (error.status === 409) throw new DuplicateRouteError('This track is already in the community archive.');
     // Before the accounts migration runs, routes has no anonymous column —
     // publish without it rather than failing.
-    if (!/schema cache|does not exist/i.test(error.message)) throw error;
+    if (!isSchemaError(error)) throw error;
     const fallback = { ...row } as Record<string, unknown>;
     delete fallback.anonymous;
     try {
@@ -494,7 +538,7 @@ export async function fetchRoutePhotos(routeSlug: string): Promise<RoutePhoto[]>
 
 /** Pin a photo (or a hazard) to a point on a route. Shown after a volunteer approves it. */
 export async function submitRoutePhoto(input: { routeSlug: string; lng: number; lat: number; kind: 'photo' | 'hazard'; caption: string; file: File; author: string }): Promise<RoutePhoto> {
-  if (!input.file.type.startsWith('image/')) throw new Error('That file is not an image.');
+  if (!input.file.type.startsWith('image/')) throw new ApiError('That file is not an image.', 400);
   const blob = await preparePhoto(input.file);
   const photoId = id();
   const path = `route-${storageSafe(input.routeSlug).slice(0, 70)}/${photoId}.jpg`;

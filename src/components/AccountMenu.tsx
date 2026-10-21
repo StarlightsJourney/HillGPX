@@ -48,10 +48,7 @@ export function AccountMenu() {
             <span className="account-initial">{user.username.slice(0, 1).toUpperCase()}</span>
           )
         ) : (
-          <>
-            <UserIcon size={16} />
-            <span className="hide-narrow">Log in</span>
-          </>
+          <UserIcon size={16} />
         )}
       </button>
       {menuOpen && user && (

@@ -2111,8 +2111,9 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
+  width: 38px;
   height: 38px;
-  padding: 0 14px;
+  padding: 0;
   border: 1px solid var(--hairline);
   border-radius: 999px;
   background: #fff;
@@ -2143,17 +2144,6 @@
   border-radius: 999px;
   object-fit: cover;
   display: block;
-}
-/* Below 1249 px the pill drops its label and shrinks to a round icon, the
-   same collapse the Add-a-GPX cta makes. */
-@media (max-width: 1249px) {
-  .account-btn {
-    width: 38px;
-    padding: 0;
-  }
-  .account-btn .hide-narrow {
-    display: none;
-  }
 }
 /* Drops like .home-search-list: same offset, shadow and pop-in. */
 .account-menu {
@@ -3076,9 +3066,10 @@
 .site-header-cta {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  width: 38px;
   height: 38px;
-  padding: 0 14px;
+  padding: 0;
   border-radius: 999px;
   color: var(--ink);
   font-size: 14px;
@@ -3823,11 +3814,6 @@
 /* The venue page is an overlay above the map page, header included. */
 .venue-detail {
   z-index: 40;
-}
-@media (max-width: 743px) {
-  .site-header-cta .hide-narrow {
-    display: none;
-  }
 }
 .venue-detail-side {
   width: 100%;
@@ -4915,23 +4901,14 @@
    never shrink below their contents (the right-hand group is the wider one,
    and grows when someone signs in), and the pill takes what is left, up to
    560 px. So it is centred whenever there is room and gives way to the
-   buttons when there is not; it can never slide under them. Below ~1,250 px
-   the buttons collapse to icons so the pill keeps its width. */
+   buttons when there is not; it can never slide under them. The buttons are
+   round icons at every width (Add a GPX says what it is on hover), which
+   keeps both sides narrow enough for a centred, full-width pill. */
 .site-header-row {
   grid-template-columns: minmax(max-content, 1fr) minmax(0, 560px) minmax(max-content, 1fr);
 }
 .site-header .home-search {
   width: 100%;
-}
-@media (max-width: 1249px) {
-  .site-header-cta {
-    width: 38px;
-    padding: 0;
-    justify-content: center;
-  }
-  .site-header-cta .hide-narrow {
-    display: none;
-  }
 }
 /* Phones and narrow windows: still one row — the mark, the pill filling the
    middle, then + and m/ft — so the header is the same shape as on a wide
@@ -6647,33 +6624,31 @@
   }
 }
 
-/* When "Add a GPX" shrinks to a + (narrow windows), hovering it says what it does. */
-@media (max-width: 1249px) {
-  .site-header-cta {
-    position: relative;
-  }
-  .site-header-cta[data-tip]::after {
-    content: attr(data-tip);
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 50%;
-    z-index: 40;
-    padding: 6px 10px;
-    border-radius: 8px;
-    background: var(--ink);
-    color: #fff;
-    font: 600 12px/1 var(--font-sans);
-    white-space: nowrap;
-    opacity: 0;
-    transform: translate(-50%, -4px);
-    transition: opacity 0.15s ease, transform 0.15s var(--ease-out);
-    pointer-events: none;
-  }
-  .site-header-cta:hover::after,
-  .site-header-cta:focus-visible::after {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
+/* "Add a GPX" is a round +; hovering or focusing it says what it does. */
+.site-header-cta {
+  position: relative;
+}
+.site-header-cta[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 40;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  font: 600 12px/1 var(--font-sans);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, -4px);
+  transition: opacity 0.15s ease, transform 0.15s var(--ease-out);
+  pointer-events: none;
+}
+.site-header-cta:hover::after,
+.site-header-cta:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 /* ─── Privacy, contributions and contact (InfoPage.tsx) ──────────────────

@@ -4910,22 +4910,18 @@
   }
 }
 
-/* ─── Header search: centred at every width ──────────────────────────────
-   Landing and map share one header and one search pill. The side columns are
-   equal 1fr, so the pill is centred whenever it leaves each side room for the
-   wider (right-hand) group; its width is sized to guarantee that. On phones
-   the pill gets its own full-width row instead of being squeezed between the
-   logo and the buttons. */
+/* ─── Header search: between the logo and the buttons ────────────────────
+   Landing and map share one header and one search pill. The side columns
+   never shrink below their contents (the right-hand group is the wider one,
+   and grows when someone signs in), and the pill takes what is left, up to
+   560 px. So it is centred whenever there is room and gives way to the
+   buttons when there is not; it can never slide under them. Below ~1,250 px
+   the buttons collapse to icons so the pill keeps its width. */
 .site-header-row {
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, 560px) minmax(max-content, 1fr);
 }
-/* The right cluster is the wider side: + Add a GPX, m/ft and Log in measure
-   about 300–320 px signed out, the wordmark about 150 px — so the pill
-   leaves ~325 px on each side. Below ~1,250 px the buttons collapse to
-   icons (the cluster drops to ~170 px, a deterministic size) and the pill
-   widens to its full 560 px. */
 .site-header .home-search {
-  width: min(560px, calc(100vw - 740px));
+  width: 100%;
 }
 @media (max-width: 1249px) {
   .site-header-cta {
@@ -4935,9 +4931,6 @@
   }
   .site-header-cta .hide-narrow {
     display: none;
-  }
-  .site-header .home-search {
-    width: min(560px, calc(100vw - 452px));
   }
 }
 /* Phones and narrow windows: still one row — the mark, the pill filling the

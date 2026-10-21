@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { API_BASE } from '../lib/api';
 import {
   changePassword,
   deleteAccount,
@@ -26,7 +25,7 @@ async function prepareAvatar(file: File): Promise<Blob> {
 
 function Avatar({ url, username, size = 72 }: { url: string | null; username: string; size?: number }) {
   return url ? (
-    <img className="profile-avatar" src={`${API_BASE}${url}`} alt="" width={size} height={size} />
+    <img className="profile-avatar" src={url} alt="" width={size} height={size} />
   ) : (
     <span className="profile-avatar placeholder" style={{ width: size, height: size }}>
       {username.slice(0, 1).toUpperCase()}

@@ -25,3 +25,7 @@ beautifulsoup4>=4.12.0
 aiohttp>=3.9.0
 aiofiles>=24.0.0
 certifi>=2024.0.0
+
+# migrate_from_mongo.py — one-time rescue of contributions from the retired
+# self-hosted backend back into Supabase
+pymongo>=4.8.0

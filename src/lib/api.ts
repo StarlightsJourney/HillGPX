@@ -1,19 +1,28 @@
 /**
- * Community storage: reviews, photos and GPX routes, shared through the
- * HillGPX API (api/ — FastAPI + MongoDB/GridFS behind nginx).
+ * Community storage: reviews, photos and GPX routes, shared through Supabase.
  *
- * The browser talks to the API directly. Anyone can insert; reads of photos
- * and route photos return only approved rows. Photos wait for a maintainer's
- * approval; reviews and routes publish immediately. No account is needed.
+ * The browser talks to Supabase's REST and Storage APIs directly with the
+ * project's *publishable* key. That key is meant to be public: row-level
+ * security only lets anonymous visitors insert new rows and read approved
+ * ones (see supabase/migrations/). Routes, reviews and photos publish
+ * immediately and stay up unless reported; no account is needed to
+ * contribute. Signed-in calls carry the Supabase Auth session token, which
+ * is what stamps a published route with its owner's id.
  *
- * Set VITE_API_BASE to the API origin (e.g. http://localhost:8000 for local
- * development, or empty when nginx proxies /api on the same origin).
+ * Accounts (src/lib/auth.ts) use the shared `supabase` client. Point a fork
+ * at its own project with VITE_SUPABASE_URL and VITE_SUPABASE_KEY.
  */
+import { createClient } from '@supabase/supabase-js';
 import { track } from './analytics';
 import type { Route, RouteActivity, RoutePoint } from '../types';
 import { toGpx } from './gpx';
 
-export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) || '';
+export const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || 'https://dzpgnebkyubeptitzjlj.supabase.co';
+const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_KEY as string | undefined) || 'sb_publishable_invDmVPb4d4aKqTMTRp72w_hpFBZ0AI';
+
+/** Shared client: auth.js signs in and out through it, and its session
+ *  token authenticates the REST and Storage calls below. */
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 export interface Review {
   id: string;
@@ -83,25 +92,22 @@ export function apiErrorMessage(body: string, status: number): string {
   return message || `Something went wrong (HTTP ${status}).`;
 }
 
-/**
- * The bearer token from the session owned by src/lib/auth.ts. Read-only here:
- * it stamps uploads with the uploader's id so "My uploads" can list them;
- * anonymous posts still send no header.
- */
-function sessionToken(): string | null {
+/** The live session's access token, or null for anonymous calls. */
+async function accessToken(): Promise<string | null> {
   try {
-    const raw = localStorage.getItem('hillgpx:session');
-    return raw ? ((JSON.parse(raw) as { token?: string }).token ?? null) : null;
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
   } catch {
     return null;
   }
 }
 
 async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = sessionToken();
-  const response = await fetch(`${API_BASE}/api${path}`, {
+  const token = await accessToken();
+  const response = await fetch(`${SUPABASE_URL}${path}`, {
     ...init,
     headers: {
+      apikey: SUPABASE_KEY,
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init.headers ?? {}),
@@ -115,17 +121,22 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 async function upload(bucket: string, path: string, body: Blob, contentType: string): Promise<string> {
-  const token = sessionToken();
-  const response = await fetch(`${API_BASE}/api/files/${bucket}/${path}`, {
+  const token = await accessToken();
+  const response = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': contentType, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    headers: {
+      apikey: SUPABASE_KEY,
+      'Content-Type': contentType,
+      'x-upsert': 'false',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body,
   });
   if (!response.ok) throw new ApiError(apiErrorMessage(await response.text().catch(() => ''), response.status), response.status);
   return publicUrl(bucket, path);
 }
 
-const publicUrl = (bucket: string, path: string) => `${API_BASE}/api/files/${bucket}/${path}`;
+export const publicUrl = (bucket: string, path: string) => `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
 
 const id = () => crypto.randomUUID();
 const storageSafe = (text: string) => text.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'x';
@@ -153,7 +164,7 @@ const toReview = (row: ReviewRow): Review => ({
 
 export async function fetchReviews(venueSlug: string): Promise<Review[]> {
   const rows = await rest<ReviewRow[]>(
-    `/reviews?venue_slug=${enc(venueSlug)}&limit=200`,
+    `/rest/v1/reviews?venue_slug=eq.${enc(venueSlug)}&select=id,venue_slug,rating,comment,author,created_at&order=created_at.desc&limit=200`,
   );
   return rows.map(toReview);
 }
@@ -167,8 +178,9 @@ export async function submitReview(input: { venueSlug: string; rating: number; c
     author: input.author.trim().slice(0, 60) || 'Anonymous',
     createdAt: new Date().toISOString(),
   };
-  await rest('/reviews', {
+  await rest('/rest/v1/reviews', {
     method: 'POST',
+    headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({ id: review.id, venue_slug: review.venueSlug, rating: review.rating, comment: review.comment, author: review.author }),
   });
   track('review_post', review.venueSlug);
@@ -201,7 +213,7 @@ interface PhotoRow {
 
 export async function fetchPhotos(venueSlug: string): Promise<CommunityPhoto[]> {
   const rows = await rest<PhotoRow[]>(
-    `/photos?venue_slug=${enc(venueSlug)}&limit=60`,
+    `/rest/v1/photos?venue_slug=eq.${enc(venueSlug)}&select=id,venue_slug,storage_path,credit,licence,author,created_at&order=created_at.desc&limit=60`,
   );
   return rows.map((row) => ({
     id: row.id,
@@ -233,8 +245,9 @@ export async function submitPhoto(input: { venueSlug: string; file: File; credit
   const photoId = id();
   const path = `${storageSafe(input.venueSlug)}/${photoId}.jpg`;
   await upload('photos', path, blob, 'image/jpeg');
-  await rest('/photos', {
+  await rest('/rest/v1/photos', {
     method: 'POST',
+    headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({
       id: photoId,
       venue_slug: input.venueSlug,
@@ -267,6 +280,8 @@ interface RouteRow {
   created_at: string;
 }
 
+const ROUTE_FIELDS = 'slug,name,activity,recorded_at,distance_m,gain_m,loss_m,elevation_source,venue_slugs,points,gpx_path,contributor,licence,downloads,created_at';
+
 function toRoute(row: RouteRow): Route {
   const first = row.points[0];
   const last = row.points[row.points.length - 1];
@@ -292,8 +307,18 @@ function toRoute(row: RouteRow): Route {
 }
 
 export async function fetchCommunityRoutes(): Promise<Route[]> {
-  const rows = await rest<RouteRow[]>(`/community/routes?limit=1000`);
-  return rows.map(toRoute);
+  try {
+    const rows = await rest<RouteRow[]>(`/rest/v1/routes?select=${ROUTE_FIELDS}&order=created_at.desc&limit=1000`);
+    return rows.map(toRoute);
+  } catch (error) {
+    // Before the accounts migration runs, routes has no downloads column —
+    // degrade to the column set that has always existed rather than failing.
+    if (error instanceof ApiError && error.message.includes('does not exist')) {
+      const rows = await rest<RouteRow[]>(`/rest/v1/routes?select=${ROUTE_FIELDS.replace(',downloads', '')}&order=created_at.desc&limit=1000`);
+      return rows.map(toRoute);
+    }
+    throw error;
+  }
 }
 
 export class DuplicateRouteError extends Error {}
@@ -338,6 +363,8 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
     gpx_path: gpxPath,
     contributor: input.anonymous ? null : input.contributor.trim().slice(0, 60) || null,
     licence: input.licence,
+    // A trigger stamps user_id from the session token — the anonymous flag is
+    // the only say the client has in it (see stamp_route_owner()).
     anonymous: Boolean(input.anonymous),
   };
   // Heart rate, cadence, power and other device extensions are personal data
@@ -352,7 +379,7 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
     if (!(error instanceof ApiError && (error.status === 409 || error.message.includes('Duplicate')))) throw error;
   }
   try {
-    await rest('/community/routes', { method: 'POST', body: JSON.stringify(row) });
+    await rest('/rest/v1/routes', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(row) });
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) throw new DuplicateRouteError('This track is already in the community archive.');
     throw error;
@@ -365,12 +392,12 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
 
 /** {slug: downloads} for every route, community and curated alike. */
 export async function fetchRouteDownloads(): Promise<Record<string, number>> {
-  return rest<Record<string, number>>('/routes/downloads');
+  return rest<Record<string, number>>('/rest/v1/rpc/route_downloads', { method: 'POST', body: '{}' });
 }
 
 /** Count one download. Fire-and-forget — the file matters, not the number. */
 export function recordRouteDownload(slug: string): void {
-  void rest(`/routes/${enc(slug)}/download`, { method: 'POST', body: '{}' }).catch(() => {});
+  void rest(`/rest/v1/rpc/record_route_download`, { method: 'POST', body: JSON.stringify({ p_slug: slug }) }).catch(() => {});
 }
 
 /* ─── Stats ────────────────────────────────────────────────────────────── */
@@ -378,7 +405,7 @@ export function recordRouteDownload(slug: string): void {
 let statsPromise: Promise<CommunityStats | null> | null = null;
 
 export function communityStats(): Promise<CommunityStats | null> {
-  statsPromise ??= rest<CommunityStats>('/community/stats').catch(() => {
+  statsPromise ??= rest<CommunityStats>('/rest/v1/rpc/community_stats', { method: 'POST', body: '{}' }).catch(() => {
     statsPromise = null;
     return null;
   });
@@ -393,8 +420,9 @@ export type ReportTarget = 'venue' | 'route' | 'photo' | 'route_photo' | 'review
 
 /** File a report for a maintainer to review (wrong details, hazards, closures, a bad photo). */
 export async function submitReport(input: { targetType: ReportTarget; targetSlug: string; kind: ReportKind; message: string; author: string }): Promise<void> {
-  await rest('/reports', {
+  await rest('/rest/v1/reports', {
     method: 'POST',
+    headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({
       target_type: input.targetType,
       target_slug: input.targetSlug,
@@ -434,7 +462,7 @@ interface RoutePhotoRow {
 
 export async function fetchRoutePhotos(routeSlug: string): Promise<RoutePhoto[]> {
   const rows = await rest<RoutePhotoRow[]>(
-    `/route_photos?route_slug=${enc(routeSlug)}&limit=200`,
+    `/rest/v1/route_photos?route_slug=eq.${enc(routeSlug)}&select=id,route_slug,lng,lat,kind,caption,storage_path,author,created_at&order=created_at.desc&limit=200`,
   );
   return rows.map((row) => ({
     id: row.id,
@@ -456,8 +484,9 @@ export async function submitRoutePhoto(input: { routeSlug: string; lng: number; 
   const photoId = id();
   const path = `route-${storageSafe(input.routeSlug).slice(0, 70)}/${photoId}.jpg`;
   await upload('photos', path, blob, 'image/jpeg');
-  await rest('/route_photos', {
+  await rest('/rest/v1/route_photos', {
     method: 'POST',
+    headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({
       id: photoId,
       route_slug: input.routeSlug,

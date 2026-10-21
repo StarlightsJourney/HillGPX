@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { loadAuthor, saveAuthor, submitReport, type ReportKind, type ReportTarget } from '../lib/api';
+import { errorText, loadAuthor, saveAuthor, submitReport, type ReportKind, type ReportTarget } from '../lib/api';
 import { Modal } from './Modal';
 
 export function FlagIcon() {
@@ -67,7 +67,7 @@ export function ReportModal({ targetType, targetSlug, targetName, onClose }: { t
       await submitReport({ targetType, targetSlug, kind, message, author });
       setSent(true);
     } catch (err) {
-      setError(`Could not send the report: ${(err as Error).message}`);
+      setError(`Could not send the report: ${errorText(err)}`);
     } finally {
       setBusy(false);
     }

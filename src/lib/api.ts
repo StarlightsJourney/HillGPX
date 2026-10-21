@@ -76,20 +76,34 @@ export class ApiError extends Error {
 }
 
 /**
- * The sentence to show for a failed request. The database's spam limits
- * (supabase/migrations/20261006000000_spam_limits.sql) raise plain messages
- * meant for people; a storage policy refusal means the hourly upload ceiling.
+ * The sentence to show for a failed request. The database's spam limits and
+ * owner checks raise plain messages meant for people — those arrive with
+ * errcode P0001 and pass through as written. Everything else (PostgREST
+ * schema errors, storage refusals, raw SQL) is engine noise: the site shows
+ * one generic line instead.
  */
 export function apiErrorMessage(body: string, status: number): string {
   let message = body;
+  let code = '';
   try {
-    const parsed = JSON.parse(body) as { message?: unknown };
+    const parsed = JSON.parse(body) as { message?: unknown; code?: unknown };
     if (typeof parsed.message === 'string') message = parsed.message;
+    if (typeof parsed.code === 'string') code = parsed.code;
   } catch {
     // Not JSON: keep the text as it came.
   }
   if (/row-level security/i.test(message)) return 'Uploads are paused for a little while because of heavy traffic. Please try again later.';
-  return message || `Something went wrong (HTTP ${status}).`;
+  if (code === 'P0001') return message;
+  return `Something went wrong (HTTP ${status}).`;
+}
+
+/**
+ * The sentence a form may show for a caught error. ApiError text is written
+ * for people; anything else — a dropped connection, a parser failure — gets
+ * the generic line, never its raw message.
+ */
+export function errorText(error: unknown): string {
+  return error instanceof ApiError ? error.message : 'Something went wrong — please try again.';
 }
 
 /** The live session's access token, or null for anonymous calls. */
@@ -240,7 +254,7 @@ async function preparePhoto(file: File): Promise<Blob> {
 }
 
 export async function submitPhoto(input: { venueSlug: string; file: File; credit: string; licence: string; author: string }): Promise<void> {
-  if (!input.file.type.startsWith('image/')) throw new Error('That file is not an image.');
+  if (!input.file.type.startsWith('image/')) throw new ApiError('That file is not an image.', 400);
   const blob = await preparePhoto(input.file);
   const photoId = id();
   const path = `${storageSafe(input.venueSlug)}/${photoId}.jpg`;
@@ -332,7 +346,7 @@ export interface PublishRouteInput {
   originalGpx: string | null;
   contributor: string;
   licence: string;
-  /** Signed-in uploaders may opt out: no user_id stamp, no public credit. */
+  /** Signed-in uploaders may opt out of the public credit; ownership stays. */
   anonymous?: boolean;
 }
 
@@ -363,8 +377,8 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
     gpx_path: gpxPath,
     contributor: input.anonymous ? null : input.contributor.trim().slice(0, 60) || null,
     licence: input.licence,
-    // A trigger stamps user_id from the session token — the anonymous flag is
-    // the only say the client has in it (see stamp_route_owner()).
+    // A trigger stamps user_id from the session token and nulls the credit
+    // when this flag is set (see stamp_route_owner()).
     anonymous: Boolean(input.anonymous),
   };
   // Heart rate, cadence, power and other device extensions are personal data
@@ -494,7 +508,7 @@ export async function fetchRoutePhotos(routeSlug: string): Promise<RoutePhoto[]>
 
 /** Pin a photo (or a hazard) to a point on a route. Shown after a volunteer approves it. */
 export async function submitRoutePhoto(input: { routeSlug: string; lng: number; lat: number; kind: 'photo' | 'hazard'; caption: string; file: File; author: string }): Promise<RoutePhoto> {
-  if (!input.file.type.startsWith('image/')) throw new Error('That file is not an image.');
+  if (!input.file.type.startsWith('image/')) throw new ApiError('That file is not an image.', 400);
   const blob = await preparePhoto(input.file);
   const photoId = id();
   const path = `route-${storageSafe(input.routeSlug).slice(0, 70)}/${photoId}.jpg`;

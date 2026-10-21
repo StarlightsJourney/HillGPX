@@ -4,7 +4,7 @@ import { computeGain, cumulativeDistances, totalDistanceM } from '../lib/elevati
 import { routeFromPoints } from '../lib/routes';
 import { HEIGHT_LABEL, venueHeight } from '../lib/venues';
 import { ACTIVITY_LABEL, findOverlaps, routeFingerprint } from '../lib/routeAnalysis';
-import { DuplicateRouteError, publishRoute, uploadRouteThumb } from '../lib/api';
+import { ApiError, DuplicateRouteError, publishRoute, uploadRouteThumb } from '../lib/api';
 import { useAuthUser } from '../lib/auth';
 import type { LoadedGpx } from './GpxDropzone';
 import { ElevationProfile } from './ElevationProfile';
@@ -110,7 +110,9 @@ export function GpxPanel({
       setError(
         caught instanceof DuplicateRouteError
           ? caught.message
-          : `Could not publish right now (${(caught as Error).message}). Your route is still open here; try again in a moment.`,
+          : caught instanceof ApiError
+            ? `${caught.message} Your route is still open here; try again in a moment.`
+            : 'Could not publish right now. Your route is still open here; try again in a moment.',
       );
     } finally {
       setBusy(false);
@@ -232,7 +234,7 @@ export function GpxPanel({
                   Anonymous
                 </button>
               </div>
-              {anonymous && <span className="photo-note">Not linked to your account and it will not appear in My uploads.</span>}
+              {anonymous && <span className="photo-note">Credited as anonymous — still in My uploads, so you can delete it later.</span>}
             </div>
           )}
           <p className="photo-note publish-note">

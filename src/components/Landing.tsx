@@ -11,6 +11,7 @@ import { RatingLabel } from './ResultsList';
 import { RouteThumb } from './RouteThumb';
 import { ActivityTag } from './ActivityIcon';
 import { routeActivity } from '../lib/routeAnalysis';
+import { errorText } from '../lib/api';
 import { VenueThumb } from './VenueThumb';
 import { useUnits } from './UnitsContext';
 
@@ -44,7 +45,7 @@ export function Landing() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadDataset().then(setDataset).catch((error: Error) => setLoadError(error.message));
+    loadDataset().then(setDataset).catch((error: unknown) => setLoadError(errorText(error)));
   }, []);
 
   const countries = useCountries();

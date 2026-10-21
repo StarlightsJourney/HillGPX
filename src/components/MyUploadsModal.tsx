@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { deleteMyRoute, fetchMyRoutes, type MyUpload } from '../lib/auth';
+import { errorText } from '../lib/api';
 import type { RouteActivity } from '../types';
 import { ActivityIcon } from './ActivityIcon';
 import { Modal } from './Modal';
@@ -23,7 +24,7 @@ export function UploadsList() {
       await deleteMyRoute(slug);
       setRoutes((rows) => rows?.filter((route) => route.slug !== slug) ?? null);
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorText(err));
     } finally {
       setDeleting(null);
       setConfirming(null);
@@ -34,7 +35,7 @@ export function UploadsList() {
     let cancelled = false;
     fetchMyRoutes()
       .then((rows) => !cancelled && setRoutes(rows))
-      .catch((err: Error) => !cancelled && setError(err.message));
+      .catch((err: unknown) => !cancelled && setError(errorText(err)));
     return () => {
       cancelled = true;
     };
@@ -63,7 +64,8 @@ export function UploadsList() {
                 <strong>{route.name}</strong>
                 <small>
                   {units.distance(route.distanceM)} · {units.height(route.gainM)} EG ·{' '}
-                  {route.downloads} {route.downloads === 1 ? 'download' : 'downloads'} ·{' '}
+                  {route.downloads} {route.downloads === 1 ? 'download' : 'downloads'}
+                  {route.anonymous ? ' · anonymous' : ''} ·{' '}
                   {new Date(route.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
                 </small>
               </span>

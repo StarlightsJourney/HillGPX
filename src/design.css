@@ -2144,9 +2144,9 @@
   object-fit: cover;
   display: block;
 }
-/* Below 899 px the pill drops its label and shrinks to a round icon, the
+/* Below 1249 px the pill drops its label and shrinks to a round icon, the
    same collapse the Add-a-GPX cta makes. */
-@media (max-width: 899px) {
+@media (max-width: 1249px) {
   .account-btn {
     width: 38px;
     padding: 0;
@@ -2232,6 +2232,11 @@
 }
 .auth-tabs button {
   flex: 1;
+}
+/* "Forgot password?" tucks right-aligned under the log-in password field. */
+.auth-forgot {
+  align-self: flex-end;
+  margin-top: -8px;
 }
 
 /* Smaller button for in-form saves; the delete action gets the danger red. */
@@ -4965,10 +4970,15 @@
 .site-header-row {
   grid-template-columns: 1fr auto 1fr;
 }
+/* The right cluster is the wider side: + Add a GPX, m/ft and Log in measure
+   about 300–320 px signed out, the wordmark about 150 px — so the pill
+   leaves ~325 px on each side. Below ~1,250 px the buttons collapse to
+   icons (the cluster drops to ~170 px, a deterministic size) and the pill
+   widens to its full 560 px. */
 .site-header .home-search {
-  width: min(560px, calc(100vw - 510px));
+  width: min(560px, calc(100vw - 740px));
 }
-@media (max-width: 899px) {
+@media (max-width: 1249px) {
   .site-header-cta {
     width: 38px;
     padding: 0;
@@ -4978,7 +4988,7 @@
     display: none;
   }
   .site-header .home-search {
-    width: min(560px, calc(100vw - 362px));
+    width: min(560px, calc(100vw - 452px));
   }
 }
 /* Phones and narrow windows: still one row — the mark, the pill filling the
@@ -6866,7 +6876,7 @@
 }
 
 /* When "Add a GPX" shrinks to a + (narrow windows), hovering it says what it does. */
-@media (max-width: 899px) {
+@media (max-width: 1249px) {
   .site-header-cta {
     position: relative;
   }

@@ -35,6 +35,7 @@ import {
   type Review,
   combinedRating,
   fetchPhotos,
+  errorText,
   fetchReviews,
   loadAuthor,
   saveAuthor,
@@ -434,7 +435,7 @@ function ReviewForm({ venue, initialRating, first, onPosted }: { venue: Venue; i
       onPosted(await submitReview({ venueSlug: venue.slug, rating: mine, comment, author }));
       setDone(true);
     } catch (err) {
-      setError(`Could not post your review: ${(err as Error).message}`);
+      setError(`Could not post your review: ${errorText(err)}`);
     } finally {
       setSubmitting(false);
     }
@@ -604,7 +605,7 @@ function AddPhotosModal({ venue, onClose, onUploaded }: { venue: Venue; onClose:
       } catch (err) {
         failed += 1;
         setStatus(item.id, 'failed');
-        setError((err as Error).message);
+        setError(errorText(err));
       }
     }
     if (failed) setError((message) => `${failed} photo${failed === 1 ? '' : 's'} did not upload${message ? `: ${message}` : ''}. Try again.`);

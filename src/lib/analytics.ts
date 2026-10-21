@@ -76,6 +76,7 @@ export type TrackedEvent =
   | 'report_sent'
   | 'sign_up'
   | 'log_in'
+  | 'password_reset'
   | 'map_expand';
 
 /** Record one product action (and an optional short label, e.g. the route). */

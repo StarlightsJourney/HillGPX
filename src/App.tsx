@@ -40,10 +40,12 @@ import { UnitsProvider } from './components/UnitsContext';
 import { Modal } from './components/Modal';
 import { SiteFooter, SiteHeader } from './components/SiteChrome';
 import { OpenSourceBadge, OpenSourceNotice } from './components/OpenSourceNotice';
-import { fetchCommunityRoutes, fetchRoutePhotos, type RoutePhoto } from './lib/api';
+import { errorText, fetchCommunityRoutes, fetchRoutePhotos, type RoutePhoto } from './lib/api';
 import { findOverlaps } from './lib/routeAnalysis';
 import { IMPORT_EVENT, REPORT_EVENT, type ReportRequest } from './lib/contribute';
 import { ReportModal } from './components/ReportModal';
+import { SetPasswordModal } from './components/AuthModal';
+import { clearPasswordRecovery, usePasswordRecovery } from './lib/auth';
 import { track } from './lib/analytics';
 import { isWorldPeakSlug, peaksInView, worldPeakBySlug } from './lib/worldPeaks';
 
@@ -80,6 +82,8 @@ export default function App() {
   const [view, setView] = useState<View>(viewFromHash);
   // "Report" on a photo or review anywhere (map popups dispatch requestReport).
   const [report, setReport] = useState<ReportRequest | null>(null);
+  // A reset-password email link opens a recovery session — collect the new password.
+  const recovering = usePasswordRecovery();
   useEffect(() => {
     const open = (event: Event) => setReport((event as CustomEvent<ReportRequest>).detail);
     window.addEventListener(REPORT_EVENT, open);
@@ -112,6 +116,7 @@ export default function App() {
       )}
       {view === 'landing' && <OpenSourceNotice />}
       {report && <ReportModal targetType={report.targetType} targetSlug={report.targetSlug} targetName={report.targetName} onClose={() => setReport(null)} />}
+      {recovering && <SetPasswordModal onClose={clearPasswordRecovery} />}
       {view !== 'map' && <OpenSourceBadge placement={view === 'landing' ? 'landing' : 'corner'} />}
     </UnitsProvider>
   );
@@ -209,7 +214,7 @@ function MapApp() {
   useEffect(() => {
     loadDataset()
       .then(setDataset)
-      .catch((err: Error) => setLoadError(err.message));
+      .catch((err: unknown) => setLoadError(errorText(err)));
 
     // A few megabytes, and only the GPX profile needs it, so the map stays
     // fully usable while it loads — or if it never does.

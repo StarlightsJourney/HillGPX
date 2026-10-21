@@ -112,7 +112,9 @@ export function errorText(error: unknown): string {
 function apiErrorCode(body: string): string | undefined {
   try {
     const parsed = JSON.parse(body) as { code?: unknown; statusCode?: unknown };
-    const code = parsed.code ?? parsed.statusCode;
+    // Storage bodies carry both ("code": "KeyAlreadyExists"); the numeric
+    // statusCode is the one duplicate-tolerance checks against.
+    const code = parsed.statusCode ?? parsed.code;
     return typeof code === 'string' ? code : undefined;
   } catch {
     return undefined;

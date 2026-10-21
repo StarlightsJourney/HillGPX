@@ -8,7 +8,7 @@ Good vertical training spots are local knowledge: the stairwell to the 40th floo
 
 ## Principles
 
-- **Free for everyone.** Static site on GitHub Pages, open Supabase database for contributions. No accounts, no paywall, no tracking cookies.
+- **Free for everyone.** Static site on Cloudflare Pages, open Supabase database for contributions. Optional accounts, no paywall, no tracking cookies.
 - **Community first.** The map grows through contributions, and contributors are credited on what they add.
 - **Honest numbers.** Hills show *elevation*; stairwells and blocks show *EG* (elevation gain); routes show *EG* and *EL*. Every route says where its elevation came from.
 - **Phone first.** Most people open it at the bottom of a hill.
@@ -51,7 +51,7 @@ The app opens at http://localhost:5180 (the port is strict). It needs no keys or
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the pieces fit
 - [AGENTS.md](AGENTS.md): rules and environment notes for anyone (or any agent) changing the code
 
-**Stack:** Vite, React, TypeScript, MapLibre GL with [OpenFreeMap](https://openfreemap.org) tiles and [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/), [Supabase](https://supabase.com) for community contributions, a Python data pipeline, GitHub Pages.
+**Stack:** Vite, React, TypeScript, MapLibre GL with [OpenFreeMap](https://openfreemap.org) tiles and [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/), [Supabase](https://supabase.com) for community contributions and accounts, a Python data pipeline, Cloudflare Pages.
 
 The browser uses Supabase's *publishable* key, which is public by design: row-level security only allows inserting new rows and reading approved ones. A fork can point at its own project with `VITE_SUPABASE_URL` and `VITE_SUPABASE_KEY`.
 
@@ -70,7 +70,7 @@ The site lives on **Cloudflare Pages at https://hillgpx.com** (project `hillgpx`
 1. **Domain:** create a free Cloudflare account and buy `hillgpx.com` from **Cloudflare Registrar** (at cost, about US$10 a year). Its DNS is then already on Cloudflare.
 2. **Project:** Cloudflare dashboard → **Workers & Pages** → **Create** → **Pages** → **Connect to Git** → choose `StarlightsJourney/HillGPX`.
    - Production branch: `main`. Build command: `npm run build`. Output directory: `dist`.
-   - Environment variables: `VITE_BASE` = `/`, `SITE_URL` and `VITE_SITE_URL` = `https://hillgpx.com`, `NODE_VERSION` = `20`. Optional: `VITE_CF_ANALYTICS_TOKEN`, `VITE_CLARITY_ID` (see Analytics below).
+   - Environment variables: `VITE_BASE` = `/`, `SITE_URL` and `VITE_SITE_URL` = `https://hillgpx.com`, `NODE_VERSION` = `20`, `VITE_GOOGLE_CLIENT_ID` = the OAuth client ID (renders the Google sign-in button; the same ID must be enabled under Supabase → Authentication → Providers → Google). Optional: `VITE_CF_ANALYTICS_TOKEN`, `VITE_CLARITY_ID` (see Analytics below).
 3. **Custom domain:** the project → **Custom domains** → add `hillgpx.com` and `www.hillgpx.com` (Cloudflare creates the records and the HTTPS certificate).
 4. **Protection:** keep the default DDoS protection and add the firewall rules described under "Blocking scanners". Leave **Bot Fight Mode** off: on the free plan it also challenges Google's fetchers and link-preview services. Pages has no request limits to worry about.
 5. **One canonical address:** in the GitHub repository → **Settings** → **Secrets and variables** → **Actions** → **Variables**, add `SITE_URL` = `https://hillgpx.com`, so the GitHub Pages copy also points search engines at hillgpx.com. You can then turn GitHub Pages off (Settings → Pages) or keep it as a backup.

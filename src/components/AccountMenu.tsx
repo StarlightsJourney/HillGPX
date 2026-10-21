@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { API_BASE } from '../lib/api';
 import { logOut, useAuthUser } from '../lib/auth';
 import { AuthModal } from './AuthModal';
 import { UserIcon } from './icons';
@@ -44,7 +43,7 @@ export function AccountMenu() {
       >
         {user ? (
           user.avatarUrl ? (
-            <img className="account-avatar" src={`${API_BASE}${user.avatarUrl}`} alt="" />
+            <img className="account-avatar" src={user.avatarUrl} alt="" />
           ) : (
             <span className="account-initial">{user.username.slice(0, 1).toUpperCase()}</span>
           )

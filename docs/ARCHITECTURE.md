@@ -2,7 +2,7 @@
 
 ## Overview
 
-HillGPX is a static web app. All data is committed JSON or GPX; the browser never talks to a backend. Deployment is GitHub Pages.
+HillGPX is a static web app. All venue and route data is committed JSON or GPX; community contributions (routes, photos, reviews, reports) and accounts go through Supabase. Deployment is Cloudflare Pages, with a GitHub Pages backup.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -151,7 +151,7 @@ The sibling `.bin` file is a row-major `Int16Array` of size `width * height`. Va
 - Favourites: `localStorage` key owned by `src/lib/venues.ts`.
 - Saved local routes: `localStorage` key owned by `src/lib/localRoutes.ts`.
 - Contributor name: `hillgpx:authorName`, owned by `src/lib/api.ts`.
-- Auth session: `hillgpx:session` (bearer token + user), owned by `src/lib/auth.ts`. The API keeps the SHA-256 hash of the token in a `sessions` collection with a TTL; `/api/auth/me` revalidates it on load. Profile edits go through `PATCH /api/auth/me`, photos through `POST /api/auth/me/avatar` (256 px JPEG, GridFS `avatars` bucket, public-read).
+- Auth session: Supabase Auth's own localStorage key (`sb-<project-ref>-auth-token`), owned by `src/lib/auth.ts` through the shared client in `src/lib/api.ts` — the JWT auto-refreshes and rides on community calls, which is how `routes.user_id` gets stamped. The public username and avatar live in the `profiles` table (`supabase/migrations/20261022000000_accounts.sql`); avatars are 256 px JPEGs in the public `avatars` bucket.
 
 Neither is considered authoritative for the public dataset. To publish a route, add the GPX to `data/routes/` and rebuild.
 
@@ -181,12 +181,4 @@ Neither is considered authoritative for the public dataset. To publish a route, 
 
 ## Deployment
 
-`.github/workflows/deploy.yml` runs on every push to `main`:
-
-```bash
-npm ci
-npm run typecheck
-npm run build   # VITE_BASE=/HillGPX/
-```
-
-The `dist/` folder is uploaded to GitHub Pages. No Python, no credentials, no runtime server.
+Cloudflare Pages' git integration builds and serves `dist/` at hillgpx.com on every push to `main` (`npm run build`, no server). `.github/workflows/deploy.yml` runs on the same push — `npm ci`, `npm run typecheck`, `npm run build` with `VITE_BASE=/HillGPX/` — and publishes `dist/` to GitHub Pages as a backup copy whose canonical links point at hillgpx.com. No Python, no credentials, no runtime server on either path.

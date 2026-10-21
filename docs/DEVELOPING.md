@@ -181,7 +181,7 @@ node scripts/render_route_thumbs.ts --force  # everything
 
 ## Deploying
 
-`npm run build` runs the type check, `vite build`, then `scripts/build_seo.mjs` (static pages for search engines, sitemap, robots.txt, llms.txt). Pushing to `main` runs `.github/workflows/deploy.yml`, which builds with `VITE_BASE=/HillGPX/` (or `/` once `public/CNAME` exists for a custom domain; see the README's "Hosting and a custom domain") and publishes `dist/` to GitHub Pages. To check a production build under the same sub-path:
+`npm run build` runs the type check, `vite build`, then `scripts/build_seo.mjs` (static pages for search engines, sitemap, robots.txt, llms.txt). Pushing to `main` deploys twice: **Cloudflare Pages** (hillgpx.com — its git integration builds `dist/` with `npm run build`; set `VITE_GOOGLE_CLIENT_ID` in the project's environment variables so the Google sign-in button renders) and `.github/workflows/deploy.yml`, which builds with `VITE_BASE=/HillGPX/` and publishes `dist/` to GitHub Pages as a backup. To check a production build under that sub-path:
 
 ```bash
 VITE_BASE=/HillGPX/ npm run build

@@ -1,5 +1,5 @@
 import type { Route, RouteDataset, Venue, VenueDataset, VenuePhoto, VenueType } from '../types';
-import { API_BASE, fetchRouteDownloads } from './api';
+import { fetchRouteDownloads } from './api';
 import { haversineM } from './elevation';
 import { formatDistanceIn, type Units } from './units';
 
@@ -61,7 +61,7 @@ export interface Bounds {
  * build, so a root-absolute '/data' would 404 there — and resolves outside the
  * page entirely when dist/index.html is opened straight off disk.
  */
-export const DATA_BASE = API_BASE ? `${API_BASE}/data` : `${import.meta.env.BASE_URL}data`;
+export const DATA_BASE = `${import.meta.env.BASE_URL}data`;
 
 /**
  * Where a venue photo loads from. Committed photos are files under the base
@@ -69,7 +69,7 @@ export const DATA_BASE = API_BASE ? `${API_BASE}/data` : `${import.meta.env.BASE
  */
 export function photoSrc(photo: VenuePhoto): string {
   if (/^https?:\/\//.test(photo.file)) return photo.file;
-  return API_BASE ? `${API_BASE}/${photo.file}` : `${import.meta.env.BASE_URL}${photo.file}`;
+  return `${import.meta.env.BASE_URL}${photo.file}`;
 }
 
 /**

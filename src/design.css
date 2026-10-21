@@ -3933,71 +3933,13 @@
   }
 }
 
-/* ─── Landing: milestone strip, search, country marquee, rows ─────────── */
+/* ─── Landing: hero, rows ──────────────────────────────────────────────── */
 
 .home-hero {
   padding: 28px 0 8px;
 }
 .home-hero-search .home-search {
   margin: 0 auto;
-}
-
-.marquee {
-  position: relative;
-  margin-top: 22px;
-  overflow: hidden;
-  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-}
-.marquee.loading {
-  height: 40px;
-}
-.marquee-track {
-  display: flex;
-  gap: 10px;
-  width: max-content;
-  padding: 4px 0;
-  animation: marquee calc(var(--n) * 2.2s) linear infinite;
-}
-.marquee:hover .marquee-track,
-.marquee:focus-within .marquee-track {
-  animation-play-state: paused;
-}
-@keyframes marquee {
-  to { transform: translateX(-50%); }
-}
-.marquee-chip {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
-  flex: none;
-  height: 38px;
-  padding: 0 16px;
-  border: 1px solid var(--hairline);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--ink);
-  font: 600 14px/38px var(--font-sans);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.15s var(--ease-out), box-shadow 0.15s ease;
-}
-.marquee-chip small {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
-}
-.marquee-chip:hover {
-  border-color: var(--ink);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-pill);
-}
-@media (prefers-reduced-motion: reduce) {
-  .marquee-track {
-    animation: none;
-  }
-  .marquee {
-    overflow-x: auto;
-  }
 }
 
 .home-row-pair {
@@ -4613,9 +4555,6 @@
 }
 .home-hero {
   padding: 16px 0 4px;
-}
-.home-hero .marquee {
-  margin-top: 0;
 }
 
 /* Shared placeholder art for places without a photo */

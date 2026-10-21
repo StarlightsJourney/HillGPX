@@ -107,7 +107,6 @@ function HeroBlock() {
   return (
     <section className="home-hero">
       <h1 className="visually-hidden">hillGPX: hills, mountains and GPX routes worldwide</h1>
-      <CountryMarquee mode="climbs" />
     </section>
   );
 }
@@ -126,39 +125,11 @@ function useCountries(): CountrySummary[] | null {
   return countries;
 }
 
-/** Every country on the map, drifting past; hover pauses it, a tap opens that country. */
-function CountryMarquee({ mode }: { mode: Mode }) {
-  const countries = useCountries();
-  if (!countries || countries.length === 0) return <div className="marquee loading" aria-hidden="true" />;
-  const list = countries.slice(0, 60);
-  const chip = (country: CountrySummary, copy: number) => (
-    <button
-      key={`${country.code}-${copy}`}
-      type="button"
-      className="marquee-chip"
-      tabIndex={copy ? -1 : 0}
-      aria-hidden={copy ? true : undefined}
-      onClick={() => openMap(mode, boundsToHash(country.bounds))}
-    >
-      <span>{country.name}</span>
-      <small>{country.count.toLocaleString()}</small>
-    </button>
-  );
-  return (
-    <nav className="marquee" aria-label="Countries with mapped summits">
-      <div className="marquee-track" style={{ '--n': list.length } as React.CSSProperties}>
-        {list.map((country) => chip(country, 0))}
-        {list.map((country) => chip(country, 1))}
-      </div>
-    </nav>
-  );
-}
-
 const WORLD_SKIP = new Set(['SG', 'MY', 'TW', 'HK']);
 /** Countries revealed per scroll step, and the most the page will show. */
 const WORLD_BATCH = 4;
 const WORLD_MAX = 24;
-/** A row needs enough summits to scroll; tiny territories stay in the marquee and on the map. */
+/** A row needs enough summits to scroll; tiny territories stay on the map. */
 const WORLD_MIN_PEAKS = 6;
 
 /** The countries that get a "Highest peaks in …" row, in page order. */

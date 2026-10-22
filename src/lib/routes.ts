@@ -109,6 +109,25 @@ export function routesNear(routes: Route[], lng: number, lat: number, radiusM: n
     .map((hit) => hit.route);
 }
 
+/**
+ * The routes near a point, widening as needed: the first radius in `radiiM`
+ * (smallest first) that has any routes, with up to `limit` of them, closest
+ * first. Null when even the widest has none.
+ */
+export function routesWithin(
+  routes: Route[],
+  lng: number,
+  lat: number,
+  radiiM: number[],
+  limit: number,
+): { radiusM: number; routes: Route[] } | null {
+  for (const radiusM of radiiM) {
+    const near = routesNear(routes, lng, lat, radiusM, limit);
+    if (near.length > 0) return { radiusM, routes: near };
+  }
+  return null;
+}
+
 /** Metres climbed per kilometre — the single number that says how hilly a route is. */
 export function climbRate(route: Route): number {
   return route.distanceM > 0 ? route.gainM / (route.distanceM / 1000) : 0;

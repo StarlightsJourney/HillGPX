@@ -61,6 +61,32 @@ test('Routes near me opens the map on the routes around you', async ({ browser }
   await context.close();
 });
 
+test('Routes near me widens to 50 km when nothing is within 10 km', async ({ browser }) => {
+  // Ayer Hitam, Johor: ~21 km from the committed Kluang trail run.
+  const context = await browser.newContext({ geolocation: { latitude: 1.9216, longitude: 103.1806 }, permissions: ['geolocation'] });
+  const page = await context.newPage();
+  await page.route('**/rest/v1/routes?**', (route) => route.fulfill({ json: [] }));
+  await page.goto('/#map');
+  await dismissNotice(page);
+  await page.waitForSelector('.result-card', { timeout: 15_000 });
+  await page.getByRole('button', { name: 'Show routes near me' }).click();
+  await expect(page.locator('.mode-tab.on')).toHaveText('Routes');
+  await expect(page.locator('.locate-hint')).toContainText('No routes within 10 km, so these are the closest within 50 km.');
+  await context.close();
+});
+
+test('without location, Routes near me shows the country from the time zone', async ({ browser }) => {
+  const context = await browser.newContext({ timezoneId: 'Asia/Singapore' });
+  const page = await context.newPage();
+  await page.goto('/#map');
+  await dismissNotice(page);
+  await page.waitForSelector('.result-card', { timeout: 15_000 });
+  await page.getByRole('button', { name: 'Show routes near me' }).click();
+  await expect(page.locator('.mode-tab.on')).toHaveText('Routes');
+  await expect(page.locator('.locate-hint')).toContainText('Showing routes in Singapore');
+  await context.close();
+});
+
 test('landing has the hero and at most 8 rows, then a link to the map', async ({ page }) => {
   await page.goto('/');
   await dismissNotice(page);

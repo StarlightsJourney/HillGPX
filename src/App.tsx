@@ -8,7 +8,7 @@ import { FilterBar, type BrowseMode } from './components/FilterBar';
 import { VenueDetail, VenueDetailSkeleton } from './components/VenueDetail';
 import { RoutesList } from './components/RoutesList';
 import { RoutePanel } from './components/RoutePanel';
-import { NO_ROUTE_FILTERS, filterRoutes, linkVenues, routesBounds, routesNear, routeIntersects, type RouteFilters } from './lib/routes';
+import { NO_ROUTE_FILTERS, filterRoutes, linkVenues, routesBounds, routesNear, routesWithin, routeIntersects, type RouteFilters } from './lib/routes';
 import { boundsFromHash } from './lib/regions';
 import { ElevationModel } from './lib/elevation';
 import {
@@ -36,7 +36,7 @@ import { TrainingPanel } from './components/TrainingPanel';
 import { AccountPage } from './components/AccountPage';
 import { InfoPage, type InfoPageId } from './components/InfoPage';
 import { MyUploadsPage } from './components/MyUploadsPage';
-import { UnitsProvider } from './components/UnitsContext';
+import { UnitsProvider, useUnits } from './components/UnitsContext';
 import { Modal } from './components/Modal';
 import { SiteFooter, SiteHeader } from './components/SiteChrome';
 import { OpenSourceBadge, OpenSourceNotice } from './components/OpenSourceNotice';
@@ -48,6 +48,8 @@ import { SetPasswordModal } from './components/AuthModal';
 import { clearPasswordRecovery, usePasswordRecovery } from './lib/auth';
 import { track } from './lib/analytics';
 import { takeMapIntent } from './lib/mapIntent';
+import { countryArea, detectCountry } from './lib/country';
+import { formatRadius } from './lib/units';
 import { isWorldPeakSlug, peaksInView, worldPeakBySlug } from './lib/worldPeaks';
 
 /** One shared empty list, so "no dataset yet" is a stable reference to memo on. */
@@ -161,11 +163,23 @@ function boundsChangedMeaningfully(
   );
 }
 
-/** "Routes near me" reaches this far, and shows at most this many routes. */
-const NEAR_ME_RADIUS_M = 50_000;
+/**
+ * "Routes near me" looks this far, widening a step at a time until it finds
+ * routes (then the country, see handleLocate), and shows at most this many.
+ */
+const NEAR_ME_RADII_M = [10_000, 50_000];
 const NEARBY_ROUTES = 8;
 /** A summit picked in search opens on the routes passing this close to it. */
 const PLACE_ROUTE_RADIUS_M = 10_000;
+
+interface LocateHint {
+  title: string;
+  text: string;
+  retry: boolean;
+}
+
+/** A location problem: tapping the card asks again. */
+const askAgain = (text: string): LocateHint => ({ title: 'Share your location', text, retry: true });
 
 /** A box grown just enough to take in one more point. */
 function withPoint(box: Bounds, point: { lng: number; lat: number }): Bounds {
@@ -198,7 +212,10 @@ function MapApp() {
   const [focus, setFocus] = useState<{ lng: number; lat: number; nonce: number } | null>(null);
   const [focusBounds, setFocusBounds] = useState<{ bounds: Bounds; nonce: number } | null>(null);
   const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null);
-  const [locateHint, setLocateHint] = useState<string | null>(null);
+  // The card over the map after "near me": why the map shows what it shows,
+  // and (when `retry`) a tap to ask for the location again.
+  const [locateHint, setLocateHint] = useState<LocateHint | null>(null);
+  const units = useUnits();
   // Wide screens only: the map takes the whole width, chosen with the expand
   // control. Opening a route keeps the list beside the map; the control
   // pulses while a route is open so the bigger view is easy to find.
@@ -663,60 +680,120 @@ function MapApp() {
     return () => observer.disconnect();
   }, []);
 
+  /** Clear what was open and frame the routes "near me" found. */
+  const showNearbyRoutes = useCallback((bounds: Bounds, here: { lng: number; lat: number } | null, hint: LocateHint | null) => {
+    setMode('routes');
+    setSelectedSlug(null);
+    setActiveRouteSlug(null);
+    setSelectedRouteSlug(null);
+    setSpotlight(null);
+    setLocateHint(hint);
+    setUserLocation(here);
+    setFocusBounds({ bounds, nonce: Date.now() });
+  }, []);
+
+  /**
+   * Without a usable location, the visitor's country (lib/country.ts): its
+   * routes, or its climbs when it has none. False when the country is not
+   * known, so the caller can say why instead.
+   */
+  const showCountry = useCallback(
+    async (note: (country: string, kind: 'routes' | 'climbs') => string, here: { lng: number; lat: number } | null = null) => {
+      const code = await detectCountry();
+      const area = code ? await countryArea(code) : null;
+      if (!area) return false;
+      const hasRoutes = filteredRoutes.some((route) => routeIntersects(route, area.bounds));
+      const hint = { title: hasRoutes ? `Routes in ${area.name}` : `Climbs in ${area.name}`, text: note(area.name, hasRoutes ? 'routes' : 'climbs'), retry: !here };
+      if (hasRoutes) {
+        showNearbyRoutes(area.bounds, here, hint);
+      } else {
+        searchArea(area.bounds);
+        setLocateHint(hint);
+      }
+      return true;
+    },
+    [filteredRoutes, showNearbyRoutes, searchArea],
+  );
+
+  /** No routes anywhere near: the climbs around you, as before routes came first. */
+  const showNearbyClimbs = useCallback(
+    (here: { lng: number; lat: number }) => {
+      setMode('climbs');
+      setSelectedSlug(null);
+      setActiveRouteSlug(null);
+      setUserLocation(here);
+      const [closest] = nearest(allVenues, here.lng, here.lat, 1);
+      const gapM = closest ? haversineM(here.lng, here.lat, closest.lng, closest.lat) : Infinity;
+      if (gapM > 100_000) {
+        setLocateHint({
+          title: 'Nothing mapped near you yet',
+          text: `The nearest mapped climb is about ${Math.round(gapM / 1000)} km away. Know a hill near you? Add it with Add a GPX.`,
+          retry: false,
+        });
+        setFocus({ ...here, nonce: Date.now() });
+        return;
+      }
+      setLocateHint(null);
+      const nearby = tallestWithin(allVenues, here.lng, here.lat, 2_000, 8);
+      const bounds = boundsOf([here, ...nearby.map((n) => n.venue)]);
+      if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
+    },
+    [allVenues],
+  );
+
+  /**
+   * "Routes near me". With your location: the routes within 10 km, else
+   * within 50 km, else in your country, else the climbs around you. Without
+   * it (denied, unsupported, timed out): your country's routes, or its
+   * climbs. A note on the map says which of these you are looking at.
+   */
   const handleLocate = useCallback(() => {
-    if (!navigator.geolocation) {
-      setLocateHint('This browser does not support location sharing.');
-      return;
-    }
     // Nothing to measure "nearest" against until the data has loaded.
     if (allVenues.length === 0) return;
+    const fallBack = (problem: string) => {
+      void showCountry((country, kind) =>
+        kind === 'routes'
+          ? `${problem} Showing routes in ${country} instead.`
+          : `${problem} ${country} has no routes yet, so here are its climbs.`,
+      ).then((shown) => {
+        if (!shown) setLocateHint(askAgain(problem));
+      });
+    };
+    if (!navigator.geolocation) {
+      fallBack('This browser does not share its location.');
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const { latitude, longitude } = pos.coords;
-        const here = { lng: longitude, lat: latitude };
-        // Routes first: frame you with the nearest ones.
-        const routeBox = routesBounds(routesNear(filteredRoutes, longitude, latitude, NEAR_ME_RADIUS_M, NEARBY_ROUTES));
-        if (routeBox) {
-          setMode('routes');
-          setSelectedSlug(null);
-          setActiveRouteSlug(null);
-          setSelectedRouteSlug(null);
-          setSpotlight(null);
-          setLocateHint(null);
-          setUserLocation(here);
-          setFocusBounds({ bounds: withPoint(routeBox, here), nonce: Date.now() });
+        const here = { lng: pos.coords.longitude, lat: pos.coords.latitude };
+        const [first, widest] = [NEAR_ME_RADII_M[0], NEAR_ME_RADII_M[NEAR_ME_RADII_M.length - 1]];
+        const hit = routesWithin(filteredRoutes, here.lng, here.lat, NEAR_ME_RADII_M, NEARBY_ROUTES);
+        if (hit) {
+          const box = routesBounds(hit.routes);
+          const widened = hit.radiusM > first
+            ? { title: 'Routes near you', text: `No routes within ${formatRadius(first, units.units)}, so these are the closest within ${formatRadius(hit.radiusM, units.units)}.`, retry: false }
+            : null;
+          if (box) showNearbyRoutes(withPoint(box, here), here, widened);
           return;
         }
-        // No routes nearby: the climbs around you instead.
-        setMode('climbs');
-        const [closest] = nearest(allVenues, longitude, latitude, 1);
-        const gapM = closest ? haversineM(longitude, latitude, closest.lng, closest.lat) : Infinity;
-        if (gapM > 100_000) {
-          setLocateHint(`The nearest mapped climb is about ${Math.round(gapM / 1000)} km away. Know a hill near you? Add it from the menu.`);
-          setUserLocation({ lng: longitude, lat: latitude });
-          setFocus({ lng: longitude, lat: latitude, nonce: Date.now() });
-          return;
-        }
-        const nearby = tallestWithin(allVenues, longitude, latitude, 2_000, 8);
-        setSelectedSlug(null);
-        setActiveRouteSlug(null);
-        setLocateHint(null);
-        setUserLocation({ lng: longitude, lat: latitude });
-        const bounds = boundsOf([{ lng: longitude, lat: latitude }, ...nearby.map((n) => n.venue)]);
-        if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
+        void showCountry(
+          (country, kind) => `No routes within ${formatRadius(widest, units.units)} of you. ${kind === 'routes' ? `Showing routes in ${country}.` : `${country} has no routes yet, so here are its climbs.`}`,
+          here,
+        ).then((shown) => {
+          if (!shown) showNearbyClimbs(here);
+        });
       },
-      (err) => {
-        setLocateHint(
+      (err) =>
+        fallBack(
           err.code === err.PERMISSION_DENIED
-            ? 'To improve accuracy, enable location sharing in your browser settings.'
+            ? 'Allow location to see routes near you.'
             : err.code === err.TIMEOUT
-              ? 'Timed out waiting for your location.'
+              ? 'Your location took too long to arrive.'
               : 'Could not get your location.',
-        );
-      },
+        ),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     );
-  }, [allVenues, filteredRoutes]);
+  }, [allVenues, filteredRoutes, units.units, showCountry, showNearbyRoutes, showNearbyClimbs]);
 
   // A search or "near me" from a page without the map (mapIntent.ts) runs once
   // the routes it chooses between have loaded. On the map page itself (the
@@ -851,7 +928,7 @@ function MapApp() {
                 photoFocus={photoFocus}
                 favorites={favorites}
                 onToggleFavorite={toggleFavorite}
-                onLocateHint={setLocateHint}
+                onLocateHint={(text) => setLocateHint(text ? askAgain(text) : null)}
                 userLocation={userLocation}
                 onMapError={setMapError}
                 onViewportChange={(b, userInitiated) => {
@@ -873,13 +950,13 @@ function MapApp() {
             {mapError && <div className="map-error small">The map failed to load: {mapError}</div>}
 
             {locateHint && (
-              <div className="locate-hint" onClick={handleLocate}>
+              <div className={`locate-hint${locateHint.retry ? ' retry' : ''}`} role="status" onClick={locateHint.retry ? handleLocate : undefined}>
                 <span className="locate-hint-icon" aria-hidden="true">
                   <LocationArrowIcon size={22} />
                 </span>
                 <div className="locate-hint-body">
-                  <p className="locate-hint-title">Share your location</p>
-                  <p className="locate-hint-text">{locateHint}</p>
+                  <p className="locate-hint-title">{locateHint.title}</p>
+                  <p className="locate-hint-text">{locateHint.text}</p>
                 </div>
                 <button
                   type="button"

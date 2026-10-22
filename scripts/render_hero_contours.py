@@ -6,16 +6,19 @@ as a topographic map, from the Singapore terrain model the app already ships.
     python3 scripts/render_hero_contours.py
 
 Reads  public/data/dem/sg-dem.json + sg-dem.bin (see fetch_dem.py)
-Writes public/hero/bukit-timah-tint.png      height tints (pale green low,
-                                             sand and tan on the summits)
-       public/hero/bukit-timah-contours.svg  contour lines over them
+Writes public/hero/bukit-timah-tint.png       height tints (pale green low,
+                                              sand and tan on the summits)
+       public/hero/bukit-timah-contours.json  contour lines over them: the
+                                              hero draws each one itself, so
+                                              it can trace them in and run a
+                                              current along them
 
 Standard library only. The model is ~38 m a cell, so the grid is upsampled
 before tracing (marching squares) and each line is smoothed (Chaikin) and
 thinned (Ramer-Douglas-Peucker) to keep the file small and the curves soft.
 Lines are every 10 m; every fifth is an index contour, drawn a little heavier, as on a printed
-topographic map. The lines are drawn in one dark ink; the page fades both
-layers and pans them together.
+topographic map. Each line carries its length, which the page needs to
+trace it in.
 """
 
 from __future__ import annotations
@@ -31,7 +34,7 @@ import zlib
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEM_JSON = os.path.join(ROOT, "public", "data", "dem", "sg-dem.json")
 DEM_BIN = os.path.join(ROOT, "public", "data", "dem", "sg-dem.bin")
-OUT = os.path.join(ROOT, "public", "hero", "bukit-timah-contours.svg")
+OUT = os.path.join(ROOT, "public", "hero", "bukit-timah-contours.json")
 TINT_OUT = os.path.join(ROOT, "public", "hero", "bukit-timah-tint.png")
 
 # Bukit Timah Hill (163 m) a little right of centre, with Bukit Gombak and
@@ -279,34 +282,37 @@ def main() -> None:
     sx, sy = OUT_WIDTH / (w - 1), out_h / (h - 1)
     top = max(max(row) for row in grid)
 
-    paths = {"minor": [], "index": []}
+    lines = []
     level = INTERVAL_M
-    count = 0
     while level < top:
         for line in join(march(grid, level)):
             pts = [(x * sx, y * sy) for x, y in line]
             # Specks and short scraps read as noise, not terrain.
             if sum(math.hypot(q[0] - p[0], q[1] - p[1]) for p, q in zip(pts, pts[1:])) < MIN_LENGTH:
                 continue
-            pts = rdp(chaikin(pts), 0.8)
-            d = "M" + "L".join(f"{x:.0f} {y:.0f}" for x, y in pts)
-            paths["index" if (level // INTERVAL_M) % INDEX_EVERY == 0 else "minor"].append(d)
-            count += 1
+            pts = [(round(x), round(y)) for x, y in rdp(chaikin(pts), 0.8)]
+            lines.append({
+                "d": "M" + "L".join(f"{x} {y}" for x, y in pts),
+                "index": (level // INTERVAL_M) % INDEX_EVERY == 0,
+                "length": round(sum(math.hypot(q[0] - p[0], q[1] - p[1]) for p, q in zip(pts, pts[1:]))),
+            })
         level += INTERVAL_M
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w") as f:
-        f.write(
-            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {OUT_WIDTH} {out_h}" '
-            'fill="none" stroke="#222" stroke-linecap="round" stroke-linejoin="round">\n'
-            f"<!-- Contours every {INTERVAL_M} m around Bukit Timah Hill, Singapore. "
-            "Elevation: AWS Open Data terrain tiles (Terrarium), derived from SRTM. -->\n"
-            f'<path stroke-width="1" d="{"".join(paths["minor"])}"/>\n'
-            f'<path stroke-width="2" d="{"".join(paths["index"])}"/>\n'
-            "</svg>\n"
+        json.dump(
+            {
+                "attribution": f"Contours every {INTERVAL_M} m around Bukit Timah Hill, Singapore. "
+                "Elevation: AWS Open Data terrain tiles (Terrarium), derived from SRTM.",
+                "width": OUT_WIDTH,
+                "height": out_h,
+                "lines": lines,
+            },
+            f,
+            separators=(",", ":"),
         )
     size = os.path.getsize(OUT)
-    print(f"Wrote {os.path.relpath(OUT, ROOT)} ({count} lines, top {top:.0f} m, {size // 1024} KB)")
+    print(f"Wrote {os.path.relpath(OUT, ROOT)} ({len(lines)} lines, top {top:.0f} m, {size // 1024} KB)")
 
     # Same grid, same box: the tints sit exactly under the lines.
     write_png(TINT_OUT, [[tint(v) for v in row] for row in grid])

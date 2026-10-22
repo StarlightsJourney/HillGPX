@@ -3849,8 +3849,8 @@
 }
 /* The map behind it: height tints (pale green low, sand and tan on the
    hills) under contour lines, both cut from the same grid so they line up.
-   The lines trace themselves in, then short streaks travel along them like
-   a current; with a mouse the two layers lean towards the pointer by
+   The lines trace themselves in; with a mouse the two layers lean towards
+   the pointer by
    different amounts (--px/--py from TrailHero), so the map has depth. It
    fades out at the bottom into the rows. */
 .trail-hero-map {
@@ -3882,6 +3882,7 @@
 }
 .trail-hero-map .lines {
   overflow: visible;
+  opacity: 0.2;
   translate: calc(var(--px) * -30px) calc(var(--py) * -24px);
 }
 @keyframes hero-map-drift {
@@ -3895,47 +3896,16 @@
   stroke-width: 1.2;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-.trail-hero-map .lines path.index {
-  stroke-width: 2.2;
-}
-.trail-hero-map .solid {
-  opacity: 0.2;
-}
-.trail-hero-map .solid path {
   stroke-dasharray: var(--l);
   stroke-dashoffset: var(--l);
   animation: contour-draw 2.4s var(--ease-out) forwards;
 }
+.trail-hero-map .lines path.index {
+  stroke-width: 2.2;
+}
 @keyframes contour-draw {
   to {
     stroke-dashoffset: 0;
-  }
-}
-/* The current: a short light streak every 124 units, like light running
-   along the lines, moving one period per 3 s (the offset runs ten periods,
-   so the loop is seamless). Light, not ink: dark streaks fought the text. */
-.trail-hero-map .flow {
-  opacity: 0;
-  animation: hero-fade-in 1.2s ease 2.2s forwards;
-}
-.trail-hero-map .flow path {
-  stroke: #fff;
-  stroke-width: 2.4;
-  stroke-dasharray: 14 110;
-  animation: contour-flow 30s linear infinite;
-}
-.trail-hero-map .flow path.index {
-  stroke-width: 3.4;
-}
-@keyframes contour-flow {
-  to {
-    stroke-dashoffset: -1240;
-  }
-}
-@keyframes hero-fade-in {
-  to {
-    opacity: 0.9;
   }
 }
 .trail-hero-title {
@@ -4165,12 +4135,9 @@
     animation: none;
     translate: none;
   }
-  .trail-hero-map .solid path {
+  .trail-hero-map .lines path {
     animation: none;
     stroke-dashoffset: 0;
-  }
-  .trail-hero-map .flow {
-    display: none;
   }
   .trail-path {
     animation: none;

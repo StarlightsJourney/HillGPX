@@ -47,27 +47,19 @@ function useContours(): ContourMap | null {
 
 /**
  * The map behind the hero: height tints, then the contour lines, which trace
- * themselves in and then carry short streaks along them, like a current over
- * the hills. The lines are drawn twice, solid and streaked, so each set keeps
- * its own dash pattern. With a mouse, the layers lean towards the pointer by
- * different amounts (`--px`, `--py`), so the map has depth.
+ * themselves in on arrival. With a mouse, the layers lean towards the pointer
+ * by different amounts (`--px`, `--py`), so the map has depth.
  */
 function HeroMap({ mapRef }: { mapRef: React.RefObject<HTMLDivElement> }) {
   const contours = useContours();
-  const lines = (className: string) => (
-    <g className={className}>
-      {contours?.lines.map((line, i) => (
-        <path key={i} d={line.d} className={line.index ? 'index' : undefined} style={{ '--l': line.length } as React.CSSProperties} />
-      ))}
-    </g>
-  );
   return (
     <div className="trail-hero-map" ref={mapRef} aria-hidden="true">
       <img className="tints" src={`${HERO_MAP}-tint.png`} alt="" decoding="async" />
       {contours && (
         <svg className="lines" viewBox={`0 0 ${contours.width} ${contours.height}`} preserveAspectRatio="xMidYMid slice" focusable="false">
-          {lines('solid')}
-          {lines('flow')}
+          {contours.lines.map((line, i) => (
+            <path key={i} d={line.d} className={line.index ? 'index' : undefined} style={{ '--l': line.length } as React.CSSProperties} />
+          ))}
         </svg>
       )}
     </div>

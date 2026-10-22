@@ -3841,8 +3841,29 @@
    breaks pathLength, and the draw stopped short of the flag); the trail is
    wide and shallow, so the stretch does not show. */
 .trail-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   padding: 48px 0 8px;
   text-align: center;
+}
+/* The contour map behind it: faint enough that text and trail stay on top,
+   strongest round the edges and gone at the bottom, so the hero melts into
+   the rows instead of ending on a line. */
+.trail-hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.14;
+  pointer-events: none;
+  user-select: none;
+  -webkit-mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, rgb(0 0 0 / 45%), #000 75%), linear-gradient(#000 60%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, rgb(0 0 0 / 45%), #000 75%), linear-gradient(#000 60%, transparent);
+  mask-composite: intersect;
 }
 .trail-hero-title {
   margin: 0;

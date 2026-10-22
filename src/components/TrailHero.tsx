@@ -15,16 +15,20 @@ const STEPS = [
 /** A ridge from the start (left, low) through the three steps to the summit flag (right, high). */
 const TRAIL = 'M10 112 C 60 108, 110 76, 167 72 S 250 104, 300 100 S 420 44, 500 40 S 600 92, 650 96 S 770 64, 833 60 S 940 34, 990 28';
 
+/** Contours of the real ground around Bukit Timah (scripts/render_hero_contours.py). */
+const CONTOURS = `${import.meta.env.BASE_URL}hero/bukit-timah-contours.svg`;
+
 /**
  * The landing page's hero, shown on every visit: one line of promise, what
  * the site is, the two ways in, and how it works as three steps on a trail
  * that draws itself from the start to the summit. On phones the trail turns
  * into a vertical line down the steps. Under reduced motion it is drawn
- * already.
+ * already. Behind it all, faint, the contour lines of Bukit Timah.
  */
 export function TrailHero() {
   return (
     <section className="trail-hero">
+      <img className="trail-hero-bg" src={CONTOURS} alt="" aria-hidden="true" decoding="async" />
       <div className="home-shell">
         <h1 className="trail-hero-title">
           May the <span>trail</span> be with you

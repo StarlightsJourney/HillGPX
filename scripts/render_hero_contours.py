@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 """
-Trace the landing hero's background: contour lines of the real terrain around
-Bukit Timah Hill, from the Singapore terrain model the app already ships.
+Draw the landing hero's background: the real terrain around Bukit Timah Hill
+as a topographic map, from the Singapore terrain model the app already ships.
 
     python3 scripts/render_hero_contours.py
 
 Reads  public/data/dem/sg-dem.json + sg-dem.bin (see fetch_dem.py)
-Writes public/hero/bukit-timah-contours.svg
+Writes public/hero/bukit-timah-tint.png      height tints (pale green low,
+                                             sand and tan on the summits)
+       public/hero/bukit-timah-contours.svg  contour lines over them
 
 Standard library only. The model is ~38 m a cell, so the grid is upsampled
 before tracing (marching squares) and each line is smoothed (Chaikin) and
 thinned (Ramer-Douglas-Peucker) to keep the file small and the curves soft.
 Lines are every 10 m; every fifth is an index contour, drawn a little heavier, as on a printed
-topographic map. The SVG is drawn in one dark ink; the page fades it.
+topographic map. The lines are drawn in one dark ink; the page fades both
+layers and pans them together.
 """
 
 from __future__ import annotations
@@ -21,12 +24,15 @@ import array
 import json
 import math
 import os
+import struct
 import sys
+import zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEM_JSON = os.path.join(ROOT, "public", "data", "dem", "sg-dem.json")
 DEM_BIN = os.path.join(ROOT, "public", "data", "dem", "sg-dem.bin")
 OUT = os.path.join(ROOT, "public", "hero", "bukit-timah-contours.svg")
+TINT_OUT = os.path.join(ROOT, "public", "hero", "bukit-timah-tint.png")
 
 # Bukit Timah Hill (163 m) a little right of centre, with Bukit Gombak and
 # Dairy Farm to its west. Roughly 2:1, the shape of the hero on a laptop.
@@ -37,6 +43,20 @@ INDEX_EVERY = 5
 UPSAMPLE = 4
 OUT_WIDTH = 1600  # SVG units across; height follows the box's true aspect
 MIN_LENGTH = 140  # SVG units; shorter lines are dropped
+
+# Height tints in the family of the site's own map (the route cards): pale
+# greens on low ground, then olive, sand and tan towards the summits. Stepped
+# bands, not a smooth ramp, as on a printed physical map. (upper bound m, RGB)
+TINTS = [
+    (20, (233, 241, 223)),
+    (40, (220, 235, 207)),
+    (60, (207, 227, 192)),
+    (80, (223, 229, 191)),
+    (100, (235, 229, 194)),
+    (130, (239, 220, 182)),
+    (160, (233, 202, 160)),
+    (math.inf, (226, 185, 143)),
+]
 
 
 def load_dem() -> tuple[dict, array.array]:
@@ -230,6 +250,25 @@ def rdp(line, eps: float):
     return rdp(line[: idx + 1], eps)[:-1] + rdp(line[idx:], eps)
 
 
+def tint(metres: float) -> tuple[int, int, int]:
+    return next(rgb for top, rgb in TINTS if metres < top)
+
+
+def write_png(path: str, rows: list[list[tuple[int, int, int]]]) -> None:
+    """A plain 8-bit RGB PNG; flat bands compress to a few tens of KB."""
+    h, w = len(rows), len(rows[0])
+    raw = b"".join(b"\x00" + bytes(c for px in row for c in px) for row in rows)
+
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+    with open(path, "wb") as f:
+        f.write(b"\x89PNG\r\n\x1a\n")
+        f.write(chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)))
+        f.write(chunk(b"IDAT", zlib.compress(raw, 9)))
+        f.write(chunk(b"IEND", b""))
+
+
 def main() -> None:
     header, data = load_dem()
     grid = blur(upsample(despike(despike(crop(header, data))), UPSAMPLE))
@@ -268,6 +307,10 @@ def main() -> None:
         )
     size = os.path.getsize(OUT)
     print(f"Wrote {os.path.relpath(OUT, ROOT)} ({count} lines, top {top:.0f} m, {size // 1024} KB)")
+
+    # Same grid, same box: the tints sit exactly under the lines.
+    write_png(TINT_OUT, [[tint(v) for v in row] for row in grid])
+    print(f"Wrote {os.path.relpath(TINT_OUT, ROOT)} ({w} x {h}, {os.path.getsize(TINT_OUT) // 1024} KB)")
 
 
 if __name__ == "__main__":

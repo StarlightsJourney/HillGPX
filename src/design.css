@@ -3847,23 +3847,40 @@
   padding: 48px 0 8px;
   text-align: center;
 }
-/* The contour map behind it: faint enough that text and trail stay on top,
-   strongest round the edges and gone at the bottom, so the hero melts into
-   the rows instead of ending on a line. */
-.trail-hero-bg {
+/* The map behind it: height tints (pale green low, sand and tan on the
+   hills) under faint contour lines, both cut from the same grid so they line
+   up. The pair pans a few per cent over a minute and back, so the hero feels
+   alive without anything to watch, and fades out at the bottom into the
+   rows. */
+.trail-hero-map {
   position: absolute;
   inset: 0;
   z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  -webkit-mask-image: linear-gradient(#000 60%, transparent);
+  mask-image: linear-gradient(#000 60%, transparent);
+}
+.trail-hero-map img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.14;
-  pointer-events: none;
-  user-select: none;
-  -webkit-mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, rgb(0 0 0 / 45%), #000 75%), linear-gradient(#000 60%, transparent);
-  -webkit-mask-composite: source-in;
-  mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, rgb(0 0 0 / 45%), #000 75%), linear-gradient(#000 60%, transparent);
-  mask-composite: intersect;
+  transform: scale(1.12);
+  animation: hero-map-drift 60s ease-in-out infinite alternate;
+}
+.trail-hero-map .tints {
+  opacity: 0.75;
+}
+.trail-hero-map .lines {
+  opacity: 0.16;
+}
+@keyframes hero-map-drift {
+  to {
+    transform: scale(1.12) translate(-4%, -3%);
+  }
 }
 .trail-hero-title {
   margin: 0;
@@ -4088,6 +4105,9 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .trail-hero-map img {
+    animation: none;
+  }
   .trail-path {
     animation: none;
     stroke-dashoffset: 0;

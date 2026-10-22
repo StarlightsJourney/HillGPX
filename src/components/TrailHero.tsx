@@ -124,7 +124,7 @@ export function TrailHero() {
           </a>
         </div>
 
-        <div className="trail">
+        <div className="hero-trail">
           <svg className="trail-line" viewBox="0 0 1000 140" preserveAspectRatio="none" aria-hidden="true" focusable="false">
             <path className="trail-ghost" d={TRAIL} />
             <path className="trail-path" d={TRAIL} pathLength={1} />

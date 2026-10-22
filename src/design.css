@@ -3933,7 +3933,7 @@
   gap: 12px;
   margin-top: 24px;
 }
-.trail {
+.hero-trail {
   --draw: 2.4s;
   --lead-in: 0.3s;
   position: relative;
@@ -4024,7 +4024,7 @@
   font-size: 14px;
   line-height: 1.45;
 }
-/* On the line: placed against .trail, landing as the draw reaches its x. */
+/* On the line: placed against .hero-trail, landing as the draw reaches its x. */
 .trail-dot {
   position: absolute;
   top: calc(var(--y) * 1px);
@@ -4065,7 +4065,7 @@
     font-size: 15px;
     white-space: nowrap;
   }
-  .trail {
+  .hero-trail {
     --draw: 1.6s;
     max-width: 420px;
     margin-top: 28px;

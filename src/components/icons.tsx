@@ -258,6 +258,28 @@ export function ChevronLeftIcon({ size = 16 }: { size?: number }) {
   );
 }
 
+/** "My location": a crosshair, the shape every map app uses for it. */
+export function LocateIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="12" r="7" />
+      <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+    </svg>
+  );
+}
+
 /** A target / bullseye for goals and balance. */
 export function TargetIcon({ size = 16 }: { size?: number }) {
   return (

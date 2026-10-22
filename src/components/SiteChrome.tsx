@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { REPO_URL, addPlaceUrl, openImportHere } from '../lib/contribute';
 import { AccountMenu } from './AccountMenu';
 import { HeaderControls } from './HeaderControls';
-import { MilestoneBar } from './Milestones';
+import { CoverageModal, useCoverage } from './Coverage';
 import { GitHubIcon, Mark } from './icons';
 
 /**
@@ -20,16 +20,13 @@ export function Wordmark({ size = 28, href = '#' }: { size?: number; href?: stri
 }
 
 /**
- * The one header every page uses. On top, the community progress strip; below
- * it, logo on the left, the page's own control (tabs, search) in the centre,
- * and the same two actions on the right. When sticky (landing), the strip
- * scrolls away and the logo row stays: the header keeps one fixed size, it is
- * only offset by the strip's height, so nothing resizes on scroll.
+ * The one header every page uses: logo on the left, the page's own control
+ * (search) in the centre, and the same actions on the right. It keeps one
+ * fixed size, so a sticky header never resizes on scroll.
  */
 export function SiteHeader({ center, sticky = false }: { center?: ReactNode; sticky?: boolean }) {
   return (
     <header className={`site-header${sticky ? ' sticky' : ''}`}>
-      <MilestoneBar />
       <div className="site-header-row">
         <div className="site-header-left">
           <Wordmark />
@@ -40,7 +37,6 @@ export function SiteHeader({ center, sticky = false }: { center?: ReactNode; sti
             <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <path d="M8 3v10M3 8h10" />
             </svg>
-            <span className="hide-narrow">Add a GPX</span>
           </a>
           <HeaderControls />
           <AccountMenu />
@@ -55,6 +51,7 @@ export function SiteHeader({ center, sticky = false }: { center?: ReactNode; sti
  * so it only shows once you have scrolled past the results.
  */
 export function SiteFooter() {
+  const [coverageOpen, setCoverageOpen] = useState(false);
   return (
     <footer className="site-footer">
       <div className="site-footer-inner">
@@ -63,6 +60,9 @@ export function SiteFooter() {
             <h3>Explore</h3>
             <a href="#map">Map of climbs</a>
             <a href="#routes">Routes</a>
+            <button type="button" className="site-footer-link" aria-haspopup="dialog" onClick={() => setCoverageOpen(true)}>
+              What's mapped
+            </button>
           </div>
           <div>
             <h3>Contribute</h3>
@@ -99,6 +99,13 @@ export function SiteFooter() {
           </a>
         </div>
       </div>
+      {coverageOpen && <FooterCoverage onClose={() => setCoverageOpen(false)} />}
     </footer>
   );
+}
+
+/** "What's mapped", opened from the footer; the numbers load only once it is asked for. */
+function FooterCoverage({ onClose }: { onClose: () => void }) {
+  const coverage = useCoverage();
+  return coverage ? <CoverageModal coverage={coverage} onClose={onClose} /> : null;
 }

@@ -8,7 +8,7 @@ import { FilterBar, type BrowseMode } from './components/FilterBar';
 import { VenueDetail, VenueDetailSkeleton } from './components/VenueDetail';
 import { RoutesList } from './components/RoutesList';
 import { RoutePanel } from './components/RoutePanel';
-import { NO_ROUTE_FILTERS, filterRoutes, linkVenues, routeBounds, type RouteFilters } from './lib/routes';
+import { NO_ROUTE_FILTERS, filterRoutes, linkVenues, routesBounds, routesNear, routeIntersects, type RouteFilters } from './lib/routes';
 import { boundsFromHash } from './lib/regions';
 import { ElevationModel } from './lib/elevation';
 import {
@@ -47,6 +47,7 @@ import { ReportModal } from './components/ReportModal';
 import { SetPasswordModal } from './components/AuthModal';
 import { clearPasswordRecovery, usePasswordRecovery } from './lib/auth';
 import { track } from './lib/analytics';
+import { takeMapIntent } from './lib/mapIntent';
 import { isWorldPeakSlug, peaksInView, worldPeakBySlug } from './lib/worldPeaks';
 
 /** One shared empty list, so "no dataset yet" is a stable reference to memo on. */
@@ -160,6 +161,22 @@ function boundsChangedMeaningfully(
   );
 }
 
+/** "Routes near me" reaches this far, and shows at most this many routes. */
+const NEAR_ME_RADIUS_M = 50_000;
+const NEARBY_ROUTES = 8;
+/** A summit picked in search opens on the routes passing this close to it. */
+const PLACE_ROUTE_RADIUS_M = 10_000;
+
+/** A box grown just enough to take in one more point. */
+function withPoint(box: Bounds, point: { lng: number; lat: number }): Bounds {
+  return {
+    west: Math.min(box.west, point.lng),
+    south: Math.min(box.south, point.lat),
+    east: Math.max(box.east, point.lng),
+    north: Math.max(box.north, point.lat),
+  };
+}
+
 function MapApp() {
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [elevationModel, setElevationModel] = useState<ElevationModel | null>(null);
@@ -192,6 +209,8 @@ function MapApp() {
   const [listOpen, setListOpen] = useState(true);
   const [gpxOpen, setGpxOpen] = useState(() => window.location.hash === '#import');
   const [communityRoutes, setCommunityRoutes] = useState<Route[]>([]);
+  // Settled (loaded or failed): a search can now tell whether a place has routes.
+  const [routesReady, setRoutesReady] = useState(false);
   const [publishedRoute, setPublishedRoute] = useState<Route | null>(null);
   const [worldPeaks, setWorldPeaks] = useState<Venue[]>(NO_VENUES);
   // A summit opened by link or favourite whose tile is not on screen.
@@ -225,7 +244,8 @@ function MapApp() {
     // Community routes are an addition to the committed ones; the map works without them.
     fetchCommunityRoutes()
       .then(setCommunityRoutes)
-      .catch((err: Error) => console.warn('Community routes unavailable:', err.message));
+      .catch((err: Error) => console.warn('Community routes unavailable:', err.message))
+      .finally(() => setRoutesReady(true));
 
     if (window.location.hash === '#import') history.replaceState(null, '', '#map');
   }, []);
@@ -433,17 +453,8 @@ function MapApp() {
   );
 
   const frameRoutes = useCallback((routes: Route[]) => {
-    const boxes = routes.map(routeBounds).filter((b): b is Bounds => Boolean(b));
-    if (boxes.length === 0) return;
-    setFocusBounds({
-      bounds: {
-        west: Math.min(...boxes.map((b) => b.west)),
-        south: Math.min(...boxes.map((b) => b.south)),
-        east: Math.max(...boxes.map((b) => b.east)),
-        north: Math.max(...boxes.map((b) => b.north)),
-      },
-      nonce: Date.now(),
-    });
+    const bounds = routesBounds(routes);
+    if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
   }, []);
 
   // A route card on the landing page hands its slug over to open straight onto it.
@@ -604,7 +615,16 @@ function MapApp() {
    * from the person). Asking for a place by name outranks a category chip.
    */
   const pickFromSearch = useCallback(
-    (slug: string) => {
+    (slug: string, showMap = true) => {
+      // Routes first: a summit with routes around it opens on those routes,
+      // framed with the summit; one without them opens on its own card.
+      const venue = venueBySlug.get(slug);
+      const routeBox = venue ? routesBounds(routesNear(filteredRoutes, venue.lng, venue.lat, PLACE_ROUTE_RADIUS_M, NEARBY_ROUTES)) : null;
+      if (venue && routeBox) {
+        setMode('routes');
+        showArea(withPoint(routeBox, venue), showMap);
+        return;
+      }
       if (mode === 'routes') {
         setMode('climbs');
         setSelectedRouteSlug(null);
@@ -612,7 +632,16 @@ function MapApp() {
       if (!venues.some((venue) => venue.slug === slug)) setFilters(NO_FILTERS);
       selectVenue(slug, true);
     },
-    [mode, venues, selectVenue],
+    [mode, venues, venueBySlug, filteredRoutes, showArea, selectVenue],
+  );
+
+  /** A searched area opens on its routes when it has any, otherwise on its climbs. */
+  const searchArea = useCallback(
+    (bounds: Bounds, showMap = true) => {
+      setMode(filteredRoutes.some((route) => routeIntersects(route, bounds)) ? 'routes' : 'climbs');
+      showArea(bounds, showMap);
+    },
+    [filteredRoutes, showArea],
   );
 
   const routeOpen = Boolean(droppedGpx || selectedRoute);
@@ -644,6 +673,22 @@ function MapApp() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
+        const here = { lng: longitude, lat: latitude };
+        // Routes first: frame you with the nearest ones.
+        const routeBox = routesBounds(routesNear(filteredRoutes, longitude, latitude, NEAR_ME_RADIUS_M, NEARBY_ROUTES));
+        if (routeBox) {
+          setMode('routes');
+          setSelectedSlug(null);
+          setActiveRouteSlug(null);
+          setSelectedRouteSlug(null);
+          setSpotlight(null);
+          setLocateHint(null);
+          setUserLocation(here);
+          setFocusBounds({ bounds: withPoint(routeBox, here), nonce: Date.now() });
+          return;
+        }
+        // No routes nearby: the climbs around you instead.
+        setMode('climbs');
         const [closest] = nearest(allVenues, longitude, latitude, 1);
         const gapM = closest ? haversineM(longitude, latitude, closest.lng, closest.lat) : Infinity;
         if (gapM > 100_000) {
@@ -671,13 +716,31 @@ function MapApp() {
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     );
-  }, [allVenues]);
+  }, [allVenues, filteredRoutes]);
+
+  // A search or "near me" from a page without the map (mapIntent.ts) runs once
+  // the routes it chooses between have loaded. On the map page itself (the
+  // venue page's search) the hash change wakes this up.
+  const [intentNonce, setIntentNonce] = useState(0);
+  useEffect(() => {
+    const wake = () => setIntentNonce((n) => n + 1);
+    window.addEventListener('hashchange', wake);
+    return () => window.removeEventListener('hashchange', wake);
+  }, []);
+  useEffect(() => {
+    if (!dataset || !routesReady) return;
+    const intent = takeMapIntent();
+    if (!intent) return;
+    if (intent.kind === 'near-me') handleLocate();
+    else if (intent.kind === 'area') searchArea(intent.bounds, false);
+    else pickFromSearch(intent.slug, false);
+  }, [dataset, routesReady, intentNonce, handleLocate, searchArea, pickFromSearch]);
 
   return (
     <div className={`app map-page${mapFullWidth ? ' is-expanded' : ''}${routeOpen && mapFullWidth ? ' bar-folded' : ''}`} ref={pageRef}>
       {/* Header and category bar stay put while the page scrolls the list. */}
       <div className="map-top" ref={topRef}>
-        <SiteHeader center={<SearchBar venues={allVenues} onPick={pickFromSearch} onFitBounds={showArea} />} />
+        <SiteHeader center={<SearchBar venues={allVenues} onPick={pickFromSearch} onFitBounds={searchArea} onLocate={handleLocate} />} />
 
         <div className={`map-filters${routeOpen && mapFullWidth ? ' folded' : ''}`} aria-hidden={routeOpen && mapFullWidth ? true : undefined}>
         <div>

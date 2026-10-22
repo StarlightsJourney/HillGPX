@@ -21,7 +21,7 @@ import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon, 
 import { FlagIcon, LinkIcon, PlusIcon, ReportModal } from './ReportModal';
 import { useReveal } from './useReveal';
 import { SiteFooter, SiteHeader } from './SiteChrome';
-import { SearchBar } from './SearchBar';
+import { SEARCH_OPENS_MAP, SearchBar } from './SearchBar';
 import { RatingLabel } from './ResultsList';
 import { directionsUrl, venueConditions, type Conditions } from '../lib/conditions';
 import { downloadRoute } from './VenueCard';
@@ -42,7 +42,7 @@ import {
   submitPhoto,
   submitReview,
 } from '../lib/api';
-import { boundsToHash, regionOf } from '../lib/regions';
+import { regionOf } from '../lib/regions';
 import { lockPageScroll } from '../lib/dom';
 import { routeHasElevation } from '../lib/routes';
 import { ACTIVITY_LABEL, routeActivity } from '../lib/routeAnalysis';
@@ -885,11 +885,7 @@ function VenueDetailInner({
           search on top, no back button. */}
       <SiteHeader
         center={headerCenter ?? (
-          <SearchBar
-            venues={allVenues}
-            onPick={(slug) => (window.location.hash = `#venue/${slug}`)}
-            onFitBounds={(bounds) => (window.location.hash = boundsToHash(bounds))}
-          />
+          <SearchBar venues={allVenues} {...SEARCH_OPENS_MAP} />
         )}
       />
 
@@ -1097,7 +1093,7 @@ export function VenueDetailSkeleton() {
   useEffect(() => lockPageScroll(), []);
   return createPortal(
     <div className="venue-detail venue-detail-loading" aria-busy="true" aria-label="Loading place">
-      <SiteHeader center={<SearchBar venues={[]} onPick={(slug) => (window.location.hash = `#venue/${slug}`)} onFitBounds={(bounds) => (window.location.hash = boundsToHash(bounds))} />} />
+      <SiteHeader center={<SearchBar venues={[]} {...SEARCH_OPENS_MAP} />} />
       <main className="venue-detail-content">
         <div className="sk-line sk-title" />
         <div className="sk-line sk-sub" />

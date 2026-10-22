@@ -68,6 +68,47 @@ export function routeIntersects(route: Route, view: Bounds): boolean {
   return Boolean(b && b.east >= view.west && b.west <= view.east && b.north >= view.south && b.south <= view.north);
 }
 
+/** One box around every route given, or null when none has a point. */
+export function routesBounds(routes: Route[]): Bounds | null {
+  const boxes = routes.map(routeBounds).filter((b): b is Bounds => Boolean(b));
+  if (boxes.length === 0) return null;
+  return {
+    west: Math.min(...boxes.map((b) => b.west)),
+    south: Math.min(...boxes.map((b) => b.south)),
+    east: Math.max(...boxes.map((b) => b.east)),
+    north: Math.max(...boxes.map((b) => b.north)),
+  };
+}
+
+/** Closest approach of a route to a point, in metres. */
+function distanceToRouteM(route: Route, lng: number, lat: number): number {
+  let best = Infinity;
+  for (const [pLng, pLat] of route.coordinates) {
+    const d = haversineM(lng, lat, pLng, pLat);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/**
+ * Routes passing within `radiusM` of a point, closest first. A route counts
+ * by its nearest point, not its start, so a long loop through town is near
+ * the town. Routes whose box is clearly out of reach are skipped unmeasured.
+ */
+export function routesNear(routes: Route[], lng: number, lat: number, radiusM: number, limit: number): Route[] {
+  // A degree of latitude is ~111 km; longitude shrinks towards the poles.
+  const padLat = radiusM / 111_000;
+  const padLng = padLat / Math.max(Math.cos((lat * Math.PI) / 180), 0.01);
+  const reach: Bounds = { west: lng - padLng, south: lat - padLat, east: lng + padLng, north: lat + padLat };
+  return routes
+    .filter((route) => routeIntersects(route, reach))
+    .map((route) => ({ route, d: distanceToRouteM(route, lng, lat) }))
+    .filter((hit) => hit.d <= radiusM)
+    .sort((a, b) => a.d - b.d)
+    .slice(0, limit)
+    .map((hit) => hit.route);
+}
+
 /** Metres climbed per kilometre — the single number that says how hilly a route is. */
 export function climbRate(route: Route): number {
   return route.distanceM > 0 ? route.gainM / (route.distanceM / 1000) : 0;

@@ -3,7 +3,6 @@ import {
   changePassword,
   deleteAccount,
   removeAvatar,
-  updateProfile,
   uploadAvatar,
   useAuthUser,
 } from '../lib/auth';
@@ -42,8 +41,6 @@ export function ProfileForm({ onClose }: { onClose?: () => void }) {
   const user = useAuthUser();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [username, setUsername] = useState(user?.username ?? '');
-  const [email, setEmail] = useState(user?.email ?? '');
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [deletePw, setDeletePw] = useState('');
@@ -54,8 +51,6 @@ export function ProfileForm({ onClose }: { onClose?: () => void }) {
 
   if (!user) return null;
   const hasPassword = user.providers.includes('password');
-
-  const profileDirty = username.trim() !== user.username || email.trim().toLowerCase() !== user.email;
 
   const run = async (at: string, work: () => Promise<void>) => {
     setBusy(at);
@@ -120,26 +115,11 @@ export function ProfileForm({ onClose }: { onClose?: () => void }) {
 
         <section className="profile-section">
           <h3>Profile</h3>
-          <label className="field">
-            Username
-            <input type="text" maxLength={24} value={username} onChange={(e) => setUsername(e.target.value)} />
-          </label>
-          <label className="field">
-            Email
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </label>
-          <button
-            type="button"
-            className="btn btn-dark btn-sm profile-save"
-            disabled={busy === 'profile' || !profileDirty || username.trim().length < 3 || !/\S+@\S+\.\S+/.test(email.trim())}
-            onClick={() =>
-              void run('profile', () => updateProfile({ username: username.trim(), email: email.trim() }))
-            }
-          >
-            {busy === 'profile' ? 'Saving…' : 'Save changes'}
-          </button>
-          {error?.at === 'profile' && <p className="review-error">{error.text}</p>}
-          {saved === 'profile' && <p className="profile-ok">Saved.</p>}
+          <span className="uploads-info">
+            <strong>{user.username}</strong>
+            <small>{user.email}</small>
+          </span>
+          <p className="profile-note">Your username and email stay fixed to this account.</p>
         </section>
 
         <section className="profile-section">

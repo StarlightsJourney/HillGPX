@@ -274,22 +274,6 @@ async function refreshUser(): Promise<void> {
   if (data.user) await syncUser(data.user);
 }
 
-/** Change username and/or email; updates the stored user. */
-export async function updateProfile(input: { username?: string; email?: string }): Promise<void> {
-  const current = requireUser();
-  if (input.username && input.username !== current.username) {
-    const username = input.username.trim();
-    const { error } = await supabase.from('profiles').update({ username }).eq('id', current.id);
-    if (error) throw dbError(error);
-  }
-  if (input.email && input.email !== current.email) {
-    const { error } = await supabase.auth.updateUser({ email: input.email.trim() });
-    if (error) throw authError(error);
-  }
-  await refreshUser();
-  if (user) saveAuthor(user.username);
-}
-
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   const current = requireUser();
   if (!current.providers.includes('email')) {
@@ -403,12 +387,36 @@ export async function fetchMyRoutes(): Promise<MyUpload[]> {
 
 /** Remove a route the signed-in user published, with its files and counts. */
 export async function deleteMyRoute(slug: string): Promise<void> {
-  const { error } = await supabase.rpc('delete_community_route', { p_slug: slug });
-  if (!error) return;
-  // The RPC lives in the accounts migration — say so rather than leaking
-  // PostgREST's "could not find the function" wording.
-  if (isSchemaError(error)) {
-    throw new ApiError('This route could not be deleted right now — please try again later.', 500);
+  const current = requireUser();
+  const call = () => supabase.rpc('delete_community_route', { p_slug: slug });
+  let { error } = await call();
+  if (error && /^PGRST3/.test(error.code ?? '')) {
+    // The access token died while the dialog was open (a refresh that lost
+    // its race, or a revoked session). Force one refresh, then retry.
+    await supabase.auth.refreshSession().catch(() => undefined);
+    if (!user) {
+      throw new ApiError('Your sign-in has expired — sign in again, then try deleting the route.', 401);
+    }
+    ({ error } = await call());
+    if (error && /^PGRST3/.test(error.code ?? '')) {
+      throw new ApiError('Your sign-in has expired — sign in again, then try deleting the route.', 401);
+    }
   }
-  throw dbError(error);
+  if (error && isSchemaError(error)) {
+    // A partially applied migration can leave the RPC missing or denied
+    // (PGRST202/42501). The "delete own routes" policy makes the same
+    // ownership check server-side, so deleting the row directly is no less
+    // safe — it just cannot reach the stored GPX, thumbs and counters.
+    console.warn('hillgpx delete RPC unavailable, deleting row directly', error.code, error.message);
+    const { data, error: rowError } = await supabase
+      .from('routes')
+      .delete()
+      .eq('slug', slug)
+      .eq('user_id', current.id)
+      .select('slug');
+    if (rowError) throw dbError(rowError);
+    if (data && data.length > 0) return;
+    throw new ApiError('No such route on your account.', 404);
+  }
+  if (error) throw dbError(error);
 }

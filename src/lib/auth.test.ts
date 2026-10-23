@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { loadAuthor } from './api';
-import { fetchMyRoutes, logIn, logOut, resendConfirmation, resetPasswordForEmail, signUp } from './auth';
+import { deleteMyRoute, fetchMyRoutes, logIn, logOut, resendConfirmation, resetPasswordForEmail, signUp } from './auth';
 
 const USER = {
   id: 'u1',
@@ -144,5 +144,61 @@ describe('auth', () => {
     vi.stubGlobal('fetch', mockApi({ '/auth/v1/token': () => json({ error: 'invalid_grant' }, 400) }));
     const { result } = renderHook(() => auth.useAuthUser());
     await waitFor(() => expect(result.current).toBeNull());
+  });
+
+  it('deletes an owned route through the cleanup RPC', async () => {
+    const fetchMock = mockApi({
+      '/auth/v1/token': () => json(SESSION),
+      '/rest/v1/rpc/delete_community_route': () => new Response(null, { status: 204 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await logIn('r@x.com', 'password123');
+    await expect(deleteMyRoute('mine')).resolves.toBeUndefined();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/rest/v1/routes'))).toBe(false);
+  });
+
+  it('falls back to the row delete policy when the cleanup RPC is denied', async () => {
+    const fetchMock = mockApi({
+      '/auth/v1/token': () => json(SESSION),
+      '/rest/v1/rpc/delete_community_route': () =>
+        json({ code: '42501', message: 'permission denied for function delete_community_route' }, 401),
+      '/rest/v1/routes': (init) => (init?.method === 'DELETE' ? json([{ slug: 'mine' }]) : json([])),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await logIn('r@x.com', 'password123');
+    await expect(deleteMyRoute('mine')).resolves.toBeUndefined();
+    const call = fetchMock.mock.calls.find(([url, init]) => String(url).includes('/rest/v1/routes') && (init as RequestInit)?.method === 'DELETE') as unknown as [string, RequestInit];
+    const params = new URL(call[0]).searchParams;
+    expect(params.get('slug')).toBe('eq.mine');
+    expect(params.get('user_id')).toBe('eq.u1');
+  });
+
+  it('reports a route the fallback cannot delete instead of failing silently', async () => {
+    const fetchMock = mockApi({
+      '/auth/v1/token': () => json(SESSION),
+      '/rest/v1/rpc/delete_community_route': () =>
+        json({ code: 'PGRST202', message: 'Could not find the function' }, 404),
+      '/rest/v1/routes': (init) => (init?.method === 'DELETE' ? json([]) : json([])),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await logIn('r@x.com', 'password123');
+    await expect(deleteMyRoute('not-mine')).rejects.toThrow('No such route on your account.');
+  });
+
+  it('refreshes an expired session token once before retrying the RPC', async () => {
+    let rpcCalls = 0;
+    const fetchMock = mockApi({
+      '/auth/v1/token': () => json(SESSION),
+      '/rest/v1/rpc/delete_community_route': () => {
+        rpcCalls += 1;
+        return rpcCalls === 1
+          ? json({ code: 'PGRST301', message: 'JWT expired' }, 401)
+          : new Response(null, { status: 204 });
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await logIn('r@x.com', 'password123');
+    await expect(deleteMyRoute('mine')).resolves.toBeUndefined();
+    expect(rpcCalls).toBe(2);
   });
 });

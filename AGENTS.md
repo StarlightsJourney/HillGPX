@@ -195,3 +195,17 @@ After two materially different unsuccessful attempts at the same technical block
 - **Account settings** (`ProfileModal`): `updateProfile` writes `profiles` (username) + `auth.updateUser` (email); `changePassword` re-authenticates, updates, and signs out every other session; avatars are 256 px JPEGs under `<uid>/…` in the public `avatars` bucket; `delete_user()` removes the auth user after a password re-check — published routes stay public and keep their credit text.
 - **My uploads**: `stamp_route_owner()` sets `user_id` from the JWT server-side — the `anonymous` flag withholds both stamp and credit. `delete_community_route()` removes the row, its GPX, thumbs, pinned route photos and download counter together.
 - **Deploy:** Cloudflare Pages serves `dist/` at hillgpx.com (README "Hosting, domain and search engines" has the Pages build settings); `.github/workflows/deploy.yml` still publishes the GitHub Pages backup.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues on StarlightsJourney/HillGPX (gh CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default labels: needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root, created when first needed. See `docs/agents/domain.md`.

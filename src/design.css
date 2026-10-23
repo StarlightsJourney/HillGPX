@@ -3841,8 +3841,72 @@
    breaks pathLength, and the draw stopped short of the flag); the trail is
    wide and shallow, so the stretch does not show. */
 .trail-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   padding: 48px 0 8px;
   text-align: center;
+}
+/* The map behind it: height tints (pale green low, sand and tan on the
+   hills) under contour lines, both cut from the same grid so they line up.
+   The lines trace themselves in; with a mouse the two layers lean towards
+   the pointer by
+   different amounts (--px/--py from TrailHero), so the map has depth. It
+   fades out at the bottom into the rows. */
+.trail-hero-map {
+  --px: 0;
+  --py: 0;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  -webkit-mask-image: linear-gradient(#000 60%, transparent);
+  mask-image: linear-gradient(#000 60%, transparent);
+}
+/* Bleed past the edges so leaning and drifting never show a border. */
+.trail-hero-map > * {
+  position: absolute;
+  top: -6%;
+  left: -6%;
+  width: 112%;
+  height: 112%;
+  object-fit: cover;
+  transition: translate 0.9s var(--ease-out);
+  animation: hero-map-drift 40s ease-in-out infinite alternate;
+}
+.trail-hero-map .tints {
+  opacity: 0.75;
+  translate: calc(var(--px) * -12px) calc(var(--py) * -10px);
+}
+.trail-hero-map .lines {
+  overflow: visible;
+  opacity: 0.2;
+  translate: calc(var(--px) * -30px) calc(var(--py) * -24px);
+}
+@keyframes hero-map-drift {
+  to {
+    transform: translate(-3%, -2%);
+  }
+}
+.trail-hero-map .lines path {
+  fill: none;
+  stroke: #222;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: var(--l);
+  stroke-dashoffset: var(--l);
+  animation: contour-draw 2.4s var(--ease-out) forwards;
+}
+.trail-hero-map .lines path.index {
+  stroke-width: 2.2;
+}
+@keyframes contour-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 .trail-hero-title {
   margin: 0;
@@ -3869,7 +3933,7 @@
   gap: 12px;
   margin-top: 24px;
 }
-.trail {
+.hero-trail {
   --draw: 2.4s;
   --lead-in: 0.3s;
   position: relative;
@@ -3960,7 +4024,7 @@
   font-size: 14px;
   line-height: 1.45;
 }
-/* On the line: placed against .trail, landing as the draw reaches its x. */
+/* On the line: placed against .hero-trail, landing as the draw reaches its x. */
 .trail-dot {
   position: absolute;
   top: calc(var(--y) * 1px);
@@ -4001,7 +4065,7 @@
     font-size: 15px;
     white-space: nowrap;
   }
-  .trail {
+  .hero-trail {
     --draw: 1.6s;
     max-width: 420px;
     margin-top: 28px;
@@ -4067,6 +4131,14 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .trail-hero-map > * {
+    animation: none;
+    translate: none;
+  }
+  .trail-hero-map .lines path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
   .trail-path {
     animation: none;
     stroke-dashoffset: 0;

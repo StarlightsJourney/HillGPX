@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { prefersReducedMotion } from '../lib/dom';
 import { openMapWith } from '../lib/mapIntent';
 import { LocateIcon, MapIcon } from './icons';
 
@@ -15,16 +17,95 @@ const STEPS = [
 /** A ridge from the start (left, low) through the three steps to the summit flag (right, high). */
 const TRAIL = 'M10 112 C 60 108, 110 76, 167 72 S 250 104, 300 100 S 420 44, 500 40 S 600 92, 650 96 S 770 64, 833 60 S 940 34, 990 28';
 
+/** The real ground around Bukit Timah as a topo map (scripts/render_hero_contours.py). */
+const HERO_MAP = `${import.meta.env.BASE_URL}hero/bukit-timah`;
+
+interface ContourMap {
+  width: number;
+  height: number;
+  /** Each line with its length in the map's units, which tracing it in needs. */
+  lines: { d: string; index: boolean; length: number }[];
+}
+
+/** The contour lines, fetched after the page (they are decoration, ~60 KB). */
+function useContours(): ContourMap | null {
+  const [map, setMap] = useState<ContourMap | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${HERO_MAP}-contours.json`)
+      .then((response) => (response.ok ? (response.json() as Promise<ContourMap>) : null))
+      .then((data) => {
+        if (!cancelled && data) setMap(data);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return map;
+}
+
+/**
+ * The map behind the hero: height tints, then the contour lines, which trace
+ * themselves in on arrival. With a mouse, the layers lean towards the pointer
+ * by different amounts (`--px`, `--py`), so the map has depth.
+ */
+function HeroMap({ mapRef }: { mapRef: React.RefObject<HTMLDivElement> }) {
+  const contours = useContours();
+  return (
+    <div className="trail-hero-map" ref={mapRef} aria-hidden="true">
+      <img className="tints" src={`${HERO_MAP}-tint.png`} alt="" decoding="async" />
+      {contours && (
+        <svg className="lines" viewBox={`0 0 ${contours.width} ${contours.height}`} preserveAspectRatio="xMidYMid slice" focusable="false">
+          {contours.lines.map((line, i) => (
+            <path key={i} d={line.d} className={line.index ? 'index' : undefined} style={{ '--l': line.length } as React.CSSProperties} />
+          ))}
+        </svg>
+      )}
+    </div>
+  );
+}
+
+/** Pointer position over the hero as -0.5…0.5 each way, written straight to CSS (no re-render). */
+function useParallax() {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const frame = useRef(0);
+  const enabled = useRef(false);
+  useEffect(() => {
+    enabled.current = window.matchMedia('(hover: hover) and (pointer: fine)').matches && !prefersReducedMotion();
+    return () => cancelAnimationFrame(frame.current);
+  }, []);
+  const move = (event: PointerEvent<HTMLElement>) => {
+    if (!enabled.current) return;
+    const box = event.currentTarget.getBoundingClientRect();
+    const x = (event.clientX - box.left) / box.width - 0.5;
+    const y = (event.clientY - box.top) / box.height - 0.5;
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      mapRef.current?.style.setProperty('--px', x.toFixed(3));
+      mapRef.current?.style.setProperty('--py', y.toFixed(3));
+    });
+  };
+  const leave = () => {
+    cancelAnimationFrame(frame.current);
+    mapRef.current?.style.setProperty('--px', '0');
+    mapRef.current?.style.setProperty('--py', '0');
+  };
+  return { mapRef, move, leave };
+}
+
 /**
  * The landing page's hero, shown on every visit: one line of promise, what
  * the site is, the two ways in, and how it works as three steps on a trail
  * that draws itself from the start to the summit. On phones the trail turns
  * into a vertical line down the steps. Under reduced motion it is drawn
- * already.
+ * already. Behind it all, a live topographic map of Bukit Timah (HeroMap).
  */
 export function TrailHero() {
+  const { mapRef, move, leave } = useParallax();
   return (
-    <section className="trail-hero">
+    <section className="trail-hero" onPointerMove={move} onPointerLeave={leave}>
+      <HeroMap mapRef={mapRef} />
       <div className="home-shell">
         <h1 className="trail-hero-title">
           May the <span>trail</span> be with you
@@ -43,7 +124,7 @@ export function TrailHero() {
           </a>
         </div>
 
-        <div className="trail">
+        <div className="hero-trail">
           <svg className="trail-line" viewBox="0 0 1000 140" preserveAspectRatio="none" aria-hidden="true" focusable="false">
             <path className="trail-ghost" d={TRAIL} />
             <path className="trail-path" d={TRAIL} pathLength={1} />

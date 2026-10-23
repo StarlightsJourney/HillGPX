@@ -83,6 +83,18 @@ test('header search never runs under the buttons on a wide window', async ({ pag
   }
 });
 
+test('route cards line up whatever their activity tag', async ({ page }) => {
+  await page.goto('/');
+  await dismissNotice(page);
+  await page.waitForSelector('button.tile .activity-tag', { timeout: 15_000 });
+  const tiles = page.locator('button.tile');
+  // Tiles rise in one after another; measure once they have landed.
+  await tiles.evaluateAll((all) => Promise.all(all.flatMap((tile) => tile.getAnimations().map((a) => a.finished))));
+  // Trail and Road run tiles side by side: their names sit at one height.
+  const tops = await tiles.evaluateAll((all) => all.slice(0, 6).map((tile) => Math.round(tile.querySelector('.tile-name')!.getBoundingClientRect().top)));
+  expect(new Set(tops).size).toBe(1);
+});
+
 test("What's mapped opens from the footer", async ({ page }) => {
   await page.goto('/');
   await dismissNotice(page);

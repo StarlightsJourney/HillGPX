@@ -63,6 +63,11 @@ export function formatHeight(metres: number, units: Units): string {
     : `${Math.round(metres)} m`;
 }
 
+/** A search radius in whole kilometres or miles — "10 km", "6 mi". */
+export function formatRadius(metres: number, units: Units): string {
+  return units === 'imperial' ? `${Math.round(metres * M_TO_MI)} mi` : `${Math.round(metres / 1000)} km`;
+}
+
 /** A distance — feet and miles under imperial, metres and kilometres otherwise. */
 export function formatDistanceIn(metres: number, units: Units): string {
   if (units === 'imperial') {

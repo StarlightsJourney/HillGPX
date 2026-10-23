@@ -169,7 +169,7 @@ grant execute on function public.route_downloads() to anon, authenticated;
 -- only the email.
 create or replace function public.email_for_username(p_username text)
 returns text
-language plpgsql
+language sql
 stable
 security definer
 set search_path = ''

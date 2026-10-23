@@ -182,3 +182,72 @@ Neither is considered authoritative for the public dataset. To publish a route, 
 ## Deployment
 
 Cloudflare Pages' git integration builds and serves `dist/` at hillgpx.com on every push to `main` (`npm run build`, no server). `.github/workflows/deploy.yml` runs on the same push — `npm ci`, `npm run typecheck`, `npm run build` with `VITE_BASE=/HillGPX/` — and publishes `dist/` to GitHub Pages as a backup copy whose canonical links point at hillgpx.com. No Python, no credentials, no runtime server on either path.
+
+### Repairing account setup (2026-10-24)
+
+The public production API returned PostgreSQL `42703: column routes.user_id
+does not exist` for the My uploads query. The profiles endpoint also returned
+404. Creating `private.stamp_route_owner()` alone does not create the missing
+columns, table, or trigger: PL/pgSQL can accept a function before those fields
+are exercised. Account creation through Supabase Auth can therefore succeed
+while account features remain unavailable.
+
+Run `supabase/migrations/20261024000000_repair_accounts.sql` as one complete
+query in the project's Supabase SQL Editor. It catches up the accounts and
+contributor-sync migrations transactionally and can be rerun after partial
+manual setup. It also creates profiles for existing Auth users without one,
+preserving valid available metadata usernames and resolving collisions.
+Existing routes with null `user_id` remain unowned; neither a matching name nor
+an email is evidence of route ownership. Test with a new signed-in upload,
+including Anonymous, then check My uploads and owner-only deletion. SQL changes
+must be applied to Supabase separately from deploying frontend code.
+
+Migration validation also found a syntax error in the original accounts SQL:
+`email_for_username` was declared `language plpgsql` but its body was a bare
+SELECT without BEGIN/END. The bootstrap declaration now uses `language sql`;
+the repair and security migrations remove that email-lookup function entirely.
+The repair also avoids truncating
+provider-generated usernames to three characters with `rpad`, and preserves
+uppercase letters before normalizing email-derived handles to lowercase.
+
+
+### Account security hardening (2026-10-24)
+
+`20261024010000_account_security.sql` removes the public username-to-email
+lookup. Password login, confirmation resend and reset now take an email
+address; Google sign-in and public usernames are unchanged. The all-in-one
+`20261024000000_repair_accounts.sql` includes the same hardening, so new or
+partially installed projects need only run that repair. Already repaired
+projects can run the smaller security migration. Deploy the frontend changes
+alongside it; older frontends can still log in using an email address.
+
+Privileged deletion RPCs explicitly revoke PUBLIC/anon EXECUTE before granting
+authenticated users access. Trigger functions also revoke client execution.
+Ownership checks remain inside the deletion RPCs; merely being signed in does
+not grant access to someone else's route. Existing storage RLS helper grants
+are retained.
+
+Download counters accept only public approved community routes or the six
+committed slugs in `private.curated_route_slugs`; future committed routes need
+an allowlist migration. Counting is best effort: unknown caller IPs are not
+counted; a repeated route from the same salted IP within ten minutes is ignored;
+quotas are 30/hour, 200/day per connection and 10,000/day overall, independently
+of upload quotas. A transaction advisory lock prevents concurrent calls racing
+the quota check. This bounds counter/log writes; it does not prevent traffic
+from reaching the API. Files remain downloadable even when tracking is skipped.
+
+
+To rerun the isolated SQL regression suite without adding a production dependency:
+
+```bash
+npm install --prefix /tmp/hillgpx-sql-tests --no-package-lock --no-audit --no-fund @electric-sql/pglite@0.5.11
+HILLGPX_PGLITE_MODULE=/tmp/hillgpx-sql-tests/node_modules/@electric-sql/pglite/dist/index.js node scripts/test_account_migrations.mjs
+```
+
+The suite uses an in-memory PostgreSQL engine with stand-ins for Supabase Auth,
+storage tables and crypto helpers. It applies the actual migrations and tests
+missing, partial and already-installed accounts, reruns, profile backfill,
+ownership, denied anonymous deletion, removal of email lookup, known-route
+counting, repeat suppression and hourly/daily/global quotas. It never connects
+to the live project. Full Supabase integration (including gateway-supplied IP
+headers and physical storage deletion) still needs a staging project check.

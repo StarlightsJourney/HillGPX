@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import {
   changePassword,
+  changeUsername,
   deleteAccount,
   removeAvatar,
   uploadAvatar,
@@ -45,12 +46,15 @@ export function ProfileForm({ onClose }: { onClose?: () => void }) {
   const [newPw, setNewPw] = useState('');
   const [deletePw, setDeletePw] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // null = untouched, show the account's current handle in the field.
+  const [usernameDraft, setUsernameDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<{ at: string; text: string } | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
 
   if (!user) return null;
-  const hasPassword = user.providers.includes('password');
+  const hasPassword = user.providers.includes('email');
+  const username = usernameDraft ?? user.username;
 
   const run = async (at: string, work: () => Promise<void>) => {
     setBusy(at);
@@ -116,10 +120,32 @@ export function ProfileForm({ onClose }: { onClose?: () => void }) {
         <section className="profile-section">
           <h3>Profile</h3>
           <span className="uploads-info">
-            <strong>{user.username}</strong>
             <small>{user.email}</small>
           </span>
-          <p className="profile-note">Your username and email stay fixed to this account.</p>
+          <label className="field">
+            Username
+            <input
+              type="text"
+              autoComplete="username"
+              maxLength={24}
+              value={username}
+              onChange={(e) => setUsernameDraft(e.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn btn-dark btn-sm profile-save"
+            disabled={busy === 'username' || username.trim() === user.username || username.trim().length < 3}
+            onClick={() => void run('username', () => changeUsername(username))}
+          >
+            {busy === 'username' ? 'Saving…' : 'Save username'}
+          </button>
+          {error?.at === 'username' && <p className="review-error">{error.text}</p>}
+          {saved === 'username' && <p className="profile-ok">Username updated.</p>}
+          <p className="profile-note">
+            3–24 letters, numbers, dots, dashes or underscores; your email stays fixed to this account.
+            Renaming also updates the credit on routes you published under your old name.
+          </p>
         </section>
 
         <section className="profile-section">

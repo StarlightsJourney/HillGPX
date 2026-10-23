@@ -25,6 +25,30 @@ export interface AuthUser {
 /** Google OAuth client ID for the rendered button; empty = Google sign-in off. */
 export const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) || '';
 
+/** Gmail addresses belong to Google sign-in. */
+export function isGoogleMail(email: string): boolean {
+  return /@(gmail\.com|googlemail\.com)$/i.test(email.trim());
+}
+
+/**
+ * When the Google button is configured, Gmail addresses cannot use the
+ * email/password paths at all — sign-up, log in, resend or reset. A reset
+ * link would bolt a password onto a Google-only account, so it is refused
+ * here too. Forks without VITE_GOOGLE_CLIENT_ID keep email-only sign-in for
+ * every address.
+ */
+function requireGoogleSignIn(email: string): void {
+  if (GOOGLE_CLIENT_ID && isGoogleMail(email)) {
+    throw new ApiError('Gmail addresses sign in with Google — use the Google button.', 400);
+  }
+}
+
+/** Signing out lands back on the home page — the wordmark's bare "#". */
+function goHome(): void {
+  if (typeof window === 'undefined' || window.location.hash === '') return;
+  window.location.hash = '#';
+}
+
 /**
  * Where email links bring the visitor back: always the canonical site
  * (VITE_SITE_URL, set from public/CNAME at build — hillgpx.com), even when
@@ -182,6 +206,7 @@ function fillAuthor(): void {
  * in straight away.
  */
 export async function signUp(username: string, email: string, password: string): Promise<boolean> {
+  requireGoogleSignIn(email);
   username = username.trim();
   if (!/^[A-Za-z0-9_.-]{3,24}$/.test(username)) {
     throw new ApiError('Usernames are 3–24 letters, numbers, dots, dashes or underscores.', 400);
@@ -217,6 +242,7 @@ function accountEmail(value: string): string {
 
 /** Resend confirmation to the supplied email through Supabase Auth. */
 export async function resendConfirmation(email: string): Promise<void> {
+  requireGoogleSignIn(email);
   const { error } = await supabase.auth.resend({
     type: 'signup',
     email: accountEmail(email),
@@ -227,6 +253,7 @@ export async function resendConfirmation(email: string): Promise<void> {
 
 /** Send a password-reset link without exposing whether the email exists. */
 export async function resetPasswordForEmail(email: string): Promise<void> {
+  requireGoogleSignIn(email);
   const { error } = await supabase.auth.resetPasswordForEmail(accountEmail(email), { redirectTo: siteUrl() });
   if (error) throw authError(error);
 }
@@ -241,6 +268,7 @@ export async function finishPasswordReset(newPassword: string): Promise<void> {
 }
 
 export async function logIn(email: string, password: string): Promise<void> {
+  requireGoogleSignIn(email);
   const { data, error } = await supabase.auth.signInWithPassword({ email: accountEmail(email), password });
   if (error) throw authError(error);
   await syncUser(data.session.user);
@@ -259,6 +287,7 @@ export async function logInWithGoogle(credential: string): Promise<void> {
 
 export async function logOut(): Promise<void> {
   apply(null);
+  goHome();
   await supabase.auth.signOut().catch(() => {});
 }
 
@@ -311,6 +340,36 @@ export async function removeAvatar(): Promise<void> {
   await refreshUser();
 }
 
+/**
+ * Rename the public handle. The unique index on lower(username) and the
+ * column's format check are the real guards — the lookup just says it
+ * first. The sync_route_contributor trigger rewrites the credit on routes
+ * the owner published under the old name; a custom-typed credit is left
+ * alone. Needs the editable-username migration's column grant.
+ */
+export async function changeUsername(next: string): Promise<void> {
+  const current = requireUser();
+  const username = next.trim();
+  if (!/^[A-Za-z0-9_.-]{3,24}$/.test(username)) {
+    throw new ApiError('Usernames are 3–24 letters, numbers, dots, dashes or underscores.', 400);
+  }
+  if (username === current.username) return;
+  // As at sign-up, ilike's wildcards only narrow the list; the lower() match
+  // below is the real comparison, and the owner's own row is not a clash.
+  const { data: hits } = await supabase.from('profiles').select('id,username').ilike('username', username).limit(10);
+  if (hits?.some((hit) => hit.id !== current.id && hit.username.toLowerCase() === username.toLowerCase())) {
+    throw new ApiError('That username is taken.', 409);
+  }
+  const { error } = await supabase.from('profiles').update({ username }).eq('id', current.id);
+  if (error) throw dbError(error);
+  // Keep the auth-metadata fallback (a missing profile row) in step, and a
+  // saved contributor name that was just the old handle follows the rename.
+  await supabase.auth.updateUser({ data: { username } }).catch(() => undefined);
+  if (loadAuthor() === current.username) saveAuthor(username);
+  await refreshUser();
+  track('username_change');
+}
+
 /** Delete the account and drop the local session. */
 export async function deleteAccount(password: string): Promise<void> {
   const current = requireUser();
@@ -323,6 +382,7 @@ export async function deleteAccount(password: string): Promise<void> {
   const { error } = await supabase.rpc('delete_user');
   if (error) throw dbError(error);
   apply(null);
+  goHome();
   await supabase.auth.signOut().catch(() => {});
 }
 

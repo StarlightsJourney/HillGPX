@@ -8,6 +8,7 @@ const auth = vi.hoisted(() => ({
 }));
 vi.mock('../lib/auth', () => ({
   GOOGLE_CLIENT_ID: '',
+  isGoogleMail: () => false,
   ...auth,
   finishPasswordReset: vi.fn(),
   logInWithGoogle: vi.fn(),

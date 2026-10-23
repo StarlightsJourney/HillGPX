@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { loadAuthor } from './api';
-import { deleteMyRoute, fetchMyRoutes, logIn, logOut, resendConfirmation, resetPasswordForEmail, signUp } from './auth';
+import { changeUsername, deleteMyRoute, fetchMyRoutes, logIn, logOut, resendConfirmation, resetPasswordForEmail, signUp, useAuthUser } from './auth';
 
 const USER = {
   id: 'u1',
@@ -32,6 +32,7 @@ function mockApi(overrides: Record<string, (init?: RequestInit) => Response> = {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   localStorage.clear();
 });
 
@@ -88,16 +89,78 @@ describe('auth', () => {
     expect(JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null')?.access_token).toBe('tok123');
   });
 
-  it('logs out: revokes the session and clears local state', async () => {
+  it('logs out: revokes the session, clears local state and returns home', async () => {
     const fetchMock = mockApi({
       '/auth/v1/signup': () => json(SESSION, 200),
       '/auth/v1/logout': () => new Response(null, { status: 204 }),
     });
     vi.stubGlobal('fetch', fetchMock);
     await signUp('RidgeRunner', 'r@x.com', 'password123');
+    window.location.hash = '#account';
     await logOut();
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/auth/v1/logout'))).toBe(true);
     expect(localStorage.getItem(SESSION_KEY)).toBeNull();
+    expect(window.location.hash).toBe('');
+  });
+
+  it('sends Gmail addresses to the Google button when it is configured', async () => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'test-client-id');
+    vi.resetModules();
+    const googleAuth = await import('./auth');
+    const fetchMock = vi.fn(async () => json({}));
+    vi.stubGlobal('fetch', fetchMock);
+    for (const email of ['r@gmail.com', 'r@googlemail.com']) {
+      await expect(googleAuth.signUp('RidgeRunner', email, 'password123')).rejects.toThrow('Google');
+      await expect(googleAuth.logIn(email, 'password123')).rejects.toThrow('Google');
+      await expect(googleAuth.resetPasswordForEmail(email)).rejects.toThrow('Google');
+      await expect(googleAuth.resendConfirmation(email)).rejects.toThrow('Google');
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('still takes Gmail on email sign-up when Google sign-in is not configured', async () => {
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', '');
+    vi.resetModules();
+    const emailOnlyAuth = await import('./auth');
+    const fetchMock = mockApi({ '/auth/v1/signup': () => json(SESSION, 200) });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(emailOnlyAuth.signUp('RidgeRunner', 'r@gmail.com', 'password123')).resolves.toBe(false);
+  });
+
+  it('renames the profile handle and follows a matching contributor name', async () => {
+    let storedName = 'RidgeRunner';
+    const fetchMock = mockApi({
+      '/auth/v1/token': () => json(SESSION),
+      '/auth/v1/user': (init) =>
+        init?.method === 'PUT' ? json({ ...USER, user_metadata: { username: 'NewRidge' } }) : json(USER),
+      '/rest/v1/profiles': (init) => {
+        if (init?.method === 'PATCH') {
+          storedName = (JSON.parse(String(init.body)) as { username: string }).username;
+          return json(null);
+        }
+        return json([{ username: storedName, avatar_path: null }]);
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    localStorage.setItem('hillgpx:authorName', 'RidgeRunner');
+    await logIn('r@x.com', 'password123');
+    await changeUsername('NewRidge');
+    expect(storedName).toBe('NewRidge');
+    expect(loadAuthor()).toBe('NewRidge');
+    const { result } = renderHook(() => useAuthUser());
+    await waitFor(() => expect(result.current?.username).toBe('NewRidge'));
+  });
+
+  it('refuses a rename to a handle someone else already has', async () => {
+    const fetchMock = mockApi({
+      '/auth/v1/token': () => json(SESSION),
+      '/rest/v1/profiles': (init) =>
+        init?.method === 'PATCH' ? json(null) : json([{ id: 'u2', username: 'TakenName' }]),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await logIn('r@x.com', 'password123');
+    await expect(changeUsername('takenname')).rejects.toThrow('That username is taken.');
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false);
   });
 
   it('explains missing account schema instead of returning a generic HTTP 400', async () => {

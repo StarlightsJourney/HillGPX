@@ -139,7 +139,7 @@ async function syncUser(account: User | null): Promise<void> {
 function authError(error: AuthError): ApiError {
   const code = error.code ?? '';
   if (code === 'invalid_credentials' || /invalid login/i.test(error.message)) {
-    return new ApiError('Wrong email, username or password.', 401);
+    return new ApiError('Wrong email or password.', 401);
   }
   if (code === 'user_already_exists' || /already registered/i.test(error.message)) {
     return new ApiError('That email is already registered.', 409);
@@ -163,6 +163,9 @@ function authError(error: AuthError): ApiError {
 function dbError(error: { message: string; code?: string }): ApiError {
   if (error.code === '23505' || /duplicate key/i.test(error.message)) {
     return new ApiError('That username is taken.', 409);
+  }
+  if (isSchemaError(error)) {
+    return new ApiError('Account features are temporarily unavailable. Please try again later.', 503, error.code);
   }
   // Pass the errcode through so deliberate P0001 sentences reach the form.
   return new ApiError(apiErrorMessage(JSON.stringify({ message: error.message, code: error.code }), 400), 400, error.code);
@@ -202,35 +205,29 @@ export async function signUp(username: string, email: string, password: string):
   return false;
 }
 
-/** Resolve an email or a username to the account's email address. */
-async function emailFor(identifier: string): Promise<string | null> {
-  const id = identifier.trim();
-  if (id.includes('@')) return id;
-  const { data, error } = await supabase.rpc('email_for_username', { p_username: id });
-  if (error || !data) return null;
-  return data as string;
+/** Validate the supplied email locally; never resolve a public username to
+ *  an account email through a database RPC. */
+function accountEmail(value: string): string {
+  const email = value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new ApiError('Enter your email address.', 400);
+  }
+  return email;
 }
 
-/** Send the sign-up confirmation email again (Supabase rate-limits resends).
- *  Takes the email or the username; unknown names report success silently —
- *  the forms cannot be used to probe for accounts. */
-export async function resendConfirmation(identifier: string): Promise<void> {
-  const email = await emailFor(identifier);
-  if (!email) return;
+/** Resend confirmation to the supplied email through Supabase Auth. */
+export async function resendConfirmation(email: string): Promise<void> {
   const { error } = await supabase.auth.resend({
     type: 'signup',
-    email,
+    email: accountEmail(email),
     options: { emailRedirectTo: siteUrl() },
   });
   if (error) throw authError(error);
 }
 
-/** Email a password-reset link; it lands back on the site as a recovery
- *  session (see recovering/usePasswordRecovery). Unknown names stay silent. */
-export async function resetPasswordForEmail(identifier: string): Promise<void> {
-  const email = await emailFor(identifier);
-  if (!email) return;
-  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: siteUrl() });
+/** Send a password-reset link without exposing whether the email exists. */
+export async function resetPasswordForEmail(email: string): Promise<void> {
+  const { error } = await supabase.auth.resetPasswordForEmail(accountEmail(email), { redirectTo: siteUrl() });
   if (error) throw authError(error);
 }
 
@@ -243,14 +240,8 @@ export async function finishPasswordReset(newPassword: string): Promise<void> {
   track('password_reset');
 }
 
-export async function logIn(identifier: string, password: string): Promise<void> {
-  let email = identifier.trim();
-  if (!email.includes('@')) {
-    const { data, error } = await supabase.rpc('email_for_username', { p_username: email });
-    if (error || !data) throw new ApiError('Wrong email, username or password.', 401);
-    email = data as string;
-  }
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+export async function logIn(email: string, password: string): Promise<void> {
+  const { data, error } = await supabase.auth.signInWithPassword({ email: accountEmail(email), password });
   if (error) throw authError(error);
   await syncUser(data.session.user);
   fillAuthor();

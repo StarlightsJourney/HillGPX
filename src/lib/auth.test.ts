@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { loadAuthor } from './api';
-import { logIn, logOut, resetPasswordForEmail, signUp } from './auth';
+import { fetchMyRoutes, logIn, logOut, resendConfirmation, resetPasswordForEmail, signUp } from './auth';
 
 const USER = {
   id: 'u1',
@@ -62,18 +62,22 @@ describe('auth', () => {
     expect(JSON.parse(String(call[1].body))).toMatchObject({ email: 'r@x.com' });
   });
 
-  it('resolves a username for the reset email and stays silent on unknowns', async () => {
-    const fetchMock = mockApi({
-      '/auth/v1/recover': () => json({}, 200),
-      '/rpc/email_for_username': () => json('found@x.com'),
-    });
+  it('rejects usernames without looking up or disclosing account emails', async () => {
+    const fetchMock = mockApi();
     vi.stubGlobal('fetch', fetchMock);
-    await resetPasswordForEmail('RidgeRunner');
-    const call = fetchMock.mock.calls.find(([url]) => String(url).includes('/auth/v1/recover')) as unknown as [string, RequestInit];
-    expect(JSON.parse(String(call[1].body))).toMatchObject({ email: 'found@x.com' });
-    // Unknown names: no rpc hit means no email goes out and nothing throws.
-    vi.stubGlobal('fetch', mockApi({ '/rpc/email_for_username': () => json(null) }));
-    await expect(resetPasswordForEmail('nobody')).resolves.toBeUndefined();
+    await expect(logIn('RidgeRunner', 'password123')).rejects.toThrow('Enter your email address.');
+    await expect(resetPasswordForEmail('RidgeRunner')).rejects.toThrow('Enter your email address.');
+    await expect(resendConfirmation('RidgeRunner')).rejects.toThrow('Enter your email address.');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('resends confirmation to the supplied email without a username lookup', async () => {
+    const fetchMock = mockApi({ '/auth/v1/resend': () => json({}) });
+    vi.stubGlobal('fetch', fetchMock);
+    await resendConfirmation(' r@x.com ');
+    const call = fetchMock.mock.calls.find(([url]) => String(url).includes('/auth/v1/resend')) as unknown as [string, RequestInit];
+    expect(JSON.parse(String(call[1].body))).toMatchObject({ type: 'signup', email: 'r@x.com' });
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('email_for_username'))).toBe(false);
   });
 
   it('keeps an existing contributor name on log in', async () => {
@@ -94,6 +98,43 @@ describe('auth', () => {
     await logOut();
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/auth/v1/logout'))).toBe(true);
     expect(localStorage.getItem(SESSION_KEY)).toBeNull();
+  });
+
+  it('explains missing account schema instead of returning a generic HTTP 400', async () => {
+    const fetchMock = mockApi({
+      '/auth/v1/token': () => json(SESSION),
+      '/rest/v1/routes': () => json({ code: '42703', message: 'column routes.user_id does not exist' }, 400),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await logIn('r@x.com', 'password123');
+    await expect(fetchMyRoutes()).rejects.toMatchObject({
+      message: 'Account features are temporarily unavailable. Please try again later.',
+      status: 503,
+      code: '42703',
+    });
+  });
+
+  it('keeps the owner filter when retrying an older optional-column schema', async () => {
+    const fetchMock = mockApi({
+      '/auth/v1/token': () => json(SESSION),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await logIn('r@x.com', 'password123');
+    let routeCalls = 0;
+    const requests: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (!url.includes('/rest/v1/routes')) return fetchMock(input, init);
+      requests.push(url);
+      routeCalls += 1;
+      return routeCalls === 1
+        ? json({ code: '42703', message: 'column routes.downloads does not exist' }, 400)
+        : json([]);
+    }));
+    await expect(fetchMyRoutes()).resolves.toEqual([]);
+    expect(requests).toHaveLength(2);
+    expect(requests.every((url) => new URL(url).searchParams.get('user_id') === 'eq.u1')).toBe(true);
+    expect(new URL(requests[1]).searchParams.get('select')).not.toContain('downloads');
   });
 
   it('drops a stored session Supabase no longer accepts', async () => {

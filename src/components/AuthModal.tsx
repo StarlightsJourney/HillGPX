@@ -39,7 +39,7 @@ function loadGis(): Promise<GoogleAccounts> {
 
 /**
  * The one "Log in or sign up" dialog. Email sign-up asks for a username (the
- * handle shown on contributions); logging in takes the email or the username.
+ * handle shown on contributions); logging in takes the email address.
  * Google sign-in renders the official button when VITE_GOOGLE_CLIENT_ID is
  * set — without it the divider and button stay hidden.
  */
@@ -150,7 +150,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
         /\S+@\S+\.\S+/.test(email.trim()) &&
         password.length >= 8 &&
         confirmPassword === password
-      : identifier.trim().length > 0 && password.length > 0;
+      : /\S+@\S+\.\S+/.test(identifier.trim()) && password.length > 0;
 
   if (confirmEmail) {
     return (
@@ -209,7 +209,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
               Back to log in
             </button>
           ) : (
-            <button type="button" className="btn btn-dark" disabled={busy || forgotId.trim().length < 3} onClick={() => void sendReset()}>
+            <button type="button" className="btn btn-dark" disabled={busy || !/\S+@\S+\.\S+/.test(forgotId.trim())} onClick={() => void sendReset()}>
               {busy ? 'Sending…' : 'Email me a reset link'}
             </button>
           )
@@ -228,14 +228,14 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
             className="auth-form"
             onSubmit={(event) => {
               event.preventDefault();
-              if (!busy && forgotId.trim().length >= 3) void sendReset();
+              if (!busy && /\S+@\S+\.\S+/.test(forgotId.trim())) void sendReset();
             }}
           >
             <label className="field">
-              Email or username
+              Email address
               <input
-                type="text"
-                autoComplete="username"
+                type="email"
+                autoComplete="email"
                 placeholder="you@example.com"
                 value={forgotId}
                 onChange={(event) => setForgotId(event.target.value)}
@@ -350,10 +350,10 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
         ) : (
           <>
             <label className="field">
-              Email or username
+              Email address
               <input
-                type="text"
-                autoComplete="username"
+                type="email"
+                autoComplete="email"
                 placeholder="you@example.com"
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}

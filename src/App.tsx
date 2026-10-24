@@ -8,10 +8,11 @@ import { FilterBar, type BrowseMode } from './components/FilterBar';
 import { VenueDetail, VenueDetailSkeleton } from './components/VenueDetail';
 import { RoutesList } from './components/RoutesList';
 import { RoutePanel } from './components/RoutePanel';
-import { DEFAULT_RUN_LENGTH, DEFAULT_TERRAIN, RunNeedsBar, lengthText } from './components/RunNeedsBar';
-import { DEFAULT_PACE_S_PER_KM, matchRoutes, type RunLength, type RunNeeds, type RunWhere, type Terrain } from './lib/routeMatch';
+import { RunNeedsBar } from './components/RunNeedsBar';
 import { useRouteBookmarks } from './lib/useRouteBookmarks';
-import { NO_ROUTE_FILTERS, filterRoutes, linkVenues, routesBounds, routesNear, routesWithin, routeIntersects, type RouteFilters } from './lib/routes';
+import { useRunPlanner } from './lib/useRunPlanner';
+import { askAgain, locate, locationProblemText, type LocateHint } from './lib/geolocation';
+import { NEAR_ME_RADII_M, NO_ROUTE_FILTERS, filterRoutes, linkVenues, routesBounds, routesNear, routesWithin, routeIntersects, type RouteFilters } from './lib/routes';
 import { boundsFromHash } from './lib/regions';
 import { ElevationModel } from './lib/elevation';
 import {
@@ -26,6 +27,7 @@ import {
   routesForVenue,
   tallestWithin,
   venuesInBounds,
+  withPoint,
   type Bounds,
   type Dataset,
   type VenueFilters,
@@ -167,37 +169,12 @@ function boundsChangedMeaningfully(
 }
 
 /**
- * "Routes near me" looks this far, widening a step at a time until it finds
- * routes (then the country, see handleLocate), and shows at most this many.
+ * "Routes near me" looks NEAR_ME_RADII_M far, widening a step at a time until
+ * it finds routes (then the country, see handleLocate), and shows at most this many.
  */
-const NEAR_ME_RADII_M = [10_000, 50_000];
 const NEARBY_ROUTES = 8;
 /** A summit picked in search opens on the routes passing this close to it. */
 const PLACE_ROUTE_RADIUS_M = 10_000;
-
-interface LocateHint {
-  title: string;
-  text: string;
-  retry: boolean;
-  /** Tapping retries the run plan rather than Routes near me. */
-  plan?: boolean;
-}
-
-/** The ranked routes the map frames with the runner. */
-const FRAMED_MATCHES = 3;
-
-/** A location problem: tapping the card asks again. */
-const askAgain = (text: string): LocateHint => ({ title: 'Share your location', text, retry: true });
-
-/** A box grown just enough to take in one more point. */
-function withPoint(box: Bounds, point: { lng: number; lat: number }): Bounds {
-  return {
-    west: Math.min(box.west, point.lng),
-    south: Math.min(box.south, point.lat),
-    east: Math.max(box.east, point.lng),
-    north: Math.max(box.north, point.lat),
-  };
-}
 
 function MapApp() {
   const [dataset, setDataset] = useState<Dataset | null>(null);
@@ -245,12 +222,6 @@ function MapApp() {
     window.location.hash === '#routes' || sessionStorage.getItem('hillgpx:mode') === 'routes' ? 'routes' : 'climbs',
   );
   const [routeFilters, setRouteFilters] = useState<RouteFilters>(NO_ROUTE_FILTERS);
-  // The run planner (RunNeedsBar): how long and what kind always have a
-  // value; routes are only ranked once "where" is known.
-  const [runLength, setRunLength] = useState<RunLength>(DEFAULT_RUN_LENGTH);
-  const [runTerrain, setRunTerrain] = useState<Terrain>(DEFAULT_TERRAIN);
-  const [runWhere, setRunWhere] = useState<{ where: RunWhere; label: string } | null>(null);
-  const [locatingRun, setLocatingRun] = useState(false);
   const [selectedRouteSlug, setSelectedRouteSlug] = useState<string | null>(null);
   const [hoveredRouteSlug, setHoveredRouteSlug] = useState<string | null>(null);
   const [routeHoverIndex, setRouteHoverIndex] = useState<number | null>(null);
@@ -445,27 +416,6 @@ function MapApp() {
   );
   const routeBookmarks = useRouteBookmarks();
   const filteredRoutes = useMemo(() => filterRoutes(allRoutes, routeFilters, routeBookmarks), [allRoutes, routeFilters, routeBookmarks]);
-  const runNeeds = useMemo<RunNeeds | null>(
-    () => (runWhere ? { where: runWhere.where, length: runLength, terrain: runTerrain, paceSPerKm: DEFAULT_PACE_S_PER_KM } : null),
-    [runWhere, runLength, runTerrain],
-  );
-  // With needs set, Routes mode lists the ranked routes, best first (Route
-  // filters still apply); without, the most climbing first, as before.
-  const ranked = useMemo(() => (runNeeds ? matchRoutes(filteredRoutes, runNeeds) : null), [filteredRoutes, runNeeds]);
-  const listedRoutes = useMemo(
-    () => (ranked ? ranked.matches.map((match) => match.route) : [...filteredRoutes].sort((a, b) => b.gainM - a.gainM)),
-    [ranked, filteredRoutes],
-  );
-  const rankingForList = useMemo(
-    () =>
-      ranked && runWhere
-        ? {
-            matches: new Map(ranked.matches.map((match) => [match.route.slug, match])),
-            title: `for ${lengthText(runLength, units.units)}${runTerrain === 'any' ? '' : `, ${runTerrain}`}, ${runWhere.label.toLowerCase() === 'near you' ? 'near you' : `in ${runWhere.label}`}`,
-          }
-        : null,
-    [ranked, runWhere, runLength, runTerrain, units.units],
-  );
   const selectedRoute = selectedRouteSlug ? allRoutes.find((route) => route.slug === selectedRouteSlug) ?? null : null;
 
   // A dropped GPX wins the map over a stored route — it is what you just did.
@@ -739,7 +689,7 @@ function MapApp() {
       const area = code ? await countryArea(code) : null;
       if (!area) return false;
       const hasRoutes = filteredRoutes.some((route) => routeIntersects(route, area.bounds));
-      const hint = { title: hasRoutes ? `Routes in ${area.name}` : `Climbs in ${area.name}`, text: note(area.name, hasRoutes ? 'routes' : 'climbs'), retry: !here };
+      const hint: LocateHint = { title: hasRoutes ? `Routes in ${area.name}` : `Climbs in ${area.name}`, text: note(area.name, hasRoutes ? 'routes' : 'climbs'), retry: here ? null : 'near-me' };
       if (hasRoutes) {
         showNearbyRoutes(area.bounds, here, hint);
       } else {
@@ -764,7 +714,7 @@ function MapApp() {
         setLocateHint({
           title: 'Nothing mapped near you yet',
           text: `The nearest mapped climb is about ${Math.round(gapM / 1000)} km away. Know a hill near you? Add it with Add a GPX.`,
-          retry: false,
+          retry: null,
         });
         setFocus({ ...here, nonce: Date.now() });
         return;
@@ -795,19 +745,15 @@ function MapApp() {
         if (!shown) setLocateHint(askAgain(problem));
       });
     };
-    if (!navigator.geolocation) {
-      fallBack('This browser does not share its location.');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const here = { lng: pos.coords.longitude, lat: pos.coords.latitude };
+    locate(
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+      (here) => {
         const [first, widest] = [NEAR_ME_RADII_M[0], NEAR_ME_RADII_M[NEAR_ME_RADII_M.length - 1]];
         const hit = routesWithin(filteredRoutes, here.lng, here.lat, NEAR_ME_RADII_M, NEARBY_ROUTES);
         if (hit) {
           const box = routesBounds(hit.routes);
           const widened = hit.radiusM > first
-            ? { title: 'Routes near you', text: `No routes within ${formatRadius(first, units.units)}, so these are the closest within ${formatRadius(hit.radiusM, units.units)}.`, retry: false }
+            ? { title: 'Routes near you', text: `No routes within ${formatRadius(first, units.units)}, so these are the closest within ${formatRadius(hit.radiusM, units.units)}.`, retry: null }
             : null;
           if (box) showNearbyRoutes(withPoint(box, here), here, widened);
           return;
@@ -819,116 +765,37 @@ function MapApp() {
           if (!shown) showNearbyClimbs(here);
         });
       },
-      (err) =>
-        fallBack(
-          err.code === err.PERMISSION_DENIED
-            ? 'Allow location to see routes near you.'
-            : err.code === err.TIMEOUT
-              ? 'Your location took too long to arrive.'
-              : 'Could not get your location.',
-        ),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+      (problem) => fallBack(locationProblemText(problem, 'Allow location to see routes near you.')),
     );
   }, [allVenues, filteredRoutes, units.units, showCountry, showNearbyRoutes, showNearbyClimbs]);
 
-  /** Frame the runner (when located) with the best few matches for these needs. */
-  const frameRun = useCallback(
-    (needs: RunNeeds) => {
-      const top = matchRoutes(filteredRoutes, needs).matches.slice(0, FRAMED_MATCHES).map((match) => match.route);
-      const box = routesBounds(top);
-      const where = needs.where;
-      if (!box) {
-        if (where?.kind === 'area') setFocusBounds({ bounds: where.bounds, nonce: Date.now() });
-        return;
-      }
-      setFocusBounds({ bounds: where?.kind === 'point' ? withPoint(box, where) : box, nonce: Date.now() });
-    },
-    [filteredRoutes],
-  );
-
-  /** Rank from here on: open Routes mode on the ranked list and frame it. */
-  const startRun = useCallback(
-    (where: RunWhere, label: string, hint: LocateHint | null) => {
-      setMode('routes');
-      setSelectedSlug(null);
-      setActiveRouteSlug(null);
-      setSelectedRouteSlug(null);
-      setSpotlight(null);
-      setLocateHint(hint);
-      setUserLocation(where.kind === 'point' ? { lng: where.lng, lat: where.lat } : null);
-      setRunWhere({ where, label });
-      frameRun({ where, length: runLength, terrain: runTerrain, paceSPerKm: DEFAULT_PACE_S_PER_KM });
-    },
-    [frameRun, runLength, runTerrain],
-  );
-
-  /**
-   * "Rank routes": where comes from Routes near me's chain. Your location
-   * (routes within 10 km, else 50 km); then, when nothing is in reach or the
-   * location is unavailable, your country (Cloudflare, then the time zone),
-   * with a note saying so.
-   */
-  const planRun = useCallback(() => {
-    if (!dataset) return;
-    track('run_needs_submit', `${runLength.kind === 'time' ? `${runLength.minutes} min` : `${Math.round(runLength.metres)} m`} ${runTerrain}`);
-    setLocatingRun(true);
-    const inCountry = async (note: (country: string) => string, retry: boolean, problem: string) => {
-      const code = await detectCountry();
-      const area = code ? await countryArea(code) : null;
-      setLocatingRun(false);
-      if (!area) {
-        setLocateHint({ ...askAgain(problem), plan: true });
-        return;
-      }
-      startRun({ kind: 'area', bounds: area.bounds }, area.name, { title: `Routes in ${area.name}`, text: note(area.name), retry, plan: true });
-    };
-    const withoutLocation = (problem: string) =>
-      void inCountry((country) => `${problem} Ranking routes in ${country} instead.`, true, problem);
-    if (!navigator.geolocation) {
-      withoutLocation('This browser does not share its location.');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const here: RunWhere = { kind: 'point', lng: pos.coords.longitude, lat: pos.coords.latitude };
-        const reach = matchRoutes(filteredRoutes, { where: here, length: null, terrain: 'any', paceSPerKm: DEFAULT_PACE_S_PER_KM }).reachM;
-        if (reach != null) {
-          setLocatingRun(false);
-          const widened = reach > NEAR_ME_RADII_M[0]
-            ? { title: 'Routes near you', text: `No routes within ${formatRadius(NEAR_ME_RADII_M[0], units.units)}, so these are ranked within ${formatRadius(reach, units.units)}.`, retry: false }
-            : null;
-          startRun(here, 'Near you', widened);
-          return;
-        }
-        const widest = formatRadius(NEAR_ME_RADII_M[NEAR_ME_RADII_M.length - 1], units.units);
-        void inCountry((country) => `No routes within ${widest} of you. Ranking routes in ${country}.`, false, `No routes within ${widest} of you.`);
-      },
-      (err) =>
-        withoutLocation(
-          err.code === err.PERMISSION_DENIED
-            ? 'Allow location to rank routes near you.'
-            : err.code === err.TIMEOUT
-              ? 'Your location took too long to arrive.'
-              : 'Could not get your location.',
-        ),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
-    );
-  }, [dataset, runLength, runTerrain, filteredRoutes, startRun, units.units]);
-
-  /** Change one need: re-rank (the list follows) and re-frame straight away. */
-  const changeRunNeeds = useCallback(
-    (length: RunLength, terrain: Terrain) => {
-      setRunLength(length);
-      setRunTerrain(terrain);
-      if (runWhere) frameRun({ where: runWhere.where, length, terrain, paceSPerKm: DEFAULT_PACE_S_PER_KM });
-    },
-    [runWhere, frameRun],
-  );
-
-  const clearRun = useCallback(() => {
-    setRunWhere(null);
-    setLocateHint(null);
+  const frameBounds = useCallback((bounds: Bounds) => setFocusBounds({ bounds, nonce: Date.now() }), []);
+  const openRoutesMode = useCallback(() => {
+    setMode('routes');
+    setSelectedSlug(null);
+    setActiveRouteSlug(null);
+    setSelectedRouteSlug(null);
+    setSpotlight(null);
   }, []);
+  const planner = useRunPlanner({
+    routes: filteredRoutes,
+    units: units.units,
+    ready: dataset != null,
+    userLocation,
+    setUserLocation,
+    showHint: setLocateHint,
+    frame: frameBounds,
+    openRoutes: openRoutesMode,
+  });
+  const { noteOpened } = planner;
+  /** Open a route from the list or a map pin. */
+  const openRoute = useCallback(
+    (slug: string | null) => {
+      noteOpened(slug);
+      selectRoute(slug);
+    },
+    [noteOpened, selectRoute],
+  );
 
   // A search or "near me" from a page without the map (mapIntent.ts) runs once
   // the routes it chooses between have loaded. On the map page itself (the
@@ -980,7 +847,7 @@ function MapApp() {
           routeFilters={routeFilters}
           onRouteFiltersChange={(next) => {
             // Bookmarked routes can be anywhere: frame them all when Saved is picked.
-            if (next.category === 'bookmarked' && routeFilters.category !== 'bookmarked') {
+            if (next.category === 'saved' && routeFilters.category !== 'saved') {
               const bounds = routesBounds(allRoutes.filter((route) => routeBookmarks.has(route.slug)));
               if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
             }
@@ -1012,24 +879,22 @@ function MapApp() {
           {dataset && mode === 'routes' && (
             <>
             <RunNeedsBar
-              length={runLength}
-              terrain={runTerrain}
-              whereLabel={runWhere?.label ?? null}
-              busy={locatingRun}
-              onLength={(length) => changeRunNeeds(length, runTerrain)}
-              onTerrain={(terrain) => changeRunNeeds(runLength, terrain)}
-              onPlan={planRun}
-              onClear={clearRun}
+              length={planner.length}
+              terrain={planner.terrain}
+              whereLabel={planner.whereLabel}
+              busy={planner.busy}
+              onLength={planner.setLength}
+              onTerrain={planner.setTerrain}
+              onPlan={planner.plan}
+              onClear={planner.clear}
             />
             <RoutesList
-              routes={listedRoutes}
-              ranking={rankingForList}
+              routes={planner.listedRoutes}
+              ranking={planner.ranking}
+              savedOnly={routeFilters.category === 'saved'}
               bounds={viewport}
               selectedSlug={selectedRouteSlug}
-              onSelect={(slug) => {
-                if (rankingForList) track('ranked_route_open', slug);
-                selectRoute(slug);
-              }}
+              onSelect={openRoute}
               onHover={setHoveredRouteSlug}
               onImport={openImport}
               onShowAll={frameRoutes}
@@ -1050,11 +915,11 @@ function MapApp() {
           <div className="map-wrap">
             <Suspense fallback={<div className="map-skeleton"><div className="map-skeleton-pulse" /></div>}>
               {mapNeeded && <MapView
-                allRoutes={mode === 'routes' ? listedRoutes : allRoutes}
+                allRoutes={mode === 'routes' ? planner.listedRoutes : allRoutes}
                 mode={mode}
                 selectedRouteSlug={selectedRouteSlug}
                 hoveredRouteSlug={hoveredRouteSlug}
-                onSelectRoute={selectRoute}
+                onSelectRoute={openRoute}
                 onHoverRoute={setHoveredRouteSlug}
                 venues={mode === 'routes' ? NO_VENUES : venues}
                 selectedSlug={selectedSlug}
@@ -1108,7 +973,7 @@ function MapApp() {
             {mapError && <div className="map-error small">The map failed to load: {mapError}</div>}
 
             {locateHint && (
-              <div className={`locate-hint${locateHint.retry ? ' retry' : ''}`} role="status" onClick={locateHint.retry ? (locateHint.plan ? planRun : handleLocate) : undefined}>
+              <div className={`locate-hint${locateHint.retry ? ' retry' : ''}`} role="status" onClick={locateHint.retry === 'plan' ? planner.plan : locateHint.retry === 'near-me' ? handleLocate : undefined}>
                 <span className="locate-hint-icon" aria-hidden="true">
                   <LocationArrowIcon size={22} />
                 </span>

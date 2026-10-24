@@ -500,6 +500,16 @@ export function titleCaseStreet(street: string): string {
     .join(' ');
 }
 
+/** A box grown just enough to take in one more point. */
+export function withPoint(box: Bounds, point: { lng: number; lat: number }): Bounds {
+  return {
+    west: Math.min(box.west, point.lng),
+    south: Math.min(box.south, point.lat),
+    east: Math.max(box.east, point.lng),
+    north: Math.max(box.north, point.lat),
+  };
+}
+
 export function boundsOf(points: { lng: number; lat: number }[]): Bounds | null {
   if (points.length === 0) return null;
   let west = points[0].lng;

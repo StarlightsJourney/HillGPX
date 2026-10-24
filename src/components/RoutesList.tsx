@@ -7,7 +7,7 @@ import { RouteThumb } from './RouteThumb';
 import { ActivityTag } from './ActivityIcon';
 import { routeActivity } from '../lib/routeAnalysis';
 import { useUnits } from './UnitsContext';
-import { DownloadIcon, UploadIcon } from './icons';
+import { DownloadIcon, HeartIcon, UploadIcon } from './icons';
 import { downloadRoute } from './VenueCard';
 import type { RouteMatch } from '../lib/routeMatch';
 import { MATCH_LABEL_TEXT, describeMiss, describeReasons } from '../lib/matchText';
@@ -27,10 +27,12 @@ interface RoutesListProps {
    * and reasons, under this heading.
    */
   ranking?: { matches: Map<string, RouteMatch>; title: string } | null;
+  /** The Saved category is picked: an empty list says how to save a route. */
+  savedOnly?: boolean;
 }
 
 /** Routes are shown in the order given: the map page decides it. */
-function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onImport, onShowAll, ranking = null }: RoutesListProps) {
+function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onImport, onShowAll, ranking = null, savedOnly = false }: RoutesListProps) {
   const units = useUnits();
   const inView = useMemo(
     () => (bounds && !ranking ? routes.filter((route) => routeIntersects(route, bounds)) : routes),
@@ -60,7 +62,13 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
         </div>
       </header>
 
-      {routes.length === 0 ? (
+      {routes.length === 0 && savedOnly ? (
+        <div className="empty-state">
+          <div className="empty-state-icon"><HeartIcon size={24} /></div>
+          <h3>No saved routes yet</h3>
+          <p>Tap the heart on a route to keep it here, on this device.</p>
+        </div>
+      ) : routes.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon"><UploadIcon size={24} /></div>
           <h3>No routes match</h3>

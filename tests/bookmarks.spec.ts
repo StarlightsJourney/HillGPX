@@ -19,8 +19,12 @@ test('a hearted route is listed under Saved and survives a reload', async ({ pag
   await dismissNotice(page);
   await openRoutes(page);
 
-  // No bookmarks yet: no Saved category.
-  await expect(page.getByRole('tab', { name: 'Saved', exact: true })).toHaveCount(0);
+  // No bookmarks yet: Saved is there, and says how to fill it.
+  await page.getByRole('tab', { name: 'Saved', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'No saved routes yet' })).toBeVisible();
+  await expect(page.locator('.route-item')).toHaveCount(0);
+  await page.getByRole('tab', { name: 'All routes', exact: true }).click();
+  await expect(page.locator('.route-item').first()).toBeVisible();
 
   const card = page.locator('.route-item').first();
   const name = (await card.locator('.result-card-name').textContent())!.trim();

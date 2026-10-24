@@ -49,16 +49,16 @@ describe('filterRoutes: Saved (bookmarks) and On this device', () => {
   const pool = [{ ...ridges, slug: 'southern-ridges', source: 'curated' as const }, local];
 
   it('lists only bookmarked routes under Saved, wherever they come from', () => {
-    const saved = filterRoutes(pool, { ...NO_ROUTE_FILTERS, category: 'bookmarked' }, new Set(['southern-ridges']));
+    const saved = filterRoutes(pool, { ...NO_ROUTE_FILTERS, category: 'saved' }, new Set(['southern-ridges']));
     expect(saved.map((r) => r.slug)).toEqual(['southern-ridges']);
   });
 
   it('shows nothing under Saved without bookmarks', () => {
-    expect(filterRoutes(pool, { ...NO_ROUTE_FILTERS, category: 'bookmarked' })).toEqual([]);
+    expect(filterRoutes(pool, { ...NO_ROUTE_FILTERS, category: 'saved' })).toEqual([]);
   });
 
   it('keeps On this device to GPX files saved locally, not bookmarks', () => {
-    const device = filterRoutes(pool, { ...NO_ROUTE_FILTERS, category: 'saved' }, new Set(['southern-ridges']));
+    const device = filterRoutes(pool, { ...NO_ROUTE_FILTERS, category: 'device' }, new Set(['southern-ridges']));
     expect(device.map((r) => r.slug)).toEqual(['local-kluang']);
   });
 });

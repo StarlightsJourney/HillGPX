@@ -1,7 +1,6 @@
 import type { Route } from '../types';
 import type { Bounds } from './venues';
-import { haversineM } from './elevation';
-import { distanceToRouteM } from './routes';
+import { NEAR_ME_RADII_M, distanceToRouteM, routeIntersects } from './routes';
 
 export type Terrain = 'flat' | 'rolling' | 'hilly' | 'any';
 export type RunLength = { kind: 'time'; minutes: number } | { kind: 'distance'; metres: number };
@@ -13,6 +12,13 @@ export interface RunNeeds {
   terrain: Terrain;
   paceSPerKm: number;
 }
+
+/** The runner's needs when nothing has been chosen: one tap gives results. */
+export const DEFAULT_RUN_LENGTH: RunLength = { kind: 'time', minutes: 45 };
+export const DEFAULT_TERRAIN: Terrain = 'any';
+
+/** A half marathon, in metres: offered as a distance in either unit setting. */
+export const HALF_MARATHON_M = 21_097;
 
 /** 6:30 per km on flat ground. */
 export const DEFAULT_PACE_S_PER_KM = 390;
@@ -26,8 +32,6 @@ export const CLIMB_S_PER_10M = 30;
 /** How much each fit counts towards the score; only the needs that are set take part. */
 export const WEIGHTS = { closeness: 0.3, length: 0.45, terrain: 0.25 } as const;
 
-/** Reach limits, as Routes near me widens: 10 km, then 50 km (then the caller tries the country). */
-export const REACH_M = [10_000, 50_000];
 /** The distance at which closeness counts half. */
 const CLOSENESS_HALF_M = 5_000;
 
@@ -108,19 +112,18 @@ function measured(route: Route, durationS: number, length: RunLength): [number, 
   return length.kind === 'distance' ? [route.distanceM, length.metres] : [durationS, length.minutes * 60];
 }
 
-/** How far a route is from where the runner will be: its closest approach, or 0 if it crosses the area. */
+/**
+ * How far a route is from where the runner will be: its closest approach to
+ * a point; for an area (a country), 0 when it crosses the area and out of
+ * reach otherwise.
+ */
 function awayM(route: Route, where: RunWhere): number {
   if (where.kind === 'point') return distanceToRouteM(route, where.lng, where.lat);
-  const { west, south, east, north } = where.bounds;
-  let best = Infinity;
-  for (const [lng, lat] of route.coordinates) {
-    const nearLng = Math.min(Math.max(lng, west), east);
-    const nearLat = Math.min(Math.max(lat, south), north);
-    if (nearLng === lng && nearLat === lat) return 0;
-    best = Math.min(best, haversineM(lng, lat, nearLng, nearLat));
-  }
-  return best;
+  return routeIntersects(route, where.bounds) ? 0 : Infinity;
 }
+
+/** An area is its own reach; a point widens as Routes near me does (10 km, then 50 km). */
+const AREA_REACH_M = [0];
 
 /** 1 on the doorstep, a half at 5 km, a sixth at 25 km. */
 function closenessFit(metres: number): number {
@@ -128,7 +131,7 @@ function closenessFit(metres: number): number {
 }
 
 export interface MatchOptions {
-  /** Reach limits, smallest first: the first with any route in it is used. */
+  /** Reach limits around a point, smallest first: the first with any route in it is used. */
   reachM?: number[];
 }
 
@@ -150,7 +153,7 @@ export function matchRoutes(routes: Route[], needs: RunNeeds, options: MatchOpti
   let reachM: number | null = null;
   if (where) {
     const measuredAway = routes.map((route) => ({ route, away: awayM(route, where) }));
-    const limit = (options.reachM ?? REACH_M).find((m) => measuredAway.some((hit) => hit.away <= m));
+    const limit = (where.kind === 'area' ? AREA_REACH_M : options.reachM ?? NEAR_ME_RADII_M).find((m) => measuredAway.some((hit) => hit.away <= m));
     reachM = limit ?? null;
     inReach = limit == null ? [] : measuredAway.filter((hit) => hit.away <= limit);
   }

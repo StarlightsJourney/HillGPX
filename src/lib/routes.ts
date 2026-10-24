@@ -7,7 +7,7 @@ import type { Bounds } from './venues';
  * Quick route categories, shown as the icon row in routes mode. Each is a
  * question the route data can answer on its own — no invented tags.
  */
-export type RouteCategory = 'all' | RouteActivity | 'bookmarked' | 'saved';
+export type RouteCategory = 'all' | RouteActivity | 'saved' | 'device';
 
 /** Same number of slots as the climbs bar, so switching modes does not shift the icons. */
 export const ROUTE_CATEGORIES: { id: RouteCategory; label: string; shortLabel: string }[] = [
@@ -15,8 +15,8 @@ export const ROUTE_CATEGORIES: { id: RouteCategory; label: string; shortLabel: s
   { id: 'run', label: 'Road runs', shortLabel: 'Run' },
   { id: 'trail', label: 'Trails', shortLabel: 'Trail' },
   { id: 'cycle', label: 'Cycling', shortLabel: 'Cycle' },
-  { id: 'bookmarked', label: 'Saved', shortLabel: 'Saved' },
-  { id: 'saved', label: 'On this device', shortLabel: 'Device' },
+  { id: 'saved', label: 'Saved', shortLabel: 'Saved' },
+  { id: 'device', label: 'On this device', shortLabel: 'Device' },
 ];
 
 export interface RouteFilters {
@@ -41,9 +41,9 @@ export function filterRoutes(routes: Route[], filters: RouteFilters, bookmarks: 
       case 'trail':
       case 'cycle':
         return routeActivity(route) === filters.category;
-      case 'bookmarked':
-        return bookmarks.has(route.slug);
       case 'saved':
+        return bookmarks.has(route.slug);
+      case 'device':
         return route.source === 'local';
       default:
         return true;
@@ -83,6 +83,12 @@ export function routesBounds(routes: Route[]): Bounds | null {
     north: Math.max(...boxes.map((b) => b.north)),
   };
 }
+
+/**
+ * How far "near me" looks around a point, a step at a time until it finds
+ * routes: Routes near me (App.tsx) and the run planner (routeMatch.ts).
+ */
+export const NEAR_ME_RADII_M = [10_000, 50_000];
 
 /** Further than this from a route, a runner is not on it. */
 export const ON_ROUTE_MAX_M = 200;

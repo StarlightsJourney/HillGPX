@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import type { Route } from '../types';
 import { haversineM } from '../lib/elevation';
 import { nearestPointOnRoute } from '../lib/routes';
+import { locate, locationProblemText } from '../lib/geolocation';
 import { errorText, loadAuthor, saveAuthor, submitRoutePhoto, type RoutePhoto } from '../lib/api';
 import { LocateIcon } from './icons';
 import { Modal } from './Modal';
@@ -57,16 +58,13 @@ export function RoutePhotoModal({ route, startIndex, onPreviewIndex, onClose, on
 
   // The position never leaves the browser: only the route point it snaps to is sent.
   const locateMe = () => {
-    if (!navigator.geolocation) {
-      setLocateNote({ tone: 'warn', text: 'This browser does not share its location. Place it with the slider instead.' });
-      return;
-    }
     setLocating(true);
     setLocateNote(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
+    locate(
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 },
+      (here) => {
         setLocating(false);
-        const hit = nearestPointOnRoute(route, pos.coords.longitude, pos.coords.latitude);
+        const hit = nearestPointOnRoute(route, here.lng, here.lat);
         if (hit.onRoute) {
           setIndex(hit.index);
           setLocateNote({ tone: 'ok', text: `Placed where you are, ${units.distance(distances[hit.index])} along the route.` });
@@ -74,19 +72,14 @@ export function RoutePhotoModal({ route, startIndex, onPreviewIndex, onClose, on
           setLocateNote({ tone: 'warn', text: `You don’t seem to be on this route: you are ${units.distance(hit.distanceM)} from it. Place it with the slider instead.` });
         }
       },
-      (err) => {
+      (problem) => {
         setLocating(false);
+        const text = locationProblemText(problem, 'Location is blocked for this site. Allow it in your browser settings, or place it with the slider.');
         setLocateNote({
           tone: 'warn',
-          text:
-            err.code === err.PERMISSION_DENIED
-              ? 'Location is blocked for this site. Allow it in your browser settings, or place it with the slider.'
-              : err.code === err.TIMEOUT
-                ? 'Your location took too long to arrive. Try again, or place it with the slider.'
-                : 'Could not get your location. Try again, or place it with the slider.',
+          text: problem === 'denied' ? text : `${text} ${problem === 'unsupported' ? 'Place it with the slider instead.' : 'Try again, or place it with the slider.'}`,
         });
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 },
     );
   };
 

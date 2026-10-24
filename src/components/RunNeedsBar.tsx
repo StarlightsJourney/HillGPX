@@ -1,22 +1,16 @@
-import type { RunLength, Terrain } from '../lib/routeMatch';
-import { TERRAIN_TEXT } from '../lib/matchText';
-import { formatDistanceIn, type Units } from '../lib/units';
+import { HALF_MARATHON_M, type RunLength, type Terrain } from '../lib/routeMatch';
+import { TERRAIN_TEXT, lengthText } from '../lib/matchText';
+import { METRES_PER_MILE, type Units } from '../lib/units';
 import { useUnits } from './UnitsContext';
 import { LocationArrowIcon } from './icons';
 
-/** One mile in metres: imperial distance choices are whole miles (and a half marathon). */
-const MILE_M = 1609.344;
-
 const TIMES_MIN = [20, 30, 45, 60, 90, 120];
+/** Imperial distance choices are whole miles; both settings offer a half marathon. */
 const DISTANCES: Record<Units, number[]> = {
-  metric: [5_000, 10_000, 15_000, 21_097],
-  imperial: [3 * MILE_M, 6 * MILE_M, 10 * MILE_M, 21_097],
+  metric: [5_000, 10_000, 15_000, HALF_MARATHON_M],
+  imperial: [3 * METRES_PER_MILE, 6 * METRES_PER_MILE, 10 * METRES_PER_MILE, HALF_MARATHON_M],
 };
 const TERRAINS: Terrain[] = ['any', 'flat', 'rolling', 'hilly'];
-
-/** The runner's needs when nothing has been chosen: one tap gives results. */
-export const DEFAULT_RUN_LENGTH: RunLength = { kind: 'time', minutes: 45 };
-export const DEFAULT_TERRAIN: Terrain = 'any';
 
 function lengthKey(length: RunLength): string {
   return length.kind === 'time' ? `t${length.minutes}` : `d${Math.round(length.metres)}`;
@@ -25,11 +19,6 @@ function lengthKey(length: RunLength): string {
 function lengthFromKey(key: string): RunLength {
   const value = Number(key.slice(1));
   return key[0] === 't' ? { kind: 'time', minutes: value } : { kind: 'distance', metres: value };
-}
-
-export function lengthText(length: RunLength, units: Units): string {
-  if (length.kind === 'time') return length.minutes < 60 ? `${length.minutes} min` : `${length.minutes / 60} h`;
-  return Math.abs(length.metres - 21_097) < 1 ? 'Half marathon' : formatDistanceIn(length.metres, units).replace('.0 ', ' ');
 }
 
 interface RunNeedsBarProps {

@@ -135,6 +135,13 @@ describe('matchRoutes', () => {
       for (const m of ranked) expect(m.reasons[0]).toEqual({ kind: 'away', metres: 0 });
     });
 
+    it('keeps an area to the routes in it: no widening around a country', () => {
+      // A box over the north of Singapore: the Southern Ridges are ~12 km
+      // south of it, within the 50 km a point would widen to.
+      const north = { kind: 'area', bounds: { west: 103.6, south: 1.4, east: 104.0, north: 1.48 } } as const;
+      expect(matchRoutes([ridges], needs({ where: north }))).toEqual({ matches: [], reachM: null });
+    });
+
     describe('labels and reasons', () => {
       const ridgesFrom = (n: Partial<RunNeeds>) =>
         matchRoutes([ridges], needs({ where: FABER, terrain: 'rolling', ...n })).matches[0];
@@ -170,6 +177,20 @@ describe('matchRoutes', () => {
         const m = ridgesFrom({ length: { kind: 'distance', metres: 20_000 } });
         expect(m.misses).toEqual([{ kind: 'length', unit: 'distance', by: 9_259, longer: false }]);
       });
+    });
+
+    it('breaks a tie with the closer route before the loop', () => {
+      // The same route twice, one a loop starting 2 km further from the runner.
+      const nearLine = { ...ridges, slug: 'near', name: 'Near line', loop: false };
+      const farLoop = {
+        ...ridges,
+        slug: 'far',
+        name: 'Far loop',
+        loop: true,
+        coordinates: ridges.coordinates.map(([lng, lat, ele]) => [lng, lat + 0.018, ele] as [number, number, number]),
+      };
+      const below = { kind: 'point', lng: 103.8196, lat: 1.2 } as const;
+      expect(order(needs({ where: below }), [farLoop, nearLine])).toEqual(['Near line', 'Far loop']);
     });
 
     it('breaks ties with the loop', () => {

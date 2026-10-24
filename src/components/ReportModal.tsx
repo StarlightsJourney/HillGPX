@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { errorText, loadAuthor, saveAuthor, submitReport, type ReportKind, type ReportTarget } from '../lib/api';
+import { errorText, submitReport, type ReportKind, type ReportTarget } from '../lib/api';
+import { useAuthUser } from '../lib/auth';
 import { Modal } from './Modal';
 
 export function FlagIcon() {
@@ -54,7 +55,7 @@ export function ReportModal({ targetType, targetSlug, targetName, onClose }: { t
   const kinds = content ? CONTENT_KINDS : KINDS;
   const [kind, setKind] = useState<ReportKind>(kinds[0].value);
   const [message, setMessage] = useState('');
-  const [author] = useState(loadAuthor);
+  const user = useAuthUser();
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,9 +63,8 @@ export function ReportModal({ targetType, targetSlug, targetName, onClose }: { t
   const send = async () => {
     setBusy(true);
     setError(null);
-    saveAuthor(author);
     try {
-      await submitReport({ targetType, targetSlug, kind, message, author });
+      await submitReport({ targetType, targetSlug, kind, message, author: user?.username ?? '' });
       setSent(true);
     } catch (err) {
       setError(`Could not send the report: ${errorText(err)}`);

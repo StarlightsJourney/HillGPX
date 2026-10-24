@@ -51,24 +51,6 @@ export interface CommunityStats {
   photoVenues: string[];
 }
 
-const AUTHOR_KEY = 'hillgpx:authorName';
-
-export function loadAuthor(): string {
-  try {
-    return localStorage.getItem(AUTHOR_KEY) || '';
-  } catch {
-    return '';
-  }
-}
-
-export function saveAuthor(author: string): void {
-  try {
-    localStorage.setItem(AUTHOR_KEY, author);
-  } catch {
-    // Private mode: the name is a convenience, not data.
-  }
-}
-
 export class ApiError extends Error {
   constructor(message: string, readonly status: number, readonly code?: string) {
     super(message);
@@ -225,7 +207,7 @@ export async function submitReview(input: { venueSlug: string; rating: number; c
   await rest('/rest/v1/reviews', {
     method: 'POST',
     headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ id: review.id, venue_slug: review.venueSlug, rating: review.rating, comment: review.comment, author: review.author }),
+    body: JSON.stringify({ id: review.id, venue_slug: review.venueSlug, rating: review.rating, comment: review.comment, author: input.author.trim().slice(0, 60) || null }),
   });
   track('review_post', review.venueSlug);
   return review;

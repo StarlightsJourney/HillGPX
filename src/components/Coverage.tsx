@@ -135,7 +135,7 @@ function Meter({ label, count, share }: { label: string; count: number; share: n
 /**
  * The one "what's mapped" sheet, opened from the footer's Explore column:
  * the community route goal as a ring and a row of milestones,
- * then how much of the map is filled in. Without `onUpload`, "Add a GPX"
+ * then how much of the map is filled in. Without `onUpload`, "Upload GPX"
  * follows the #import link like the header button does.
  */
 export function CoverageModal({ coverage, onClose, onUpload }: { coverage: Coverage; onClose: () => void; onUpload?: () => void }) {
@@ -143,7 +143,7 @@ export function CoverageModal({ coverage, onClose, onUpload }: { coverage: Cover
   const cta = (
     <>
       <UploadIcon size={16} />
-      Add a GPX
+      Upload GPX
     </>
   );
   return (

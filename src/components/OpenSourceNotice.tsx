@@ -53,7 +53,7 @@ function Points({ onClose }: { onClose: () => void }) {
     {
       id: 'share',
       icon: <UploadIcon size={20} />,
-      title: 'Add a GPX',
+      title: 'Upload GPX',
       detail: 'Share a route from your watch and it goes on the map for everyone.',
       href: '#import',
       onClick: (event) => {

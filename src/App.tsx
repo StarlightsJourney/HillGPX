@@ -252,7 +252,7 @@ function MapApp() {
     if (window.location.hash === '#import') history.replaceState(null, '', '#map');
   }, []);
 
-  // "Add a GPX" on a venue page opens the dialog over that page (openImportHere).
+  // "Upload GPX" on a venue page opens the dialog over that page (openImportHere).
   useEffect(() => {
     const open = () => setGpxOpen(true);
     window.addEventListener(IMPORT_EVENT, open);
@@ -713,7 +713,7 @@ function MapApp() {
       if (gapM > 100_000) {
         setLocateHint({
           title: 'Nothing mapped near you yet',
-          text: `The nearest mapped climb is about ${Math.round(gapM / 1000)} km away. Know a hill near you? Add it with Add a GPX.`,
+          text: `The nearest mapped climb is about ${Math.round(gapM / 1000)} km away. Know a hill near you? Add it with Upload GPX.`,
           retry: null,
         });
         setFocus({ ...here, nonce: Date.now() });
@@ -1072,7 +1072,7 @@ function MapApp() {
         )}
 
         {gpxOpen && (
-          <Modal title="Add a GPX route" onClose={() => setGpxOpen(false)}>
+          <Modal title="Upload GPX" onClose={() => setGpxOpen(false)}>
             <GpxDropzone
               elevationModel={elevationModel}
               venues={allVenues}

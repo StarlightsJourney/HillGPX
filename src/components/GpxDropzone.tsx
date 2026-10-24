@@ -53,7 +53,7 @@ function simplifyToBudget(points: RoutePoint[]): RoutePoint[] {
 type Stage = { kind: 'idle' } | { kind: 'working'; message: string } | { kind: 'error'; message: string } | { kind: 'duplicate'; route: Route };
 
 /**
- * Add a GPX: drop or pick a file, and the route opens on the map with its
+ * Upload GPX: drop or pick a file, and the route opens on the map with its
  * profile. Elevation comes from the file when it has any; otherwise from
  * terrain data, so planned routes and OSM traces still get honest EG and EL.
  */

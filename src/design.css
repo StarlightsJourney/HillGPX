@@ -5130,8 +5130,8 @@
    and grows when someone signs in), and the pill takes what is left, up to
    560 px. So it is centred whenever there is room and gives way to the
    buttons when there is not; it can never slide under them. The buttons are
-   round icons at every width (Add a GPX says what it is on hover), which
-   keeps both sides narrow enough for a centred, full-width pill. */
+   round icons, except Upload GPX, which is a short text button from 744 px
+   (a round + below that); both sides stay narrow enough for a centred pill. */
 .site-header-row {
   grid-template-columns: minmax(max-content, 1fr) minmax(0, 608px) minmax(max-content, 1fr);
 }
@@ -6909,8 +6909,9 @@
   }
 }
 
-/* "Add a GPX" (a round +) and "Routes near me" (a crosshair): hovering or
-   focusing either says what it does. */
+/* "Upload GPX" (a round + on phones) and "Routes near me" (a crosshair):
+   hovering or focusing either says what it does. From 744 px the upload
+   button carries its own label, so it drops the + and the tooltip. */
 .site-header-cta {
   position: relative;
 }
@@ -6938,6 +6939,22 @@
 .locate-btn:focus-visible::after {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+.site-header-cta-label {
+  display: none;
+}
+@media (min-width: 744px) {
+  .site-header-cta {
+    width: auto;
+    padding: 0 16px;
+  }
+  .site-header-cta svg,
+  .site-header-cta[data-tip]::after {
+    display: none;
+  }
+  .site-header-cta-label {
+    display: inline;
+  }
 }
 
 /* ─── Privacy, contributions and contact (InfoPage.tsx) ──────────────────

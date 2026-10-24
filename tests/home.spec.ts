@@ -128,10 +128,10 @@ test("What's mapped opens from the footer", async ({ page }) => {
   await expect(page.getByRole('dialog', { name: "What's mapped" })).toBeVisible({ timeout: 15_000 });
 });
 
-test('Add a GPX on a venue page opens the dialog over that page', async ({ page }) => {
+test('Upload GPX on a venue page opens the dialog over that page', async ({ page }) => {
   await page.goto('/#venue/bukit-timah-hill');
   await page.locator('.venue-detail .site-header-cta').click();
-  await expect(page.getByRole('dialog', { name: 'Add a GPX route' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Upload GPX' })).toBeVisible();
   await expect(page).toHaveURL(/#venue\/bukit-timah-hill$/);
   await expect(page.locator('.venue-detail')).toBeVisible();
 });

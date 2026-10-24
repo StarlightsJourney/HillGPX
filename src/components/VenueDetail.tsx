@@ -1027,7 +1027,7 @@ function VenueDetailInner({
                     <h3>No GPX here yet</h3>
                     <p>Been up {venue.name}? Share the file from your watch or app and anyone can download it.</p>
                   </div>
-                  <a className="btn btn-dark venue-empty-btn" href="#import" onClick={openImportHere}><UploadIcon size={15} />Upload a GPX</a>
+                  <a className="btn btn-dark venue-empty-btn" href="#import" onClick={openImportHere}><UploadIcon size={15} />Upload GPX</a>
                 </div>
               )}
             </section>

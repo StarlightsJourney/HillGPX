@@ -22,7 +22,7 @@ Rules that keep this true:
 
 | Contribution | Where | Account needed | Goes live |
 |---|---|---|---|
-| Upload a GPX | "Add a GPX" on the map, or a venue page | No | Immediately |
+| Upload a GPX | "Upload GPX" in the header, or on a venue page | No | Immediately |
 | Rate and review a place | Venue page | No | Immediately |
 | Add photos | Venue page → "Add photos" | No | After a quick volunteer check |
 | Add a missing place | Footer → "Add a missing place" (GitHub issue form) | GitHub | When merged |

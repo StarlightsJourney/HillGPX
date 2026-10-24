@@ -26,7 +26,7 @@ of all.
 A GPX file is the track your watch or phone app records. To share one:
 
 1. Open [the map](https://starlightsjourney.github.io/HillGPX/#map).
-2. Press **Add a GPX** at the top right.
+2. Press **Upload GPX** at the top right (the round + on a phone).
 3. Choose the file and check the details. Press publish.
 
 You do not need an account. Your route goes on the map straight away, with your

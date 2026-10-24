@@ -1,41 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { GOOGLE_CLIENT_ID, finishPasswordReset, logIn, logInWithGoogle, resendConfirmation, resetPasswordForEmail, signUp } from '../lib/auth';
 import { ApiError, errorText } from '../lib/api';
+import { loadGis } from '../lib/gis';
 import { Modal } from './Modal';
-
-interface GoogleAccounts {
-  accounts: {
-    id: {
-      initialize(config: { client_id: string; callback: (response: { credential: string }) => void }): void;
-      renderButton(el: HTMLElement, options: Record<string, unknown>): void;
-    };
-  };
-}
-
-declare global {
-  interface Window {
-    google?: GoogleAccounts;
-  }
-}
-
-let gisPromise: Promise<GoogleAccounts> | null = null;
-
-/** Load Google Identity Services once, only when a client ID is configured. */
-function loadGis(): Promise<GoogleAccounts> {
-  gisPromise ??= new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.async = true;
-    script.defer = true;
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.onload = () => (window.google ? resolve(window.google) : reject(new Error('Google sign-in failed to load.')));
-    script.onerror = () => reject(new Error('Google sign-in failed to load.'));
-    document.head.appendChild(script);
-  });
-  gisPromise.catch(() => {
-    gisPromise = null;
-  });
-  return gisPromise;
-}
 
 /**
  * The one "Log in or sign up" dialog. Email sign-up asks for a username (the

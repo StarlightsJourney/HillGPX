@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   changePassword,
   deleteAccount,
@@ -8,6 +8,12 @@ import {
   useAuthUser,
 } from '../lib/auth';
 import { errorText } from '../lib/api';
+import {
+  connectGoogleHealth,
+  disconnectGoogleHealth,
+  googleHealthStatus,
+  type GoogleHealthStatus,
+} from '../lib/googleHealth';
 import { Modal } from './Modal';
 
 /** Centre-crop to a square and resize to 256 px JPEG — small enough for any use. */
@@ -21,6 +27,69 @@ async function prepareAvatar(file: File): Promise<Blob> {
     ?.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, 256, 256);
   return new Promise((resolve, reject) =>
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Could not process that image'))), 'image/jpeg', 0.85),
+  );
+}
+
+/** The Google Health link behind "pull a workout" in the import dialog. */
+function GoogleHealthSection() {
+  const [status, setStatus] = useState<GoogleHealthStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    googleHealthStatus()
+      .then((next) => live && setStatus(next))
+      .catch((caught) => live && setError(errorText(caught)));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const unlink = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await disconnectGoogleHealth();
+      setStatus({ connected: false, connectedAt: null, hasLocation: false });
+    } catch (caught) {
+      setError(errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="profile-section">
+      <h3>Connected apps</h3>
+      <div className="profile-photo-row">
+        <div>
+          <h4 className="ghealth-app-name">Google Health</h4>
+          <p className="profile-note">
+            {status?.connected
+              ? `Linked — pull workouts from Fitbit, Pixel Watch and synced watches in the Add a GPX dialog.${
+                  status.hasLocation ? '' : ' Location access was refused, so GPS tracks cannot be exported; relink and allow it.'
+                }`
+              : 'Link it to pull GPS workouts from Fitbit, Pixel Watch and synced watches into the Add a GPX dialog.'}
+          </p>
+        </div>
+        {status?.connected ? (
+          <button type="button" className="profile-link" disabled={busy} onClick={() => void unlink()}>
+            {busy ? 'Unlinking…' : 'Unlink'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-light btn-sm"
+            disabled={status === null || busy}
+            onClick={() => void connectGoogleHealth().catch((caught) => setError(errorText(caught)))}
+          >
+            Link
+          </button>
+        )}
+      </div>
+      {error && <p className="review-error">{error}</p>}
+    </section>
   );
 }
 
@@ -186,6 +255,8 @@ export function ProfileForm({ onClose }: { onClose?: () => void }) {
             <p className="profile-note">You sign in with Google — there is no password to change.</p>
           )}
         </section>
+
+        <GoogleHealthSection />
 
         <section className="profile-section danger">
           <h3>Delete account</h3>

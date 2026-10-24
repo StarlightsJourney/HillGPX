@@ -143,6 +143,8 @@ export function toGpx(
   points: RoutePoint[],
   waypoints: ParsedGpx['waypoints'] = [],
   includeElevation = true,
+  /** Epoch ms per point, aligned with `points`; adds <time> where present. */
+  times: (number | null)[] = [],
 ): string {
   const esc = (s: string) => s.replace(/[<>&'"]/g, (c) => `&#${c.charCodeAt(0)};`);
   const wpts = waypoints
@@ -154,10 +156,12 @@ export function toGpx(
     )
     .join('\n');
   const trkpts = points
-    .map(
-      ([lng, lat, ele]) =>
-        `      <trkpt lat="${lat.toFixed(6)}" lon="${lng.toFixed(6)}">${includeElevation ? `<ele>${ele.toFixed(1)}</ele>` : ''}</trkpt>`,
-    )
+    .map(([lng, lat, ele], i) => {
+      const time = times[i];
+      return `      <trkpt lat="${lat.toFixed(6)}" lon="${lng.toFixed(6)}">${
+        includeElevation ? `<ele>${ele.toFixed(1)}</ele>` : ''
+      }${time ? `<time>${new Date(time).toISOString()}</time>` : ''}</trkpt>`;
+    })
     .join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>

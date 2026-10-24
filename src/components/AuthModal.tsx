@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { GOOGLE_CLIENT_ID, finishPasswordReset, logIn, logInWithGoogle, resendConfirmation, resetPasswordForEmail, signUp } from '../lib/auth';
+import { GOOGLE_CLIENT_ID, finishPasswordReset, isGoogleMail, logIn, logInWithGoogle, resendConfirmation, resetPasswordForEmail, signUp } from '../lib/auth';
 import { ApiError, errorText } from '../lib/api';
 import { Modal } from './Modal';
 
@@ -144,13 +144,17 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
     }
   };
 
+  // Gmail addresses belong to the Google button, not the password form;
+  // requireGoogleSignIn in lib/auth says the same thing on submit.
+  const gmailTyped = Boolean(GOOGLE_CLIENT_ID) && isGoogleMail(mode === 'signup' ? email : identifier);
   const ready =
-    mode === 'signup'
+    !gmailTyped &&
+    (mode === 'signup'
       ? username.trim().length >= 3 &&
         /\S+@\S+\.\S+/.test(email.trim()) &&
         password.length >= 8 &&
         confirmPassword === password
-      : /\S+@\S+\.\S+/.test(identifier.trim()) && password.length > 0;
+      : /\S+@\S+\.\S+/.test(identifier.trim()) && password.length > 0);
 
   if (confirmEmail) {
     return (
@@ -209,7 +213,12 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
               Back to log in
             </button>
           ) : (
-            <button type="button" className="btn btn-dark" disabled={busy || !/\S+@\S+\.\S+/.test(forgotId.trim())} onClick={() => void sendReset()}>
+            <button
+              type="button"
+              className="btn btn-dark"
+              disabled={busy || !/\S+@\S+\.\S+/.test(forgotId.trim()) || (Boolean(GOOGLE_CLIENT_ID) && isGoogleMail(forgotId))}
+              onClick={() => void sendReset()}
+            >
               {busy ? 'Sending…' : 'Email me a reset link'}
             </button>
           )
@@ -242,6 +251,9 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
               />
             </label>
             <p className="profile-note">The reset link goes to the email on the account.</p>
+            {Boolean(GOOGLE_CLIENT_ID) && isGoogleMail(forgotId) && (
+              <p className="profile-note">Gmail accounts sign in with Google — there is no password to reset.</p>
+            )}
             {error && <p className="review-error">{error}</p>}
           </form>
         )}
@@ -382,6 +394,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
             </button>
           </>
         )}
+        {gmailTyped && <p className="profile-note">Gmail addresses sign in with Google — use the button above.</p>}
         {error && <p className="review-error">{error}</p>}
         {unconfirmed && (
           <p className="profile-note">

@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import {
   changePassword,
+  changeUsername,
   deleteAccount,
   removeAvatar,
-  updateProfile,
   uploadAvatar,
   useAuthUser,
 } from '../lib/auth';
@@ -42,20 +42,19 @@ export function ProfileForm({ onClose }: { onClose?: () => void }) {
   const user = useAuthUser();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [username, setUsername] = useState(user?.username ?? '');
-  const [email, setEmail] = useState(user?.email ?? '');
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [deletePw, setDeletePw] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // null = untouched, show the account's current handle in the field.
+  const [usernameDraft, setUsernameDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<{ at: string; text: string } | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
 
   if (!user) return null;
-  const hasPassword = user.providers.includes('password');
-
-  const profileDirty = username.trim() !== user.username || email.trim().toLowerCase() !== user.email;
+  const hasPassword = user.providers.includes('email');
+  const username = usernameDraft ?? user.username;
 
   const run = async (at: string, work: () => Promise<void>) => {
     setBusy(at);
@@ -120,26 +119,33 @@ export function ProfileForm({ onClose }: { onClose?: () => void }) {
 
         <section className="profile-section">
           <h3>Profile</h3>
+          <span className="uploads-info">
+            <small>{user.email}</small>
+          </span>
           <label className="field">
             Username
-            <input type="text" maxLength={24} value={username} onChange={(e) => setUsername(e.target.value)} />
-          </label>
-          <label className="field">
-            Email
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input
+              type="text"
+              autoComplete="username"
+              maxLength={24}
+              value={username}
+              onChange={(e) => setUsernameDraft(e.target.value)}
+            />
           </label>
           <button
             type="button"
             className="btn btn-dark btn-sm profile-save"
-            disabled={busy === 'profile' || !profileDirty || username.trim().length < 3 || !/\S+@\S+\.\S+/.test(email.trim())}
-            onClick={() =>
-              void run('profile', () => updateProfile({ username: username.trim(), email: email.trim() }))
-            }
+            disabled={busy === 'username' || username.trim() === user.username || username.trim().length < 3}
+            onClick={() => void run('username', () => changeUsername(username))}
           >
-            {busy === 'profile' ? 'Saving…' : 'Save changes'}
+            {busy === 'username' ? 'Saving…' : 'Save username'}
           </button>
-          {error?.at === 'profile' && <p className="review-error">{error.text}</p>}
-          {saved === 'profile' && <p className="profile-ok">Saved.</p>}
+          {error?.at === 'username' && <p className="review-error">{error.text}</p>}
+          {saved === 'username' && <p className="profile-ok">Username updated.</p>}
+          <p className="profile-note">
+            3–24 letters, numbers, dots, dashes or underscores; your email stays fixed to this account.
+            Renaming also updates the credit on routes you published under your old name.
+          </p>
         </section>
 
         <section className="profile-section">

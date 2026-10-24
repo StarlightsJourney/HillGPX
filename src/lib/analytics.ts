@@ -76,6 +76,7 @@ export type TrackedEvent =
   | 'report_sent'
   | 'sign_up'
   | 'log_in'
+  | 'username_change'
   | 'password_reset'
   | 'map_expand'
   | 'run_needs_submit'

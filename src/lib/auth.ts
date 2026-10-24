@@ -25,6 +25,30 @@ export interface AuthUser {
 /** Google OAuth client ID for the rendered button; empty = Google sign-in off. */
 export const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) || '';
 
+/** Gmail addresses belong to Google sign-in. */
+export function isGoogleMail(email: string): boolean {
+  return /@(gmail\.com|googlemail\.com)$/i.test(email.trim());
+}
+
+/**
+ * When the Google button is configured, Gmail addresses cannot use the
+ * email/password paths at all — sign-up, log in, resend or reset. A reset
+ * link would bolt a password onto a Google-only account, so it is refused
+ * here too. Forks without VITE_GOOGLE_CLIENT_ID keep email-only sign-in for
+ * every address.
+ */
+function requireGoogleSignIn(email: string): void {
+  if (GOOGLE_CLIENT_ID && isGoogleMail(email)) {
+    throw new ApiError('Gmail addresses sign in with Google — use the Google button.', 400);
+  }
+}
+
+/** Signing out lands back on the home page — the wordmark's bare "#". */
+function goHome(): void {
+  if (typeof window === 'undefined' || window.location.hash === '') return;
+  window.location.hash = '#';
+}
+
 /**
  * Where email links bring the visitor back: always the canonical site
  * (VITE_SITE_URL, set from public/CNAME at build — hillgpx.com), even when
@@ -182,6 +206,7 @@ function fillAuthor(): void {
  * in straight away.
  */
 export async function signUp(username: string, email: string, password: string): Promise<boolean> {
+  requireGoogleSignIn(email);
   username = username.trim();
   if (!/^[A-Za-z0-9_.-]{3,24}$/.test(username)) {
     throw new ApiError('Usernames are 3–24 letters, numbers, dots, dashes or underscores.', 400);
@@ -217,6 +242,7 @@ function accountEmail(value: string): string {
 
 /** Resend confirmation to the supplied email through Supabase Auth. */
 export async function resendConfirmation(email: string): Promise<void> {
+  requireGoogleSignIn(email);
   const { error } = await supabase.auth.resend({
     type: 'signup',
     email: accountEmail(email),
@@ -227,6 +253,7 @@ export async function resendConfirmation(email: string): Promise<void> {
 
 /** Send a password-reset link without exposing whether the email exists. */
 export async function resetPasswordForEmail(email: string): Promise<void> {
+  requireGoogleSignIn(email);
   const { error } = await supabase.auth.resetPasswordForEmail(accountEmail(email), { redirectTo: siteUrl() });
   if (error) throw authError(error);
 }
@@ -241,6 +268,7 @@ export async function finishPasswordReset(newPassword: string): Promise<void> {
 }
 
 export async function logIn(email: string, password: string): Promise<void> {
+  requireGoogleSignIn(email);
   const { data, error } = await supabase.auth.signInWithPassword({ email: accountEmail(email), password });
   if (error) throw authError(error);
   await syncUser(data.session.user);
@@ -259,6 +287,7 @@ export async function logInWithGoogle(credential: string): Promise<void> {
 
 export async function logOut(): Promise<void> {
   apply(null);
+  goHome();
   await supabase.auth.signOut().catch(() => {});
 }
 
@@ -272,22 +301,6 @@ function requireUser(): AuthUser {
 async function refreshUser(): Promise<void> {
   const { data } = await supabase.auth.getUser();
   if (data.user) await syncUser(data.user);
-}
-
-/** Change username and/or email; updates the stored user. */
-export async function updateProfile(input: { username?: string; email?: string }): Promise<void> {
-  const current = requireUser();
-  if (input.username && input.username !== current.username) {
-    const username = input.username.trim();
-    const { error } = await supabase.from('profiles').update({ username }).eq('id', current.id);
-    if (error) throw dbError(error);
-  }
-  if (input.email && input.email !== current.email) {
-    const { error } = await supabase.auth.updateUser({ email: input.email.trim() });
-    if (error) throw authError(error);
-  }
-  await refreshUser();
-  if (user) saveAuthor(user.username);
 }
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
@@ -327,6 +340,36 @@ export async function removeAvatar(): Promise<void> {
   await refreshUser();
 }
 
+/**
+ * Rename the public handle. The unique index on lower(username) and the
+ * column's format check are the real guards — the lookup just says it
+ * first. The sync_route_contributor trigger rewrites the credit on routes
+ * the owner published under the old name; a custom-typed credit is left
+ * alone. Needs the editable-username migration's column grant.
+ */
+export async function changeUsername(next: string): Promise<void> {
+  const current = requireUser();
+  const username = next.trim();
+  if (!/^[A-Za-z0-9_.-]{3,24}$/.test(username)) {
+    throw new ApiError('Usernames are 3–24 letters, numbers, dots, dashes or underscores.', 400);
+  }
+  if (username === current.username) return;
+  // As at sign-up, ilike's wildcards only narrow the list; the lower() match
+  // below is the real comparison, and the owner's own row is not a clash.
+  const { data: hits } = await supabase.from('profiles').select('id,username').ilike('username', username).limit(10);
+  if (hits?.some((hit) => hit.id !== current.id && hit.username.toLowerCase() === username.toLowerCase())) {
+    throw new ApiError('That username is taken.', 409);
+  }
+  const { error } = await supabase.from('profiles').update({ username }).eq('id', current.id);
+  if (error) throw dbError(error);
+  // Keep the auth-metadata fallback (a missing profile row) in step, and a
+  // saved contributor name that was just the old handle follows the rename.
+  await supabase.auth.updateUser({ data: { username } }).catch(() => undefined);
+  if (loadAuthor() === current.username) saveAuthor(username);
+  await refreshUser();
+  track('username_change');
+}
+
 /** Delete the account and drop the local session. */
 export async function deleteAccount(password: string): Promise<void> {
   const current = requireUser();
@@ -339,6 +382,7 @@ export async function deleteAccount(password: string): Promise<void> {
   const { error } = await supabase.rpc('delete_user');
   if (error) throw dbError(error);
   apply(null);
+  goHome();
   await supabase.auth.signOut().catch(() => {});
 }
 
@@ -403,12 +447,36 @@ export async function fetchMyRoutes(): Promise<MyUpload[]> {
 
 /** Remove a route the signed-in user published, with its files and counts. */
 export async function deleteMyRoute(slug: string): Promise<void> {
-  const { error } = await supabase.rpc('delete_community_route', { p_slug: slug });
-  if (!error) return;
-  // The RPC lives in the accounts migration — say so rather than leaking
-  // PostgREST's "could not find the function" wording.
-  if (isSchemaError(error)) {
-    throw new ApiError('This route could not be deleted right now — please try again later.', 500);
+  const current = requireUser();
+  const call = () => supabase.rpc('delete_community_route', { p_slug: slug });
+  let { error } = await call();
+  if (error && /^PGRST3/.test(error.code ?? '')) {
+    // The access token died while the dialog was open (a refresh that lost
+    // its race, or a revoked session). Force one refresh, then retry.
+    await supabase.auth.refreshSession().catch(() => undefined);
+    if (!user) {
+      throw new ApiError('Your sign-in has expired — sign in again, then try deleting the route.', 401);
+    }
+    ({ error } = await call());
+    if (error && /^PGRST3/.test(error.code ?? '')) {
+      throw new ApiError('Your sign-in has expired — sign in again, then try deleting the route.', 401);
+    }
   }
-  throw dbError(error);
+  if (error && isSchemaError(error)) {
+    // A partially applied migration can leave the RPC missing or denied
+    // (PGRST202/42501). The "delete own routes" policy makes the same
+    // ownership check server-side, so deleting the row directly is no less
+    // safe — it just cannot reach the stored GPX, thumbs and counters.
+    console.warn('hillgpx delete RPC unavailable, deleting row directly', error.code, error.message);
+    const { data, error: rowError } = await supabase
+      .from('routes')
+      .delete()
+      .eq('slug', slug)
+      .eq('user_id', current.id)
+      .select('slug');
+    if (rowError) throw dbError(rowError);
+    if (data && data.length > 0) return;
+    throw new ApiError('No such route on your account.', 404);
+  }
+  if (error) throw dbError(error);
 }

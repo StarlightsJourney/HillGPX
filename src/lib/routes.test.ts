@@ -63,6 +63,40 @@ describe('filterRoutes: Saved (bookmarks) and On this device', () => {
   });
 });
 
+describe('filterRoutes: distance and gain bounds', () => {
+  const base = {
+    name: 'Route', venueSlugs: [] as string[], lossM: 0, loop: false,
+    coordinates: [] as [number, number, number][], source: 'curated' as const,
+  };
+  const short = { ...base, slug: 'short', distanceM: 4_000, gainM: 80 };
+  const mid = { ...base, slug: 'mid', distanceM: 12_000, gainM: 300 };
+  const long = { ...base, slug: 'long', distanceM: 40_000, gainM: 900 };
+  const noElev = { ...base, slug: 'no-elev', distanceM: 8_000, gainM: 0, elevationAvailable: false };
+  const pool = [short, mid, long, noElev];
+  const slugs = (found: { slug: string }[]) => found.map((r) => r.slug);
+
+  it('keeps only routes under a maximum distance', () => {
+    expect(slugs(filterRoutes(pool, { ...NO_ROUTE_FILTERS, maxDistanceM: 10_000 }))).toEqual(['short', 'no-elev']);
+  });
+
+  it('keeps only routes over a minimum distance', () => {
+    expect(slugs(filterRoutes(pool, { ...NO_ROUTE_FILTERS, minDistanceM: 10_000 }))).toEqual(['mid', 'long']);
+  });
+
+  it('brackets routes between a distance floor and cap', () => {
+    expect(slugs(filterRoutes(pool, { ...NO_ROUTE_FILTERS, minDistanceM: 5_000, maxDistanceM: 20_000 }))).toEqual(['mid', 'no-elev']);
+  });
+
+  it('brackets routes between a gain floor and cap', () => {
+    expect(slugs(filterRoutes(pool, { ...NO_ROUTE_FILTERS, minGainM: 100, maxGainM: 500 }))).toEqual(['mid']);
+  });
+
+  it('drops routes without elevation once a gain bound is set', () => {
+    expect(slugs(filterRoutes(pool, { ...NO_ROUTE_FILTERS, maxGainM: 500 }))).toEqual(['short', 'mid']);
+    expect(slugs(filterRoutes(pool, NO_ROUTE_FILTERS))).toContain('no-elev');
+  });
+});
+
 describe('routesWithin', () => {
   // Kluang town centre: the Kluang trail run is a few km out, Southern Ridges ~100 km south.
   const KLUANG = { lng: 103.3328, lat: 2.0301 };

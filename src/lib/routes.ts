@@ -22,10 +22,18 @@ export const ROUTE_CATEGORIES: { id: RouteCategory; label: string; shortLabel: s
 export interface RouteFilters {
   category: RouteCategory;
   minGainM: number | null;
+  maxGainM: number | null;
+  minDistanceM: number | null;
   maxDistanceM: number | null;
 }
 
-export const NO_ROUTE_FILTERS: RouteFilters = { category: 'all', minGainM: null, maxDistanceM: null };
+export const NO_ROUTE_FILTERS: RouteFilters = {
+  category: 'all',
+  minGainM: null,
+  maxGainM: null,
+  minDistanceM: null,
+  maxDistanceM: null,
+};
 
 export function routeHasElevation(route: Route): boolean {
   return route.elevationAvailable !== false;
@@ -34,7 +42,12 @@ export function routeHasElevation(route: Route): boolean {
 /** `bookmarks` are the hearted route slugs ("Saved"); "On this device" is GPX files saved locally. */
 export function filterRoutes(routes: Route[], filters: RouteFilters, bookmarks: ReadonlySet<string> = new Set()): Route[] {
   return routes.filter((route) => {
+    // A gain cap is a question about EG: a route whose elevation is unknown
+    // cannot answer it, whatever its stored number says.
+    if ((filters.minGainM != null || filters.maxGainM != null) && !routeHasElevation(route)) return false;
     if (filters.minGainM != null && route.gainM < filters.minGainM) return false;
+    if (filters.maxGainM != null && route.gainM > filters.maxGainM) return false;
+    if (filters.minDistanceM != null && route.distanceM < filters.minDistanceM) return false;
     if (filters.maxDistanceM != null && route.distanceM > filters.maxDistanceM) return false;
     switch (filters.category) {
       case 'run':

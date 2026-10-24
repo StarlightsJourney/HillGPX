@@ -682,7 +682,8 @@ function MapApp() {
   /**
    * Without a usable location, the visitor's country (lib/country.ts): its
    * routes, or its climbs when it has none. False when the country is not
-   * known, so the caller can say why instead.
+   * known, so the caller can say why instead. The note closes by itself even
+   * without a location: the locate button is always there to ask again.
    */
   const showCountry = useCallback(
     async (note: (country: string, kind: 'routes' | 'climbs') => string, here: { lng: number; lat: number } | null = null) => {
@@ -690,7 +691,7 @@ function MapApp() {
       const area = code ? await countryArea(code) : null;
       if (!area) return false;
       const hasRoutes = filteredRoutes.some((route) => routeIntersects(route, area.bounds));
-      const hint: LocateHint = { title: hasRoutes ? `Routes in ${area.name}` : `Climbs in ${area.name}`, text: note(area.name, hasRoutes ? 'routes' : 'climbs'), retry: here ? null : 'near-me' };
+      const hint: LocateHint = { title: hasRoutes ? `Routes in ${area.name}` : `Climbs in ${area.name}`, text: note(area.name, hasRoutes ? 'routes' : 'climbs'), retry: null };
       if (hasRoutes) {
         showNearbyRoutes(area.bounds, here, hint);
       } else {

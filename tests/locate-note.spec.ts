@@ -48,7 +48,7 @@ test('panning the map closes an informational note straight away', async ({ brow
   await context.close();
 });
 
-test('a note that asks for location again does not close by itself', async ({ browser }) => {
+test('the country note shown without a location closes by itself', async ({ browser }) => {
   const context = await browser.newContext({ timezoneId: 'Asia/Singapore' });
   const page = await context.newPage();
   await page.clock.install();
@@ -56,8 +56,25 @@ test('a note that asks for location again does not close by itself', async ({ br
   await dismissNotice(page);
   await page.waitForSelector('.result-card', { timeout: 15_000 });
   await page.getByRole('button', { name: 'Show routes near me' }).click();
-  const note = page.locator('.locate-hint.retry');
+  const note = page.locator('.locate-hint');
   await expect(note).toContainText('Showing routes in Singapore');
+  await expect(note).not.toHaveClass(/\bretry\b/);
+  await page.clock.fastForward(8_000);
+  await expect(note).toHaveCount(0);
+  await context.close();
+});
+
+test('a note that asks for location again does not close by itself', async ({ browser }) => {
+  // No location and a time zone that names no country: nothing to show instead, so the note asks again.
+  const context = await browser.newContext({ timezoneId: 'UTC' });
+  const page = await context.newPage();
+  await page.clock.install();
+  await page.goto('/#map');
+  await dismissNotice(page);
+  await page.waitForSelector('.result-card', { timeout: 15_000 });
+  await page.getByRole('button', { name: 'Show routes near me' }).click();
+  const note = page.locator('.locate-hint.retry');
+  await expect(note).toBeVisible();
   await page.clock.fastForward(20_000);
   await expect(note).toBeVisible();
   await page.getByRole('button', { name: 'Dismiss location hint' }).click();

@@ -7073,3 +7073,82 @@
     transition: none;
   }
 }
+
+/* ─── Run planner (RunNeedsBar) ───────────────────────────────────────── */
+
+/* Where · How long · What kind, as chips over the route list. The selects sit
+   inside the chip so they read as one pill and keep native keyboard and
+   screen-reader behaviour. */
+.run-needs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.run-need svg {
+  flex: none;
+}
+.run-need:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.run-need-select {
+  position: relative;
+  padding: 0;
+}
+.run-need-select select {
+  height: 100%;
+  padding: 0 34px 0 16px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  appearance: none;
+}
+/* A small chevron, drawn with borders so it needs no icon. */
+.run-need-select::after {
+  content: '';
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+.run-need-select:focus-within {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.run-needs-go {
+  height: 40px;
+  padding: 0 18px;
+  font-size: 14px;
+}
+.run-needs-clear {
+  margin-left: 4px;
+  font-size: 14px;
+}
+
+/* Ranked cards: the match label takes the difficulty badge's place. */
+.match-badge.match-great {
+  background: var(--ink);
+  color: #fff;
+}
+.match-badge.match-partial {
+  color: var(--muted);
+}
+.match-reasons {
+  font-variant-numeric: tabular-nums;
+}
+.match-misses {
+  display: block;
+  margin-top: 2px;
+  color: var(--accent);
+  font-size: 13px;
+}

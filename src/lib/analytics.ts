@@ -77,7 +77,9 @@ export type TrackedEvent =
   | 'sign_up'
   | 'log_in'
   | 'password_reset'
-  | 'map_expand';
+  | 'map_expand'
+  | 'run_needs_submit'
+  | 'ranked_route_open';
 
 /** Record one product action (and an optional short label, e.g. the route). */
 export function track(event: TrackedEvent, label?: string): void {

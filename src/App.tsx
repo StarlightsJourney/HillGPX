@@ -11,6 +11,7 @@ import { RoutePanel } from './components/RoutePanel';
 import { RunNeedsBar } from './components/RunNeedsBar';
 import { useRouteBookmarks } from './lib/useRouteBookmarks';
 import { useRunPlanner } from './lib/useRunPlanner';
+import { usePanelFold } from './lib/usePanelFold';
 import { askAgain, locate, locationProblemText, type LocateHint } from './lib/geolocation';
 import { NEAR_ME_RADII_M, NO_ROUTE_FILTERS, filterRoutes, linkVenues, routesBounds, routesNear, routesWithin, routeIntersects, type RouteFilters } from './lib/routes';
 import { boundsFromHash } from './lib/regions';
@@ -418,6 +419,7 @@ function MapApp() {
   const routeBookmarks = useRouteBookmarks();
   const filteredRoutes = useMemo(() => filterRoutes(allRoutes, routeFilters, routeBookmarks), [allRoutes, routeFilters, routeBookmarks]);
   const selectedRoute = selectedRouteSlug ? allRoutes.find((route) => route.slug === selectedRouteSlug) ?? null : null;
+  const panelFold = usePanelFold(selectedRoute?.slug ?? null);
 
   // A dropped GPX wins the map over a stored route — it is what you just did.
   const activeRoutePoints: RoutePoint[] | null = useMemo(() => {
@@ -957,7 +959,12 @@ function MapApp() {
                 userLocation={userLocation}
                 onMapError={setMapError}
                 // The first pan or zoom by hand closes a note that only informs.
-                onUserMove={() => setLocateHint((hint) => (hint && hint.retry === null ? null : hint))}
+                // and folds the route panel out of the way until the map rests.
+                onUserMove={() => {
+                  setLocateHint((hint) => (hint && hint.retry === null ? null : hint));
+                  panelFold.fold();
+                }}
+                onUserMoveEnd={panelFold.settle}
                 onViewportChange={(b, userInitiated) => {
                   // Every zoom or pan ends here, and a new bounds object
                   // re-runs the list's filter over ~12k venues and re-renders
@@ -992,6 +999,8 @@ function MapApp() {
                 hoverIndex={routeHoverIndex}
                 onHoverIndex={setRouteHoverIndex}
                 onClose={() => selectRoute(null)}
+                folded={panelFold.folded}
+                onUnfold={panelFold.unfold}
                 spotlightSlug={spotlight?.slug ?? null}
                 onShowVenue={showPassedVenue}
                 onShowRoute={selectRoute}

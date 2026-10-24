@@ -814,8 +814,23 @@ function MapApp() {
     if (!intent) return;
     if (intent.kind === 'near-me') handleLocate();
     else if (intent.kind === 'area') searchArea(intent.bounds, false);
-    else pickFromSearch(intent.slug, false);
-  }, [dataset, routesReady, intentNonce, handleLocate, searchArea, pickFromSearch]);
+    else if (intent.kind === 'saved') {
+      // From the account page: open the same Saved view the category bar shows.
+      setSelectedSlug(null);
+      selectRoute(null);
+      if (intent.what === 'routes') {
+        setMode('routes');
+        setRouteFilters((current) => ({ ...current, category: 'saved' }));
+        const bounds = routesBounds(allRoutes.filter((route) => routeBookmarks.has(route.slug)));
+        if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
+      } else {
+        setMode('climbs');
+        setFilters((current) => ({ ...current, savedOnly: true }));
+        const bounds = boundsOf(allVenues.filter((venue) => favorites.has(venue.slug)));
+        if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
+      }
+    } else pickFromSearch(intent.slug, false);
+  }, [dataset, routesReady, intentNonce, handleLocate, searchArea, pickFromSearch, selectRoute, allRoutes, allVenues, routeBookmarks, favorites]);
 
   return (
     <div className={`app map-page${mapFullWidth ? ' is-expanded' : ''}${routeOpen && mapFullWidth ? ' bar-folded' : ''}`} ref={pageRef}>

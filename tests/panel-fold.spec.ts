@@ -60,6 +60,11 @@ test('dragging the map folds the panel; it opens again once the map rests, More 
   await expect(panel.locator('.gpx-stat', { hasText: 'Distance' })).toBeVisible();
   await expect(panel.locator('.profile')).toBeHidden();
   await expect(panel.getByRole('button', { name: 'Download GPX' })).toBeHidden();
+  // As a side sheet, the strip sits in the top-left corner rather than mid-map.
+  const wrap = await page.locator('.map-wrap').boundingBox();
+  const strip = await panel.boundingBox();
+  expect(strip!.y - wrap!.y).toBeLessThan(48);
+  expect(strip!.x - wrap!.x).toBeLessThan(48);
   // Held still mid-drag, it stays folded: only the end of the move counts.
   await page.waitForTimeout(1_500);
   await expect(panel).toHaveClass(/\bfolded\b/);

@@ -6940,6 +6940,13 @@
 .route-panel.folded .gpx-stat span {
   font-size: 12px;
 }
+/* As a side sheet it sits centred over the middle of the map, right where the
+   visitor is looking; folded, it moves up into the top-left corner. */
+@container mapwrap (min-width: 600px) {
+  .map-wrap > .gpx-panel.route-panel.folded {
+    margin: 0 0 auto;
+  }
+}
 .route-panel-unfold {
   position: absolute;
   inset: 0;

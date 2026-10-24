@@ -95,7 +95,7 @@ export function useRunPlanner(host: RunPlannerHost) {
 
   /** Rank from here on: open Routes mode on the ranked list and frame it. */
   const start = useCallback(
-    (at: RunWhere, label: string, hint: LocateHint | null) => {
+    (at: RunWhere, label: string, hint: LocateHint | null, runLength: RunLength, runTerrain: Terrain) => {
       if (!where) dotBefore.current = userLocation;
       openRoutes();
       showHint(hint);
@@ -103,14 +103,15 @@ export function useRunPlanner(host: RunPlannerHost) {
       dotSet.current = dot;
       setUserLocation(dot);
       setWhere({ where: at, label });
-      frameRun(needsFor(at, length, terrain));
+      frameRun(needsFor(at, runLength, runTerrain));
     },
-    [where, userLocation, openRoutes, showHint, setUserLocation, frameRun, length, terrain],
+    [where, userLocation, openRoutes, showHint, setUserLocation, frameRun],
   );
 
-  const plan = useCallback(() => {
+  /** Find "where", then rank for these needs (the state may not have caught up with a choice just made). */
+  const planFor = useCallback((runLength: RunLength, runTerrain: Terrain) => {
     if (!ready) return;
-    track('run_needs_submit', `${length.kind === 'time' ? `${length.minutes} min` : `${Math.round(length.metres)} m`} ${terrain}`);
+    track('run_needs_submit', `${runLength.kind === 'time' ? `${runLength.minutes} min` : `${Math.round(runLength.metres)} m`} ${runTerrain}`);
     setBusy(true);
     const inCountry = async (note: (country: string) => string, retry: boolean, problem: string) => {
       const code = await detectCountry();
@@ -120,7 +121,7 @@ export function useRunPlanner(host: RunPlannerHost) {
         showHint(askAgain(problem, 'plan'));
         return;
       }
-      start({ kind: 'area', bounds: area.bounds }, area.name, { title: `Routes in ${area.name}`, text: note(area.name), retry: retry ? 'plan' : null });
+      start({ kind: 'area', bounds: area.bounds }, area.name, { title: `Routes in ${area.name}`, text: note(area.name), retry: retry ? 'plan' : null }, runLength, runTerrain);
     };
     locate(
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
@@ -134,7 +135,7 @@ export function useRunPlanner(host: RunPlannerHost) {
             reach > first
               ? { title: 'Routes near you', text: `No routes within ${formatRadius(first, units)}, so these are ranked within ${formatRadius(reach, units)}.`, retry: null }
               : null;
-          start(at, 'Near you', widened);
+          start(at, 'Near you', widened, runLength, runTerrain);
           return;
         }
         const widest = formatRadius(NEAR_ME_RADII_M[NEAR_ME_RADII_M.length - 1], units);
@@ -145,22 +146,30 @@ export function useRunPlanner(host: RunPlannerHost) {
         void inCountry((country) => `${text} Ranking routes in ${country} instead.`, true, text);
       },
     );
-  }, [ready, length, terrain, routes, units, showHint, start]);
+  }, [ready, routes, units, showHint, start]);
 
-  /** Change one need: re-rank (the list follows) and re-frame straight away. */
+  /** "Where" picked (or asked again): rank with the current choices. */
+  const plan = useCallback(() => planFor(length, terrain), [planFor, length, terrain]);
+
+  /**
+   * Change one need. Once ranked, re-rank (the list follows) and re-frame
+   * straight away; before that, the choice itself starts the ranking.
+   */
   const setLength = useCallback(
     (next: RunLength) => {
       setLengthState(next);
       if (where) frameRun(needsFor(where.where, next, terrain));
+      else if (!busy) planFor(next, terrain);
     },
-    [where, terrain, frameRun],
+    [where, busy, terrain, frameRun, planFor],
   );
   const setTerrain = useCallback(
     (next: Terrain) => {
       setTerrainState(next);
       if (where) frameRun(needsFor(where.where, length, next));
+      else if (!busy) planFor(length, next);
     },
-    [where, length, frameRun],
+    [where, busy, length, frameRun, planFor],
   );
 
   /** Back to plain browsing, with the location dot as it was before planning. */

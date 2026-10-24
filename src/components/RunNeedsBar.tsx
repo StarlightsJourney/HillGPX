@@ -36,8 +36,8 @@ interface RunNeedsBarProps {
 
 /**
  * Routes mode's run planner: where, how long and what kind of run. Each has
- * a default, so "Rank routes" alone gives results; once ranked, changing a
- * choice re-ranks straight away and Clear goes back to plain browsing.
+ * a default, so choosing any one ranks the routes straight away; after that,
+ * changing a choice re-ranks and Clear goes back to plain browsing.
  */
 export function RunNeedsBar({ length, terrain, whereLabel, busy, onLength, onTerrain, onPlan, onClear }: RunNeedsBarProps) {
   const { units } = useUnits();
@@ -80,13 +80,9 @@ export function RunNeedsBar({ length, terrain, whereLabel, busy, onLength, onTer
           ))}
         </select>
       </label>
-      {planned ? (
+      {planned && (
         <button type="button" className="linkish run-needs-clear" onClick={onClear}>
           Clear
-        </button>
-      ) : (
-        <button type="button" className="btn btn-dark run-needs-go" onClick={onPlan} disabled={busy}>
-          Rank routes
         </button>
       )}
     </section>

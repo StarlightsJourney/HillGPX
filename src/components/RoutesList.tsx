@@ -9,8 +9,6 @@ import { routeActivity } from '../lib/routeAnalysis';
 import { useUnits } from './UnitsContext';
 import { DownloadIcon, HeartIcon, UploadIcon } from './icons';
 import { downloadRoute } from './VenueCard';
-import type { RouteMatch } from '../lib/routeMatch';
-import { MATCH_LABEL_TEXT, describeMiss, describeReasons } from '../lib/matchText';
 import { RouteBookmarkButton } from './RouteBookmarkButton';
 
 interface RoutesListProps {
@@ -23,10 +21,9 @@ interface RoutesListProps {
   onShowAll: (routes: Route[]) => void;
   /**
    * Set when the routes are ranked for a run (lib/routeMatch.ts): every
-   * ranked route is listed wherever the map is, each with its match label
-   * and reasons, under this heading.
+   * ranked route is listed, best first, wherever the map is, under this heading.
    */
-  ranking?: { matches: Map<string, RouteMatch>; title: string } | null;
+  ranking?: { title: string } | null;
   /** The Saved category is picked: an empty list says how to save a route. */
   savedOnly?: boolean;
 }
@@ -79,7 +76,6 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
         <ul className="results-grid">
           {rows.map((route, index) => {
             const region = route.country ?? regionOf(route.coordinates[0][0], route.coordinates[0][1]);
-            const match = ranking?.matches.get(route.slug);
             return (
               <li
                 key={route.slug}
@@ -88,11 +84,7 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
                 onMouseEnter={() => onHover(route.slug)}
                 onMouseLeave={() => onHover(null)}
               >
-                {match ? (
-                  <span className={`result-badge match-badge match-${match.label}`}>{MATCH_LABEL_TEXT[match.label]}</span>
-                ) : (
-                  <span className="result-badge">{routeDifficulty(route)}</span>
-                )}
+                <span className="result-badge">{routeDifficulty(route)}</span>
                 <RouteBookmarkButton route={route} variant="card" />
                 <button
                   type="button"
@@ -119,18 +111,9 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
                       </span>
                     )}
                   </span>
-                  {match ? (
-                    <>
-                      <span className="result-card-gain match-reasons">{describeReasons(match.reasons, units.units)}</span>
-                      {match.misses.length > 0 && (
-                        <span className="match-misses">{match.misses.map((miss) => describeMiss(miss, units.units)).join(' · ')}</span>
-                      )}
-                    </>
-                  ) : (
-                    <span className="result-card-gain">
-                      <strong>{units.distance(route.distanceM)}</strong> · <strong>{routeHasElevation(route) ? `${units.height(route.gainM)} EG` : 'Elevation unavailable'}</strong>
-                    </span>
-                  )}
+                  <span className="result-card-gain">
+                    <strong>{units.distance(route.distanceM)}</strong> · <strong>{routeHasElevation(route) ? `${units.height(route.gainM)} EG` : 'Elevation unavailable'}</strong>
+                  </span>
                 </button>
               </li>
             );

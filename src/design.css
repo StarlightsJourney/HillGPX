@@ -7155,32 +7155,9 @@
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
-.run-needs-go {
-  height: 40px;
-  padding: 0 18px;
-  font-size: 14px;
-}
 .run-needs-clear {
   margin-left: 4px;
   font-size: 14px;
-}
-
-/* Ranked cards: the match label takes the difficulty badge's place. */
-.match-badge.match-great {
-  background: var(--ink);
-  color: #fff;
-}
-.match-badge.match-partial {
-  color: var(--muted);
-}
-.match-reasons {
-  font-variant-numeric: tabular-nums;
-}
-.match-misses {
-  display: block;
-  margin-top: 2px;
-  color: var(--accent);
-  font-size: 13px;
 }
 
 /* ─── Route bookmarks (hearts on route cards, landing tiles and the panel) ── */

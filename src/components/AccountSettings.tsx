@@ -1,9 +1,9 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { changePassword, changeUsername, removeAvatar, uploadAvatar, type AuthUser } from '../lib/auth';
 import { errorText } from '../lib/api';
 import { DeleteAccountDialog } from './DeleteAccountDialog';
 import { CheckIcon } from './icons';
-import { Avatar, prepareAvatar } from './ProfileModal';
+import { Avatar, prepareAvatar } from './Avatar';
 
 const USERNAME_RE = /^[A-Za-z0-9_.-]{3,24}$/;
 
@@ -17,6 +17,21 @@ function usernameProblem(value: string, current: string): string | null {
   return null;
 }
 
+interface Drafts {
+  username: string | null;
+  currentPw: string;
+  newPw: string;
+}
+
+/**
+ * Drafts handed to the next mount. Leaving the page unmounts it, so when
+ * someone cancels the "unsaved changes" prompt the page is re-opened and picks
+ * its fields back up from here (read once, then cleared).
+ */
+let restoredDrafts: Drafts | null = null;
+
+const LEAVE_PROMPT = 'You have unsaved changes on this page. Leave without saving?';
+
 const PROVIDER_LABEL: Record<string, string> = { google: 'Google', email: 'Email and password' };
 
 /**
@@ -26,9 +41,14 @@ const PROVIDER_LABEL: Record<string, string> = { google: 'Google', email: 'Email
  */
 export function AccountSettings({ user }: { user: AuthUser }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [usernameDraft, setUsernameDraft] = useState<string | null>(null);
-  const [currentPw, setCurrentPw] = useState('');
-  const [newPw, setNewPw] = useState('');
+  const [start] = useState(() => {
+    const drafts = restoredDrafts;
+    restoredDrafts = null;
+    return drafts;
+  });
+  const [usernameDraft, setUsernameDraft] = useState<string | null>(start?.username ?? null);
+  const [currentPw, setCurrentPw] = useState(start?.currentPw ?? '');
+  const [newPw, setNewPw] = useState(start?.newPw ?? '');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<{ at: string; text: string } | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -40,6 +60,29 @@ export function AccountSettings({ user }: { user: AuthUser }) {
   const usernameChanged = username.trim() !== user.username;
   const newPwShort = newPw.length > 0 && newPw.length < 8;
   const methods = user.providers.map((provider) => PROVIDER_LABEL[provider] ?? provider);
+
+  // Unsaved edits: ask before a reload, tab close, or any move to another page.
+  const dirty = (usernameChanged || currentPw !== '' || newPw !== '') && !deleteOpen;
+  const latest = useRef<Drafts>({ username: usernameDraft, currentPw, newPw });
+  latest.current = { username: usernameDraft, currentPw, newPw };
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    const onHashChange = (event: HashChangeEvent) => {
+      if (window.confirm(LEAVE_PROMPT)) return;
+      restoredDrafts = latest.current;
+      window.location.replace(event.oldURL);
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener('hashchange', onHashChange);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      window.removeEventListener('hashchange', onHashChange);
+    };
+  }, [dirty]);
 
   const run = async (at: string, work: () => Promise<void>) => {
     setBusy(at);

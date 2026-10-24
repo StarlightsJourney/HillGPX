@@ -17,18 +17,28 @@ export function AccountPage() {
   const [authOpen, setAuthOpen] = useState(false);
   const [routes, setRoutes] = useState<MyUpload[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const userId = user?.id;
 
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
     fetchMyRoutes()
-      .then((rows) => !cancelled && setRoutes(rows))
+      .then((rows) => {
+        if (cancelled) return;
+        setRoutes(rows);
+        setError(null);
+      })
       .catch((err: unknown) => !cancelled && setError(errorText(err)));
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, attempt]);
+
+  const retry = () => {
+    setError(null);
+    setAttempt((n) => n + 1);
+  };
 
   return (
     <div className="info-page">
@@ -39,7 +49,7 @@ export function AccountPage() {
         </a>
         {user ? (
           <>
-            <AccountOverview user={user} routes={routes} error={error} />
+            <AccountOverview user={user} routes={routes} error={error} onRetry={retry} />
             <h2 className="acct-settings-title">Account settings</h2>
             <AccountSettings user={user} />
           </>

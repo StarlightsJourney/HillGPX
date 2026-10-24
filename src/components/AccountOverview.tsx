@@ -1,12 +1,13 @@
 import { useMemo } from 'react';
 import type { AuthUser, MyUpload } from '../lib/auth';
 import { openImportHere } from '../lib/contribute';
+import { openMapWith } from '../lib/mapIntent';
 import { loadFavorites } from '../lib/venues';
 import { useRouteBookmarks } from '../lib/useRouteBookmarks';
 import type { RouteActivity } from '../types';
 import { ActivityIcon } from './ActivityIcon';
 import { CheckIcon, HeartIcon, UploadIcon } from './icons';
-import { Avatar } from './ProfileModal';
+import { Avatar } from './Avatar';
 import { useUnits } from './UnitsContext';
 
 /** Rows shown here; the rest, and deleting, live on the My uploads page. */
@@ -39,6 +40,7 @@ interface OverviewProps {
   /** null while loading; an error leaves it null and sets `error`. */
   routes: MyUpload[] | null;
   error: string | null;
+  onRetry: () => void;
 }
 
 /**
@@ -46,7 +48,7 @@ interface OverviewProps {
  * back into your routes. This is what most visits are for, so it comes before
  * any settings.
  */
-export function AccountOverview({ user, routes, error }: OverviewProps) {
+export function AccountOverview({ user, routes, error, onRetry }: OverviewProps) {
   const units = useUnits();
   const since = memberSince(user.createdAt);
   const methods = user.providers.includes('google') ? 'Google' : 'Email';
@@ -83,22 +85,22 @@ export function AccountOverview({ user, routes, error }: OverviewProps) {
         <dl className="acct-stats">
           <div>
             <dt>Routes shared</dt>
-            <dd>{totals ? totals.count : '–'}</dd>
+            <dd>{totals ? totals.count : <span className="acct-skel acct-skel-stat" aria-hidden="true" />}</dd>
           </div>
           <div>
             <dt>Downloads</dt>
-            <dd>{totals ? totals.downloads.toLocaleString() : '–'}</dd>
+            <dd>{totals ? totals.downloads.toLocaleString() : <span className="acct-skel acct-skel-stat" aria-hidden="true" />}</dd>
           </div>
           <div>
             <dt>Total EG</dt>
-            <dd>{totals ? units.height(totals.gainM) : '–'}</dd>
+            <dd>{totals ? units.height(totals.gainM) : <span className="acct-skel acct-skel-stat" aria-hidden="true" />}</dd>
           </div>
         </dl>
       </section>
 
       <section className="acct-section" aria-labelledby="acct-routes-title">
         <div className="acct-section-head">
-          <h2 id="acct-routes-title">Your routes</h2>
+          <h2 id="acct-routes-title">My uploads</h2>
           {routes && routes.length > 0 && (
             <a className="acct-more" href="#uploads">
               {routes.length > ROUTES_SHOWN ? `See all ${routes.length}` : 'Manage'}
@@ -107,11 +109,20 @@ export function AccountOverview({ user, routes, error }: OverviewProps) {
         </div>
 
         {error && (
-          <p className="review-error" role="alert">
-            {error}
-          </p>
+          <div className="acct-error" role="alert">
+            <p className="review-error">{error}</p>
+            <button type="button" className="btn btn-light btn-sm" onClick={onRetry}>
+              Try again
+            </button>
+          </div>
         )}
-        {!routes && !error && <p className="acct-hint">Loading your routes…</p>}
+        {!routes && !error && (
+          <div className="acct-routes-skel" role="status" aria-label="Loading your routes">
+            {[0, 1].map((n) => (
+              <span key={n} className="acct-skel" aria-hidden="true" />
+            ))}
+          </div>
+        )}
 
         {routes && routes.length === 0 && (
           <div className="acct-empty">
@@ -169,11 +180,20 @@ export function AccountOverview({ user, routes, error }: OverviewProps) {
             <p>
               {savedRoutes} {savedRoutes === 1 ? 'route' : 'routes'} · {savedPlaces}{' '}
               {savedPlaces === 1 ? 'place' : 'places'}
-              <small>Find them under Saved on the map. They stay in this browser and do not follow you to other devices.</small>
+              <small>Open them on the map. They stay in this browser and do not follow you to other devices.</small>
             </p>
-            <a className="btn btn-light btn-sm" href="#routes">
-              Open map
-            </a>
+            <div className="acct-saved-actions">
+              {savedRoutes > 0 && (
+                <button type="button" className="btn btn-light btn-sm" onClick={() => openMapWith({ kind: 'saved', what: 'routes' })}>
+                  Saved routes
+                </button>
+              )}
+              {savedPlaces > 0 && (
+                <button type="button" className="btn btn-light btn-sm" onClick={() => openMapWith({ kind: 'saved', what: 'places' })}>
+                  Saved places
+                </button>
+              )}
+            </div>
           </div>
         )}
       </section>

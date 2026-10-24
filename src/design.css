@@ -7373,6 +7373,45 @@
   gap: var(--s2);
 }
 .acct-section-head h2,
+.acct-saved-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Placeholders sized like what replaces them, so the page does not jump. */
+.acct-skel {
+  display: block;
+  height: 60px;
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, #efefef 0%, #f7f7f7 40%, #efefef 80%) 0 0 / 200% 100%;
+  animation: shimmer 1.3s linear infinite;
+}
+.acct-skel-stat {
+  width: 3.5ch;
+  height: 1em;
+  border-radius: 6px;
+}
+.acct-routes-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.acct-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.acct-error p {
+  margin: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .acct-skel {
+    animation: none;
+  }
+}
+
 .acct-settings-title {
   margin: 0;
   font-size: var(--t4);
@@ -7515,7 +7554,7 @@
   border-radius: 10px;
   background: #fff;
   color: var(--ink);
-  font: 400 15px/1.2 var(--font-sans);
+  font: 400 16px/1.2 var(--font-sans);
 }
 .acct-input[aria-invalid='true'] {
   border-color: var(--danger);
@@ -7623,6 +7662,14 @@
   outline-offset: 2px;
 }
 @media (max-width: 520px) {
+  .acct .btn-sm,
+  .acct-dialog .btn,
+  .acct .profile-link {
+    min-height: 44px;
+  }
+  .acct .profile-link {
+    padding: 0 8px;
+  }
   .acct-identity,
   .acct-card {
     padding: var(--s2);

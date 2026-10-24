@@ -2,7 +2,9 @@
 
 Branded bodies for the emails Supabase Auth sends. They replace the default
 Supabase look (grey box, system font, "Follow this link") with the site's own
-voice: Figtree/Nunito, the gradient summit mark, one calm card on `#f7f7f7`.
+voice: Figtree/Nunito, an ink header band carrying the summit mark and
+wordmark, a real topographic strip of Bukit Timah fading into the card body,
+and the gradient accent button.
 
 ## Installing them
 
@@ -36,15 +38,19 @@ The template is only half of "doesn't look scammy". Also check:
   SMTP at a provider (Resend, SES, Postmark) sending from
   `noreply@hillgpx.com` with SPF/DKIM set on the domain; it lands in inboxes
   instead of spam folders.
-- **Logo**: the mark loads from `{{ .SiteURL }}/icons/icon-192.png` (PNG —
-  email clients don't render SVG). It renders once the deploy is serving that
-  path on hillgpx.com.
+- **Images**: the mark loads from `{{ .SiteURL }}/icons/icon-192.png` and the
+  header strip from `{{ .SiteURL }}/email/topo-strip.png` (PNGs — email clients
+  don't render SVG). Both ship with the site, so they render once the deploy is
+  serving them on hillgpx.com.
 
 ## Editing
 
 Layout is table-based with inline styles (what email clients need); the only
 `<style>` block is the Google Fonts import, which unsupported clients ignore.
-The button keeps a `bgcolor`/`background-color` fallback because Outlook drops
-gradients and rounded corners. Preview changes by rendering the file with the
-`{{ ... }}` variables replaced — there is no send-test button in the dashboard
-beyond going through a real sign-up or reset.
+The button and header band keep `bgcolor`/`background-color` fallbacks because
+Outlook drops gradients and rounded corners. The topo strip is baked by
+`python3 scripts/render_email_assets.py` from the landing hero's Bukit Timah
+tint and contour data into `public/email/topo-strip.png` — re-run it if the
+hero assets or the strip's look change, and commit the output. Preview changes
+by rendering the file with the `{{ ... }}` variables replaced — there is no
+send-test button in the dashboard beyond going through a real sign-up or reset.

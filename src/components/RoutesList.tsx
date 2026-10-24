@@ -7,8 +7,9 @@ import { RouteThumb } from './RouteThumb';
 import { ActivityTag } from './ActivityIcon';
 import { routeActivity } from '../lib/routeAnalysis';
 import { useUnits } from './UnitsContext';
-import { DownloadIcon, UploadIcon } from './icons';
+import { DownloadIcon, HeartIcon, UploadIcon } from './icons';
 import { downloadRoute } from './VenueCard';
+import { RouteBookmarkButton } from './RouteBookmarkButton';
 
 interface RoutesListProps {
   routes: Route[];
@@ -18,21 +19,26 @@ interface RoutesListProps {
   onHover: (slug: string | null) => void;
   onImport: () => void;
   onShowAll: (routes: Route[]) => void;
+  /**
+   * Set when the routes are ranked for a run (lib/routeMatch.ts): every
+   * ranked route is listed, best first, wherever the map is, under this heading.
+   */
+  ranking?: { title: string } | null;
+  /** The Saved category is picked: an empty list says how to save a route. */
+  savedOnly?: boolean;
 }
 
-function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onImport, onShowAll }: RoutesListProps) {
+/** Routes are shown in the order given: the map page decides it. */
+function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onImport, onShowAll, ranking = null, savedOnly = false }: RoutesListProps) {
   const units = useUnits();
   const inView = useMemo(
-    () => (bounds ? routes.filter((route) => routeIntersects(route, bounds)) : routes),
-    [routes, bounds],
+    () => (bounds && !ranking ? routes.filter((route) => routeIntersects(route, bounds)) : routes),
+    [routes, bounds, ranking],
   );
   // A route list that goes blank the moment you pan off the two places that
   // have routes reads as broken. Fall back to everything, and say so.
   const showingAll = inView.length === 0 && routes.length > 0;
-  const rows = useMemo(
-    () => [...(showingAll ? routes : inView)].sort((a, b) => b.gainM - a.gainM),
-    [showingAll, routes, inView],
-  );
+  const rows = showingAll ? routes : inView;
 
   return (
     <section className="results">
@@ -40,7 +46,7 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
         <div>
           <h2>
             {rows.length} route{rows.length === 1 ? '' : 's'}
-            {showingAll ? ' everywhere' : ' in this area'}
+            {ranking ? ` ${ranking.title}` : showingAll ? ' everywhere' : ' in this area'}
           </h2>
           {showingAll && (
             <p className="results-sub">
@@ -53,7 +59,13 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
         </div>
       </header>
 
-      {routes.length === 0 ? (
+      {routes.length === 0 && savedOnly ? (
+        <div className="empty-state">
+          <div className="empty-state-icon"><HeartIcon size={24} /></div>
+          <h3>No saved routes yet</h3>
+          <p>Tap the heart on a route to keep it here, on this device.</p>
+        </div>
+      ) : routes.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon"><UploadIcon size={24} /></div>
           <h3>No routes match</h3>
@@ -73,6 +85,7 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
                 onMouseLeave={() => onHover(null)}
               >
                 <span className="result-badge">{routeDifficulty(route)}</span>
+                <RouteBookmarkButton route={route} variant="card" />
                 <button
                   type="button"
                   className="result-action"

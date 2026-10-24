@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Marquee } from './Marquee';
+import { RouteBookmarkButton } from './RouteBookmarkButton';
 import type { Route, RoutePoint, Venue } from '../types';
 import { computeGain, totalDistanceM } from '../lib/elevation';
 import { routeHasElevation } from '../lib/routes';
@@ -241,6 +242,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           </InfoTip>
         </div>
         <div className="gpx-panel-actions">
+          <RouteBookmarkButton route={route} variant="panel" />
           <button type="button" className="gpx-icon-btn" onClick={() => downloadRoute(route)} aria-label="Download GPX" data-tip="Download GPX">
             <DownloadIcon size={15} />
           </button>

@@ -14,6 +14,7 @@ import { routeActivity } from '../lib/routeAnalysis';
 import { errorText } from '../lib/api';
 import { VenueThumb } from './VenueThumb';
 import { TrailHero } from './TrailHero';
+import { RouteBookmarkButton } from './RouteBookmarkButton';
 import { useUnits } from './UnitsContext';
 
 type Mode = 'climbs' | 'routes';
@@ -350,27 +351,30 @@ function RouteTile({ route, index }: { route: Route; index: number }) {
   const units = useUnits();
   const region = route.country ?? regionOf(route.coordinates[0][0], route.coordinates[0][1]);
   return (
-    <button
-      type="button"
-      className="tile"
-      style={{ '--i': index } as React.CSSProperties}
-      onClick={() => {
-        sessionStorage.setItem('hillgpx:pendingRoute', route.slug);
-        openMap('routes', '#routes');
-      }}
-    >
-      <span className="tile-media">
-        <RouteThumb route={route} />
-        <span className="tile-badge">{routeDifficulty(route)}</span>
-      </span>
-      <span className="tile-top">
-        <span className="tile-name">{route.name}</span>
-        <ActivityTag activity={routeActivity(route)} />
-      </span>
-      <span className="tile-meta">{[region, route.loop ? 'Loop' : 'Point to point'].filter(Boolean).join(' · ')}</span>
-      <span className="tile-meta">
-        <strong>{units.distance(route.distanceM)}</strong> · <strong>{routeHasElevation(route) ? `${units.height(route.gainM)} EG` : 'Elevation unavailable'}</strong>
-      </span>
-    </button>
+    <div className="tile-wrap">
+      <button
+        type="button"
+        className="tile"
+        style={{ '--i': index } as React.CSSProperties}
+        onClick={() => {
+          sessionStorage.setItem('hillgpx:pendingRoute', route.slug);
+          openMap('routes', '#routes');
+        }}
+      >
+        <span className="tile-media">
+          <RouteThumb route={route} />
+          <span className="tile-badge">{routeDifficulty(route)}</span>
+        </span>
+        <span className="tile-top">
+          <span className="tile-name">{route.name}</span>
+          <ActivityTag activity={routeActivity(route)} />
+        </span>
+        <span className="tile-meta">{[region, route.loop ? 'Loop' : 'Point to point'].filter(Boolean).join(' · ')}</span>
+        <span className="tile-meta">
+          <strong>{units.distance(route.distanceM)}</strong> · <strong>{routeHasElevation(route) ? `${units.height(route.gainM)} EG` : 'Elevation unavailable'}</strong>
+        </span>
+      </button>
+      <RouteBookmarkButton route={route} variant="card" />
+    </div>
   );
 }

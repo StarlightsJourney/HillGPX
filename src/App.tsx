@@ -8,7 +8,11 @@ import { FilterBar, type BrowseMode } from './components/FilterBar';
 import { VenueDetail, VenueDetailSkeleton } from './components/VenueDetail';
 import { RoutesList } from './components/RoutesList';
 import { RoutePanel } from './components/RoutePanel';
-import { NO_ROUTE_FILTERS, filterRoutes, linkVenues, routesBounds, routesNear, routesWithin, routeIntersects, type RouteFilters } from './lib/routes';
+import { RunNeedsBar } from './components/RunNeedsBar';
+import { useRouteBookmarks } from './lib/useRouteBookmarks';
+import { useRunPlanner } from './lib/useRunPlanner';
+import { askAgain, locate, locationProblemText, type LocateHint } from './lib/geolocation';
+import { NEAR_ME_RADII_M, NO_ROUTE_FILTERS, filterRoutes, linkVenues, routesBounds, routesNear, routesWithin, routeIntersects, type RouteFilters } from './lib/routes';
 import { boundsFromHash } from './lib/regions';
 import { ElevationModel } from './lib/elevation';
 import {
@@ -23,6 +27,7 @@ import {
   routesForVenue,
   tallestWithin,
   venuesInBounds,
+  withPoint,
   type Bounds,
   type Dataset,
   type VenueFilters,
@@ -164,32 +169,12 @@ function boundsChangedMeaningfully(
 }
 
 /**
- * "Routes near me" looks this far, widening a step at a time until it finds
- * routes (then the country, see handleLocate), and shows at most this many.
+ * "Routes near me" looks NEAR_ME_RADII_M far, widening a step at a time until
+ * it finds routes (then the country, see handleLocate), and shows at most this many.
  */
-const NEAR_ME_RADII_M = [10_000, 50_000];
 const NEARBY_ROUTES = 8;
 /** A summit picked in search opens on the routes passing this close to it. */
 const PLACE_ROUTE_RADIUS_M = 10_000;
-
-interface LocateHint {
-  title: string;
-  text: string;
-  retry: boolean;
-}
-
-/** A location problem: tapping the card asks again. */
-const askAgain = (text: string): LocateHint => ({ title: 'Share your location', text, retry: true });
-
-/** A box grown just enough to take in one more point. */
-function withPoint(box: Bounds, point: { lng: number; lat: number }): Bounds {
-  return {
-    west: Math.min(box.west, point.lng),
-    south: Math.min(box.south, point.lat),
-    east: Math.max(box.east, point.lng),
-    north: Math.max(box.north, point.lat),
-  };
-}
 
 function MapApp() {
   const [dataset, setDataset] = useState<Dataset | null>(null);
@@ -429,7 +414,8 @@ function MapApp() {
     () => [...(dataset?.routes ?? []), ...communityRoutes, ...localRoutes],
     [dataset, communityRoutes, localRoutes],
   );
-  const filteredRoutes = useMemo(() => filterRoutes(allRoutes, routeFilters), [allRoutes, routeFilters]);
+  const routeBookmarks = useRouteBookmarks();
+  const filteredRoutes = useMemo(() => filterRoutes(allRoutes, routeFilters, routeBookmarks), [allRoutes, routeFilters, routeBookmarks]);
   const selectedRoute = selectedRouteSlug ? allRoutes.find((route) => route.slug === selectedRouteSlug) ?? null : null;
 
   // A dropped GPX wins the map over a stored route — it is what you just did.
@@ -703,7 +689,7 @@ function MapApp() {
       const area = code ? await countryArea(code) : null;
       if (!area) return false;
       const hasRoutes = filteredRoutes.some((route) => routeIntersects(route, area.bounds));
-      const hint = { title: hasRoutes ? `Routes in ${area.name}` : `Climbs in ${area.name}`, text: note(area.name, hasRoutes ? 'routes' : 'climbs'), retry: !here };
+      const hint: LocateHint = { title: hasRoutes ? `Routes in ${area.name}` : `Climbs in ${area.name}`, text: note(area.name, hasRoutes ? 'routes' : 'climbs'), retry: here ? null : 'near-me' };
       if (hasRoutes) {
         showNearbyRoutes(area.bounds, here, hint);
       } else {
@@ -728,7 +714,7 @@ function MapApp() {
         setLocateHint({
           title: 'Nothing mapped near you yet',
           text: `The nearest mapped climb is about ${Math.round(gapM / 1000)} km away. Know a hill near you? Add it with Add a GPX.`,
-          retry: false,
+          retry: null,
         });
         setFocus({ ...here, nonce: Date.now() });
         return;
@@ -759,19 +745,15 @@ function MapApp() {
         if (!shown) setLocateHint(askAgain(problem));
       });
     };
-    if (!navigator.geolocation) {
-      fallBack('This browser does not share its location.');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const here = { lng: pos.coords.longitude, lat: pos.coords.latitude };
+    locate(
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+      (here) => {
         const [first, widest] = [NEAR_ME_RADII_M[0], NEAR_ME_RADII_M[NEAR_ME_RADII_M.length - 1]];
         const hit = routesWithin(filteredRoutes, here.lng, here.lat, NEAR_ME_RADII_M, NEARBY_ROUTES);
         if (hit) {
           const box = routesBounds(hit.routes);
           const widened = hit.radiusM > first
-            ? { title: 'Routes near you', text: `No routes within ${formatRadius(first, units.units)}, so these are the closest within ${formatRadius(hit.radiusM, units.units)}.`, retry: false }
+            ? { title: 'Routes near you', text: `No routes within ${formatRadius(first, units.units)}, so these are the closest within ${formatRadius(hit.radiusM, units.units)}.`, retry: null }
             : null;
           if (box) showNearbyRoutes(withPoint(box, here), here, widened);
           return;
@@ -783,17 +765,37 @@ function MapApp() {
           if (!shown) showNearbyClimbs(here);
         });
       },
-      (err) =>
-        fallBack(
-          err.code === err.PERMISSION_DENIED
-            ? 'Allow location to see routes near you.'
-            : err.code === err.TIMEOUT
-              ? 'Your location took too long to arrive.'
-              : 'Could not get your location.',
-        ),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+      (problem) => fallBack(locationProblemText(problem, 'Allow location to see routes near you.')),
     );
   }, [allVenues, filteredRoutes, units.units, showCountry, showNearbyRoutes, showNearbyClimbs]);
+
+  const frameBounds = useCallback((bounds: Bounds) => setFocusBounds({ bounds, nonce: Date.now() }), []);
+  const openRoutesMode = useCallback(() => {
+    setMode('routes');
+    setSelectedSlug(null);
+    setActiveRouteSlug(null);
+    setSelectedRouteSlug(null);
+    setSpotlight(null);
+  }, []);
+  const planner = useRunPlanner({
+    routes: filteredRoutes,
+    units: units.units,
+    ready: dataset != null,
+    userLocation,
+    setUserLocation,
+    showHint: setLocateHint,
+    frame: frameBounds,
+    openRoutes: openRoutesMode,
+  });
+  const { noteOpened } = planner;
+  /** Open a route from the list or a map pin. */
+  const openRoute = useCallback(
+    (slug: string | null) => {
+      noteOpened(slug);
+      selectRoute(slug);
+    },
+    [noteOpened, selectRoute],
+  );
 
   // A search or "near me" from a page without the map (mapIntent.ts) runs once
   // the routes it chooses between have loaded. On the map page itself (the
@@ -843,7 +845,14 @@ function MapApp() {
           }}
           routes={allRoutes}
           routeFilters={routeFilters}
-          onRouteFiltersChange={setRouteFilters}
+          onRouteFiltersChange={(next) => {
+            // Bookmarked routes can be anywhere: frame them all when Saved is picked.
+            if (next.category === 'saved' && routeFilters.category !== 'saved') {
+              const bounds = routesBounds(allRoutes.filter((route) => routeBookmarks.has(route.slug)));
+              if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
+            }
+            setRouteFilters(next);
+          }}
         />
         </div>
         </div>
@@ -868,15 +877,29 @@ function MapApp() {
             />
           )}
           {dataset && mode === 'routes' && (
+            <>
+            <RunNeedsBar
+              length={planner.length}
+              terrain={planner.terrain}
+              whereLabel={planner.whereLabel}
+              busy={planner.busy}
+              onLength={planner.setLength}
+              onTerrain={planner.setTerrain}
+              onPlan={planner.plan}
+              onClear={planner.clear}
+            />
             <RoutesList
-              routes={filteredRoutes}
+              routes={planner.listedRoutes}
+              ranking={planner.ranking}
+              savedOnly={routeFilters.category === 'saved'}
               bounds={viewport}
               selectedSlug={selectedRouteSlug}
-              onSelect={selectRoute}
+              onSelect={openRoute}
               onHover={setHoveredRouteSlug}
               onImport={openImport}
               onShowAll={frameRoutes}
             />
+            </>
           )}
         </div>
 
@@ -892,11 +915,11 @@ function MapApp() {
           <div className="map-wrap">
             <Suspense fallback={<div className="map-skeleton"><div className="map-skeleton-pulse" /></div>}>
               {mapNeeded && <MapView
-                allRoutes={mode === 'routes' ? filteredRoutes : allRoutes}
+                allRoutes={mode === 'routes' ? planner.listedRoutes : allRoutes}
                 mode={mode}
                 selectedRouteSlug={selectedRouteSlug}
                 hoveredRouteSlug={hoveredRouteSlug}
-                onSelectRoute={selectRoute}
+                onSelectRoute={openRoute}
                 onHoverRoute={setHoveredRouteSlug}
                 venues={mode === 'routes' ? NO_VENUES : venues}
                 selectedSlug={selectedSlug}
@@ -950,7 +973,7 @@ function MapApp() {
             {mapError && <div className="map-error small">The map failed to load: {mapError}</div>}
 
             {locateHint && (
-              <div className={`locate-hint${locateHint.retry ? ' retry' : ''}`} role="status" onClick={locateHint.retry ? handleLocate : undefined}>
+              <div className={`locate-hint${locateHint.retry ? ' retry' : ''}`} role="status" onClick={locateHint.retry === 'plan' ? planner.plan : locateHint.retry === 'near-me' ? handleLocate : undefined}>
                 <span className="locate-hint-icon" aria-hidden="true">
                   <LocationArrowIcon size={22} />
                 </span>

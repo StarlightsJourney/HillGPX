@@ -7,7 +7,7 @@ import type { Bounds } from './venues';
  * Quick route categories, shown as the icon row in routes mode. Each is a
  * question the route data can answer on its own — no invented tags.
  */
-export type RouteCategory = 'all' | RouteActivity | 'saved';
+export type RouteCategory = 'all' | RouteActivity | 'saved' | 'device';
 
 /** Same number of slots as the climbs bar, so switching modes does not shift the icons. */
 export const ROUTE_CATEGORIES: { id: RouteCategory; label: string; shortLabel: string }[] = [
@@ -15,7 +15,8 @@ export const ROUTE_CATEGORIES: { id: RouteCategory; label: string; shortLabel: s
   { id: 'run', label: 'Road runs', shortLabel: 'Run' },
   { id: 'trail', label: 'Trails', shortLabel: 'Trail' },
   { id: 'cycle', label: 'Cycling', shortLabel: 'Cycle' },
-  { id: 'saved', label: 'On this device', shortLabel: 'Saved' },
+  { id: 'saved', label: 'Saved', shortLabel: 'Saved' },
+  { id: 'device', label: 'On this device', shortLabel: 'Device' },
 ];
 
 export interface RouteFilters {
@@ -30,7 +31,8 @@ export function routeHasElevation(route: Route): boolean {
   return route.elevationAvailable !== false;
 }
 
-export function filterRoutes(routes: Route[], filters: RouteFilters): Route[] {
+/** `bookmarks` are the hearted route slugs ("Saved"); "On this device" is GPX files saved locally. */
+export function filterRoutes(routes: Route[], filters: RouteFilters, bookmarks: ReadonlySet<string> = new Set()): Route[] {
   return routes.filter((route) => {
     if (filters.minGainM != null && route.gainM < filters.minGainM) return false;
     if (filters.maxDistanceM != null && route.distanceM > filters.maxDistanceM) return false;
@@ -40,6 +42,8 @@ export function filterRoutes(routes: Route[], filters: RouteFilters): Route[] {
       case 'cycle':
         return routeActivity(route) === filters.category;
       case 'saved':
+        return bookmarks.has(route.slug);
+      case 'device':
         return route.source === 'local';
       default:
         return true;
@@ -80,8 +84,58 @@ export function routesBounds(routes: Route[]): Bounds | null {
   };
 }
 
+/**
+ * How far "near me" looks around a point, a step at a time until it finds
+ * routes: Routes near me (App.tsx) and the run planner (routeMatch.ts).
+ */
+export const NEAR_ME_RADII_M = [10_000, 50_000];
+
+/** Further than this from a route, a runner is not on it. */
+export const ON_ROUTE_MAX_M = 200;
+
+export interface NearestPoint {
+  /** Index into `route.coordinates` of the route point nearest the position. */
+  index: number;
+  /** How far the position is from the route's line, in metres. */
+  distanceM: number;
+  /** Within `ON_ROUTE_MAX_M` of the route. */
+  onRoute: boolean;
+}
+
+/**
+ * The point on a route nearest a position (a runner's GPS fix). Distance is
+ * measured to the route's line, so a runner between two far-apart points is
+ * still on it; the index is whichever end of that stretch is closer, so it
+ * can drive a slider over the route's points.
+ */
+export function nearestPointOnRoute(route: Route, lng: number, lat: number): NearestPoint {
+  const pts = route.coordinates;
+  // Local flat projection in metres around the position: fine at trail scale.
+  const mPerLat = 111_320;
+  const mPerLng = mPerLat * Math.cos((lat * Math.PI) / 180);
+  const xy = (i: number): [number, number] => [(pts[i][0] - lng) * mPerLng, (pts[i][1] - lat) * mPerLat];
+  let best: NearestPoint = { index: 0, distanceM: Infinity, onRoute: false };
+  if (pts.length === 0) return best;
+  if (pts.length === 1) {
+    const d = haversineM(lng, lat, pts[0][0], pts[0][1]);
+    return { index: 0, distanceM: d, onRoute: d <= ON_ROUTE_MAX_M };
+  }
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = xy(i - 1);
+    const [bx, by] = xy(i);
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    // Fraction along the stretch of the foot of the perpendicular from the origin (the runner).
+    const t = len2 > 0 ? Math.min(1, Math.max(0, -(ax * dx + ay * dy) / len2)) : 0;
+    const d = Math.hypot(ax + t * dx, ay + t * dy);
+    if (d < best.distanceM) best = { index: t < 0.5 ? i - 1 : i, distanceM: d, onRoute: false };
+  }
+  return { ...best, onRoute: best.distanceM <= ON_ROUTE_MAX_M };
+}
+
 /** Closest approach of a route to a point, in metres. */
-function distanceToRouteM(route: Route, lng: number, lat: number): number {
+export function distanceToRouteM(route: Route, lng: number, lat: number): number {
   let best = Infinity;
   for (const [pLng, pLat] of route.coordinates) {
     const d = haversineM(lng, lat, pLng, pLat);

@@ -8,6 +8,7 @@ import { FilterBar, type BrowseMode } from './components/FilterBar';
 import { VenueDetail, VenueDetailSkeleton } from './components/VenueDetail';
 import { RoutesList } from './components/RoutesList';
 import { RoutePanel } from './components/RoutePanel';
+import { useRouteBookmarks } from './lib/useRouteBookmarks';
 import { NO_ROUTE_FILTERS, filterRoutes, linkVenues, routesBounds, routesNear, routesWithin, routeIntersects, type RouteFilters } from './lib/routes';
 import { boundsFromHash } from './lib/regions';
 import { ElevationModel } from './lib/elevation';
@@ -429,7 +430,8 @@ function MapApp() {
     () => [...(dataset?.routes ?? []), ...communityRoutes, ...localRoutes],
     [dataset, communityRoutes, localRoutes],
   );
-  const filteredRoutes = useMemo(() => filterRoutes(allRoutes, routeFilters), [allRoutes, routeFilters]);
+  const routeBookmarks = useRouteBookmarks();
+  const filteredRoutes = useMemo(() => filterRoutes(allRoutes, routeFilters, routeBookmarks), [allRoutes, routeFilters, routeBookmarks]);
   const selectedRoute = selectedRouteSlug ? allRoutes.find((route) => route.slug === selectedRouteSlug) ?? null : null;
 
   // A dropped GPX wins the map over a stored route — it is what you just did.
@@ -843,7 +845,14 @@ function MapApp() {
           }}
           routes={allRoutes}
           routeFilters={routeFilters}
-          onRouteFiltersChange={setRouteFilters}
+          onRouteFiltersChange={(next) => {
+            // Bookmarked routes can be anywhere: frame them all when Saved is picked.
+            if (next.category === 'bookmarked' && routeFilters.category !== 'bookmarked') {
+              const bounds = routesBounds(allRoutes.filter((route) => routeBookmarks.has(route.slug)));
+              if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
+            }
+            setRouteFilters(next);
+          }}
         />
         </div>
         </div>

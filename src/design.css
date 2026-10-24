@@ -2223,14 +2223,27 @@
 }
 .profile-link {
   padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
   color: var(--ink);
   font-size: 14px;
   font-weight: 600;
+  text-align: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
+  cursor: pointer;
 }
 .profile-link:hover {
   color: #000;
+}
+.profile-link:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+.profile-link:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
 }
 .profile-link.danger {
   align-self: flex-start;

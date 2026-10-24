@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { prefersReducedMotion } from '../lib/dom';
+import { openImportHere } from '../lib/contribute';
 import { openMapWith } from '../lib/mapIntent';
-import { LocateIcon, MapIcon } from './icons';
+import { LocateIcon, SearchIcon, UploadIcon } from './icons';
+import { focusSiteSearch } from './SearchBar';
 
 /**
  * Where each step sits on the drawn trail, in the SVG's 1000 × 140 box: x as
@@ -95,8 +97,18 @@ function useParallax() {
 }
 
 /**
+ * "Search by Region": back to the top and into the header search, with its
+ * suggestions open. The focus happens in this same click, so phones open the
+ * keyboard; the scroll is instant under reduced motion.
+ */
+function searchByRegion() {
+  window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  focusSiteSearch();
+}
+
+/**
  * The landing page's hero, shown on every visit: one line of promise, what
- * the site is, the two ways in, and how it works as three steps on a trail
+ * the site is, three ways in (near me, search, upload), and how it works as three steps on a trail
  * that draws itself from the start to the summit. On phones the trail turns
  * into a vertical line down the steps. Under reduced motion it is drawn
  * already. Behind it all, a live topographic map of Bukit Timah (HeroMap).
@@ -118,9 +130,13 @@ export function TrailHero() {
             <LocateIcon size={16} />
             Routes near me
           </button>
-          <a className="btn btn-light" href="#map">
-            <MapIcon size={16} />
-            Browse the map
+          <button type="button" className="btn btn-light" onClick={searchByRegion}>
+            <SearchIcon size={16} />
+            Search by Region
+          </button>
+          <a className="btn btn-light" href="#import" onClick={openImportHere}>
+            <UploadIcon size={16} />
+            Upload GPX
           </a>
         </div>
 

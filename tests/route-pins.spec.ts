@@ -39,7 +39,7 @@ test('zoomed out to a country, routes are start pins and clusters; a cluster zoo
   await dismissNotice(page);
   await expect(page.locator('.route-item').first()).toBeVisible({ timeout: 15_000 });
   await page.getByLabel('Search countries, hills, blocks and streets').fill('malaysia');
-  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.locator('.mode-tab.on')).toHaveText('Routes');
 
   // Singapore's starts merge into one pill with a count; none has a pin of its own.

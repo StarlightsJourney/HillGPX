@@ -11,7 +11,7 @@ import { errorText } from '../lib/api';
 import { Modal } from './Modal';
 
 /** Centre-crop to a square and resize to 256 px JPEG — small enough for any use. */
-async function prepareAvatar(file: File): Promise<Blob> {
+export async function prepareAvatar(file: File): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   const side = Math.min(bitmap.width, bitmap.height);
   const canvas = document.createElement('canvas');
@@ -24,7 +24,7 @@ async function prepareAvatar(file: File): Promise<Blob> {
   );
 }
 
-function Avatar({ url, username, size = 72 }: { url: string | null; username: string; size?: number }) {
+export function Avatar({ url, username, size = 72 }: { url: string | null; username: string; size?: number }) {
   return url ? (
     <img className="profile-avatar" src={url} alt="" width={size} height={size} />
   ) : (

@@ -7109,12 +7109,44 @@
 /* Where · How long · What kind, as chips over the route list. The selects sit
    inside the chip so they read as one pill and keep native keyboard and
    screen-reader behaviour. */
+/* It sits above .results, outside its padding, so it carries the same side
+   gutters at each width; the list's own top padding spaces it from the heading.
+   One row: on a phone it scrolls sideways instead of wrapping. */
 .run-needs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
-  margin-bottom: 20px;
+  padding: var(--s2) var(--s2) 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.run-needs::-webkit-scrollbar {
+  display: none;
+}
+@media (min-width: 900px) {
+  .run-needs {
+    padding: 24px 40px 0;
+  }
+}
+@media (max-width: 743px) {
+  .run-needs .run-need {
+    height: 36px;
+    font-size: 13px;
+  }
+  .run-needs .run-need:not(.run-need-select) {
+    padding: 0 12px;
+  }
+  .run-needs .run-need-select select {
+    padding: 0 28px 0 12px;
+  }
+  .run-needs .run-need-select::after {
+    right: 12px;
+  }
+}
+/* Size each select to its chosen option, not its longest one, where supported. */
+.run-need-select select {
+  field-sizing: content;
 }
 .run-need svg {
   flex: none;
@@ -7156,8 +7188,10 @@
   outline-offset: 2px;
 }
 .run-needs-clear {
+  flex: none;
   margin-left: 4px;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 /* ─── Route bookmarks (hearts on route cards, landing tiles and the panel) ── */

@@ -27,6 +27,7 @@ import { VenueCard } from '../components/VenueCard';
 import {
   addAllRouteLayers,
   addRouteLayers,
+  addRouteStartSource,
   addVenueLayers,
   animateActiveRoute,
   routesToGeoJson,
@@ -585,6 +586,7 @@ export function MapView({
         (map.getSource('user-location') as GeoJSONSource).setData(userLocationFeature(loc.lng, loc.lat));
       }
       addAllRouteLayers(map, routesToGeoJson(allRoutesRef.current));
+      addRouteStartSource(map);
       addRouteLayers(map);
       markersRef.current = new VenueMarkers(map, {
         onSelect: (slug) => onSelectRef.current(slug),
@@ -593,6 +595,12 @@ export function MapView({
       routeMarkersRef.current = new RouteMarkers(map, {
         onSelect: (slug) => onSelectRouteRef.current(slug),
         onHover: (slug) => onHoverRouteRef.current(slug),
+        onCluster: (center, zoom) => {
+          // A tap is the person taking the camera, like a pan.
+          lastFrameRef.current = null;
+          releaseGeolocate(map);
+          map.easeTo({ center, zoom: Math.max(zoom, map.getZoom() + 1), duration: 600 });
+        },
       });
       refreshMarkersRef.current(true);
       setReady(true);

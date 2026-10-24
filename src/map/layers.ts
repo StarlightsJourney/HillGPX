@@ -74,6 +74,25 @@ const HOT: ExpressionSpecification = [
   ['boolean', ['feature-state', 'selected'], false],
 ];
 
+/**
+ * Below this zoom every route is a start pin (clustered) rather than a line:
+ * a country's worth of traces is a tangle nobody can read. Zoom 10 is about a
+ * city on screen, where a route is long enough to read as a shape and few
+ * enough overlap. The hovered and open route stay drawn at every zoom.
+ */
+export const ROUTE_LINE_MIN_ZOOM = 10;
+/** Pins cluster up to here, so from ROUTE_LINE_MIN_ZOOM on every route stands alone. */
+const ROUTE_CLUSTER_MAX_ZOOM = ROUTE_LINE_MIN_ZOOM - 1;
+
+/**
+ * Resting lines are hidden below ROUTE_LINE_MIN_ZOOM and fade in over the next
+ * half level; hover and selection show at every zoom. Fading in above the
+ * threshold, not below it, keeps a whole-Singapore view (about 9.7) clean.
+ */
+function zoomedOutHidden(resting: ExpressionSpecification | number): ExpressionSpecification {
+  return ['interpolate', ['linear'], ['zoom'], ROUTE_LINE_MIN_ZOOM, ['case', HOT, 1, 0], ROUTE_LINE_MIN_ZOOM + 0.5, resting];
+}
+
 export function routesToGeoJson(routes: Route[]): FeatureCollection {
   return {
     type: 'FeatureCollection',
@@ -102,7 +121,7 @@ export function addAllRouteLayers(map: MlMap, data: FeatureCollection): void {
     paint: {
       'line-color': '#ffffff',
       'line-width': ['interpolate', ['linear'], ['zoom'], 6, 3, 12, 6, 16, 9],
-      'line-opacity': ['case', hot, 1, 0.85],
+      'line-opacity': zoomedOutHidden(['case', hot, 1, 0.85]),
     },
   });
   map.addLayer({
@@ -114,7 +133,7 @@ export function addAllRouteLayers(map: MlMap, data: FeatureCollection): void {
     paint: {
       'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#c1502e', hot, '#222222', '#3f3f3f'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 6, ['case', hot, 3, 1.6], 12, ['case', hot, 4.5, 2.6], 16, ['case', hot, 6, 3.5]],
-      'line-opacity': ['case', hot, 1, 0.7],
+      'line-opacity': zoomedOutHidden(['case', hot, 1, 0.7]),
     },
   });
   // Routes that share ground with the one being viewed: dashed, so the open
@@ -132,11 +151,13 @@ export function addAllRouteLayers(map: MlMap, data: FeatureCollection): void {
       'line-offset': 4,
     },
   });
-  // A fat invisible line under the visible one, so a 2 px trace is still easy to hover and click.
+  // A fat invisible line under the visible one, so a 2 px trace is still easy
+  // to hover and click. Only where the lines show: below that the pins take taps.
   map.addLayer({
     id: 'routes-hit',
     type: 'line',
     source: 'routes',
+    minzoom: ROUTE_LINE_MIN_ZOOM,
     paint: { 'line-color': '#000000', 'line-width': 16, 'line-opacity': 0 },
   });
 }
@@ -155,7 +176,48 @@ export function setOverlapRoutes(map: MlMap, slugs: string[]): void {
 /** How strongly routes read against the venue pills in each mode. */
 export function setRouteEmphasis(map: MlMap, strong: boolean): void {
   if (!map.getLayer('routes-line')) return;
-  map.setPaintProperty('routes-line', 'line-opacity', ['case', HOT, 1, strong ? 0.85 : 0.45]);
+  map.setPaintProperty('routes-line', 'line-opacity', zoomedOutHidden(['case', HOT, 1, strong ? 0.85 : 0.45]));
+}
+
+/** Where each route starts, for the start pins. */
+export function routeStartsToGeoJson(routes: Route[]): FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: routes
+      .filter((route) => route.coordinates.length > 0)
+      .map((route) => ({
+        type: 'Feature' as const,
+        properties: { slug: route.slug },
+        geometry: { type: 'Point' as const, coordinates: [route.coordinates[0][0], route.coordinates[0][1]] },
+      })),
+  };
+}
+
+/**
+ * The clustered source behind the route start pins. The pins themselves are
+ * HTML (RouteMarkers); this only decides which starts stand alone and which
+ * merge into a count. Its one layer is invisible: a source only builds tiles,
+ * and so only answers querySourceFeatures, while a layer uses it.
+ */
+export function addRouteStartSource(map: MlMap): void {
+  map.addSource('route-starts', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+    cluster: true,
+    // Wider than the default 50, so neighbouring "12 routes" pills overlap less.
+    clusterRadius: 60,
+    clusterMaxZoom: ROUTE_CLUSTER_MAX_ZOOM,
+  });
+  map.addLayer({
+    id: 'route-starts-probe',
+    type: 'circle',
+    source: 'route-starts',
+    paint: { 'circle-radius': 1, 'circle-opacity': 0, 'circle-stroke-opacity': 0 },
+  });
+}
+
+export function setRouteStarts(map: MlMap, routes: Route[]): void {
+  (map.getSource('route-starts') as GeoJSONSource | undefined)?.setData(routeStartsToGeoJson(routes));
 }
 
 export function addRouteLayers(map: MlMap): void {

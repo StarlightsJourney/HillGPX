@@ -2,7 +2,7 @@ import kluangGpx from '../../data/routes/kluang-district-trail-run.gpx?raw';
 import ridgesGpx from '../../data/routes/southern-ridges-walk.gpx?raw';
 import { describe, expect, it } from 'vitest';
 import { parseGpx } from './gpx';
-import { NO_ROUTE_FILTERS, filterRoutes, nearestPointOnRoute, routeFromPoints, routesBounds, routesNear, routesWithin } from './routes';
+import { NO_ROUTE_FILTERS, filterRoutes, mixByDifficulty, nearestPointOnRoute, routeFromPoints, routesBounds, routesNear, routesWithin } from './routes';
 
 const kluang = routeFromPoints('Kluang', parseGpx(kluangGpx).points, []);
 const ridges = routeFromPoints('Southern Ridges', parseGpx(ridgesGpx).points, []);
@@ -105,5 +105,43 @@ describe('nearestPointOnRoute', () => {
     expect(nearestPointOnRoute(ridges, 103.762600, 1.298850).index).toBe(0);
     expect(nearestPointOnRoute(ridges, 103.821551, 1.265829).index).toBe(879);
     expect(nearestPointOnRoute(ridges, 103.821650, 1.265750).index).toBe(879);
+  });
+});
+
+describe('mixByDifficulty', () => {
+  const make = (slug: string, difficulty: 'easy' | 'moderate' | 'hard', gainM: number) => ({ ...kluang, slug, difficulty, gainM });
+  const slugs = (list: { slug: string }[]) => list.map((r) => r.slug);
+
+  it('takes two per level in turn, most EG first within a level', () => {
+    const pool = [
+      make('e1', 'easy', 10), make('e2', 'easy', 30), make('e3', 'easy', 20),
+      make('m1', 'moderate', 50), make('m2', 'moderate', 80), make('m3', 'moderate', 60),
+      make('h1', 'hard', 200), make('h2', 'hard', 300), make('h3', 'hard', 100),
+      // No stored difficulty: 9,000 m of EG scores Brutal.
+      { ...kluang, slug: 'b1', difficulty: undefined, gainM: 9_000 },
+    ];
+    expect(slugs(mixByDifficulty(pool))).toEqual(['e2', 'e3', 'm2', 'm3', 'h2', 'h1', 'b1', 'e1', 'm1', 'h3']);
+  });
+
+  it('skips empty levels', () => {
+    const pool = [make('h1', 'hard', 100), make('m1', 'moderate', 10), make('h2', 'hard', 200), make('m2', 'moderate', 20)];
+    expect(slugs(mixByDifficulty(pool))).toEqual(['m2', 'm1', 'h2', 'h1']);
+  });
+
+  it('keeps the pattern when a level runs out mid-cycle', () => {
+    const pool = [
+      make('e1', 'easy', 10),
+      make('m1', 'moderate', 10), make('m2', 'moderate', 20), make('m3', 'moderate', 30),
+      make('h1', 'hard', 10), make('h2', 'hard', 20), make('h3', 'hard', 30), make('h4', 'hard', 40), make('h5', 'hard', 50),
+    ];
+    expect(slugs(mixByDifficulty(pool))).toEqual(['e1', 'm3', 'm2', 'h5', 'h4', 'm1', 'h3', 'h2', 'h1']);
+  });
+
+  it('lists every route exactly once', () => {
+    const pool = [make('a', 'easy', 5), make('b', 'hard', 5), make('c', 'hard', 5), make('d', 'hard', 5), make('e', 'moderate', 5)];
+    const mixed = slugs(mixByDifficulty(pool));
+    expect(mixed).toHaveLength(pool.length);
+    expect(new Set(mixed)).toEqual(new Set(slugs(pool)));
+    expect(mixByDifficulty([])).toEqual([]);
   });
 });

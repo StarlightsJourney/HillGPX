@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { loadAuthor } from './api';
 import { changeUsername, deleteMyRoute, fetchMyRoutes, logIn, logOut, resendConfirmation, resetPasswordForEmail, signUp, useAuthUser } from './auth';
 
 const USER = {
@@ -37,13 +36,14 @@ afterEach(() => {
 });
 
 describe('auth', () => {
-  it('signs up, stores the session and fills an empty contributor name', async () => {
+  it('signs up, stores the session and mirrors the profile username', async () => {
     const fetchMock = mockApi({ '/auth/v1/signup': () => json(SESSION, 200) });
     vi.stubGlobal('fetch', fetchMock);
     await signUp('RidgeRunner', 'r@x.com', 'password123');
     const signupCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/auth/v1/signup')) as unknown as [string, RequestInit];
     expect(JSON.parse(String(signupCall[1].body))).toMatchObject({ email: 'r@x.com', data: { username: 'RidgeRunner' } });
-    await waitFor(() => expect(loadAuthor()).toBe('RidgeRunner'));
+    const { result } = renderHook(() => useAuthUser());
+    await waitFor(() => expect(result.current?.username).toBe('RidgeRunner'));
   });
 
   it('asks for email confirmation when no session comes back', async () => {
@@ -81,11 +81,11 @@ describe('auth', () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('email_for_username'))).toBe(false);
   });
 
-  it('keeps an existing contributor name on log in', async () => {
-    localStorage.setItem('hillgpx:authorName', 'Alex');
+  it('logs in and stores the session', async () => {
     vi.stubGlobal('fetch', mockApi({ '/auth/v1/token': () => json(SESSION) }));
     await logIn('r@x.com', 'password123');
-    await waitFor(() => expect(loadAuthor()).toBe('Alex'));
+    const { result } = renderHook(() => useAuthUser());
+    await waitFor(() => expect(result.current?.username).toBe('RidgeRunner'));
     expect(JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null')?.access_token).toBe('tok123');
   });
 
@@ -127,7 +127,7 @@ describe('auth', () => {
     await expect(emailOnlyAuth.signUp('RidgeRunner', 'r@gmail.com', 'password123')).resolves.toBe(false);
   });
 
-  it('renames the profile handle and follows a matching contributor name', async () => {
+  it('renames the profile handle', async () => {
     let storedName = 'RidgeRunner';
     const fetchMock = mockApi({
       '/auth/v1/token': () => json(SESSION),
@@ -142,11 +142,9 @@ describe('auth', () => {
       },
     });
     vi.stubGlobal('fetch', fetchMock);
-    localStorage.setItem('hillgpx:authorName', 'RidgeRunner');
     await logIn('r@x.com', 'password123');
     await changeUsername('NewRidge');
     expect(storedName).toBe('NewRidge');
-    expect(loadAuthor()).toBe('NewRidge');
     const { result } = renderHook(() => useAuthUser());
     await waitFor(() => expect(result.current?.username).toBe('NewRidge'));
   });

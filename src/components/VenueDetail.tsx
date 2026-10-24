@@ -37,11 +37,11 @@ import {
   fetchPhotos,
   errorText,
   fetchReviews,
-  loadAuthor,
-  saveAuthor,
   submitPhoto,
   submitReview,
 } from '../lib/api';
+import { useAuthUser } from '../lib/auth';
+import { CreditChips } from './CreditChips';
 import { regionOf } from '../lib/regions';
 import { lockPageScroll } from '../lib/dom';
 import { routeHasElevation } from '../lib/routes';
@@ -418,10 +418,11 @@ function ReviewCard({ review }: { review: Review }) {
 }
 
 function ReviewForm({ venue, initialRating, first, onPosted }: { venue: Venue; initialRating: number; first: boolean; onPosted: (review: Review) => void }) {
+  const user = useAuthUser();
   const [hover, setHover] = useState(0);
   const [mine, setMine] = useState(initialRating);
   const [comment, setComment] = useState('');
-  const [author, setAuthor] = useState(loadAuthor);
+  const [anonymous, setAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -430,9 +431,8 @@ function ReviewForm({ venue, initialRating, first, onPosted }: { venue: Venue; i
   const post = async () => {
     setSubmitting(true);
     setError(null);
-    saveAuthor(author);
     try {
-      onPosted(await submitReview({ venueSlug: venue.slug, rating: mine, comment, author }));
+      onPosted(await submitReview({ venueSlug: venue.slug, rating: mine, comment, author: user && !anonymous ? user.username : '' }));
       setDone(true);
     } catch (err) {
       setError(`Could not post your review: ${errorText(err)}`);
@@ -463,8 +463,12 @@ function ReviewForm({ venue, initialRating, first, onPosted }: { venue: Venue; i
         <span className="rate-word">{RATING_WORDS[shown]}</span>
       </div>
       <textarea className="review-comment" placeholder="How was it? Access, shade, water, best time to go (optional)" rows={2} value={comment} maxLength={1000} onChange={(event) => setComment(event.target.value)} />
+      {user ? (
+        <CreditChips username={user.username} anonymous={anonymous} onChange={setAnonymous} />
+      ) : (
+        <p className="photo-note">Posting anonymously — sign in to put your username on it.</p>
+      )}
       <div className="review-form-row">
-        <input className="review-author" type="text" placeholder="Your name (optional)" value={author} maxLength={60} onChange={(event) => setAuthor(event.target.value)} />
         <button type="button" className="btn btn-dark" disabled={mine === 0 || submitting} onClick={() => void post()}>{submitting ? 'Posting…' : 'Post review'}</button>
       </div>
       {error && <p className="review-error">{error}</p>}
@@ -559,8 +563,9 @@ interface PendingPhoto {
  * behind to retry while the rest are already through.
  */
 function AddPhotosModal({ venue, onClose, onUploaded }: { venue: Venue; onClose: () => void; onUploaded: () => void }) {
+  const user = useAuthUser();
   const [items, setItems] = useState<PendingPhoto[]>([]);
-  const [credit, setCredit] = useState(loadAuthor);
+  const [anonymous, setAnonymous] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -595,7 +600,7 @@ function AddPhotosModal({ venue, onClose, onUploaded }: { venue: Venue; onClose:
   const upload = async () => {
     setBusy(true);
     setError(null);
-    saveAuthor(credit);
+    const credit = user && !anonymous ? user.username : '';
     let failed = 0;
     for (const item of items.filter((entry) => entry.status !== 'done')) {
       setStatus(item.id, 'uploading');
@@ -697,11 +702,12 @@ function AddPhotosModal({ venue, onClose, onUploaded }: { venue: Venue; onClose:
               )}
             </ul>
           )}
-          <label className="field">
-            <span>Credit as</span>
-            <input value={credit} maxLength={60} onChange={(event) => setCredit(event.target.value)} placeholder="Your name or handle" />
-          </label>
-          <p className="photo-note">Photos appear straight away under the <a href="#terms">house rules</a>; anything reported by several people is hidden. Shared under CC BY-SA 4.0 with your credit; location data is removed.</p>
+          {user ? (
+            <CreditChips username={user.username} anonymous={anonymous} onChange={setAnonymous} />
+          ) : (
+            <p className="photo-note">Uploaded anonymously — sign in to credit your username.</p>
+          )}
+          <p className="photo-note">Photos appear straight away under the <a href="#terms">house rules</a>; anything reported by several people is hidden. Shared under CC BY-SA 4.0; location data is removed.</p>
           {error && <p className="review-error">{error}</p>}
         </div>
       )}

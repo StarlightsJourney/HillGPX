@@ -24,7 +24,7 @@ import {
   type VenueFilters,
 } from '../lib/venues';
 import { useRouteBookmarks } from '../lib/useRouteBookmarks';
-import { NO_ROUTE_FILTERS, ROUTE_CATEGORIES, filterRoutes, routeIntersects, type RouteCategory, type RouteFilters } from '../lib/routes';
+import { NO_ROUTE_FILTERS, ROUTE_CATEGORIES, filterRoutes, routeHasElevation, routeIntersects, type RouteCategory, type RouteFilters } from '../lib/routes';
 import { ACTIVITY_PATHS } from '../lib/activityGlyphs';
 import { VENUE_GLYPH_PATH } from '../lib/venueGlyphs';
 
@@ -132,7 +132,11 @@ function CategoryBarInner({
 }: CategoryBarProps) {
   const [routeModalOpen, setRouteModalOpen] = useState(false);
   const routeOpenerRef = useRef<HTMLButtonElement>(null);
-  const routeFilterCount = (routeFilters.minGainM != null ? 1 : 0) + (routeFilters.maxDistanceM != null ? 1 : 0);
+  const routeFilterCount =
+    (routeFilters.minGainM != null ? 1 : 0) +
+    (routeFilters.maxGainM != null ? 1 : 0) +
+    (routeFilters.minDistanceM != null ? 1 : 0) +
+    (routeFilters.maxDistanceM != null ? 1 : 0);
 
   // Routes the list would show for this view: the ones crossing it, or every
   // route when none do (the list falls back to "everywhere" rather than going
@@ -265,19 +269,6 @@ function CategoryButton({
   );
 }
 
-const GAIN_CHOICES: { label: string; value: number | null }[] = [
-  { label: 'Any', value: null },
-  { label: '200 m+', value: 200 },
-  { label: '500 m+', value: 500 },
-  { label: '1,000 m+', value: 1000 },
-];
-const DISTANCE_CHOICES: { label: string; value: number | null }[] = [
-  { label: 'Any', value: null },
-  { label: 'Up to 10 km', value: 10_000 },
-  { label: 'Up to 25 km', value: 25_000 },
-  { label: 'Up to 50 km', value: 50_000 },
-];
-
 function RouteFilterModal({
   routes,
   filters,
@@ -295,8 +286,13 @@ function RouteFilterModal({
   // dialog); the footer button only closes it.
   const [closing, setClosing] = useState(false);
   const bookmarks = useRouteBookmarks();
+  const units = useUnits();
   const count = filterRoutes(routes, filters, bookmarks).length;
   const close = useCallback(() => setClosing(true), []);
+  // The histograms show what is actually out there. EG's pool skips routes
+  // with no elevation, which a gain bound excludes anyway.
+  const distances = useMemo(() => routes.map((route) => route.distanceM), [routes]);
+  const gains = useMemo(() => routes.filter(routeHasElevation).map((route) => route.gainM), [routes]);
 
   useEffect(() => {
     const opener = returnFocusTo.current;
@@ -328,24 +324,28 @@ function RouteFilterModal({
         </header>
         <div className="filter-modal-body">
           <section className="filter-group">
-            <h3>Minimum EG</h3>
-            <div className="seg" role="radiogroup" aria-label="Minimum EG">
-              {GAIN_CHOICES.map((choice) => (
-                <Segment key={choice.label} selected={filters.minGainM === choice.value} onSelect={() => onChange({ ...filters, minGainM: choice.value })}>
-                  {choice.label}
-                </Segment>
-              ))}
-            </div>
+            <h3>Distance</h3>
+            <ValueRange
+              values={distances}
+              min={filters.minDistanceM}
+              max={filters.maxDistanceM}
+              format={units.distance}
+              minLabel="Minimum distance"
+              maxLabel="Maximum distance"
+              onChange={(minDistanceM, maxDistanceM) => onChange({ ...filters, minDistanceM, maxDistanceM })}
+            />
           </section>
           <section className="filter-group">
-            <h3>Distance</h3>
-            <div className="seg" role="radiogroup" aria-label="Maximum distance">
-              {DISTANCE_CHOICES.map((choice) => (
-                <Segment key={choice.label} selected={filters.maxDistanceM === choice.value} onSelect={() => onChange({ ...filters, maxDistanceM: choice.value })}>
-                  {choice.label}
-                </Segment>
-              ))}
-            </div>
+            <h3>Elevation gain</h3>
+            <ValueRange
+              values={gains}
+              min={filters.minGainM}
+              max={filters.maxGainM}
+              format={units.height}
+              minLabel="Minimum elevation gain"
+              maxLabel="Maximum elevation gain"
+              onChange={(minGainM, maxGainM) => onChange({ ...filters, minGainM, maxGainM })}
+            />
           </section>
         </div>
         <footer className="filter-modal-foot">
@@ -484,6 +484,7 @@ function FilterModal({
   onClose,
   returnFocusTo,
 }: FilterModalProps) {
+  const units = useUnits();
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const [draft, setDraft] = useState<VenueFilters>(filters);
@@ -639,10 +640,13 @@ function FilterModal({
 
           <section className="filter-group">
             <h3>Elevation range</h3>
-            <HeightRange
-              heights={heights}
-              minHeightM={draft.minHeightM}
-              maxHeightM={draft.maxHeightM}
+            <ValueRange
+              values={heights}
+              min={draft.minHeightM}
+              max={draft.maxHeightM}
+              format={units.height}
+              minLabel="Minimum height"
+              maxLabel="Maximum height"
               onChange={(minHeightM, maxHeightM) => setDraft({ ...draft, minHeightM, maxHeightM })}
             />
           </section>
@@ -682,7 +686,7 @@ function FilterModal({
   );
 }
 
-/* ─── Height range ────────────────────────────────────────────────────── */
+/* ─── Value range ─────────────────────────────────────────────────────── */
 
 /** Bars in the histogram. Twenty is the most this data supports without gaps:
  *  HDB heights are storeys × 2.8 m, so buckets narrower than that at the low
@@ -690,25 +694,38 @@ function FilterModal({
  *  out empty, which reads as missing data rather than as a bucketing artefact. */
 const BUCKETS = 20;
 
-interface HeightScale {
+interface RangeScale {
   lo: number;
   hi: number;
-  /** Bucket width in metres. */
+  /** Bucket width in the pool's own units (metres). */
   step: number;
   /** Every value a handle can stop on, ascending. */
   stops: number[];
-  /** Venue counts per bucket, left to right. */
+  /** Pool counts per bucket, left to right. */
   counts: number[];
+  /** Some pool values lie beyond `hi`, folded into the last bucket. */
+  truncated: boolean;
 }
 
-/** Linear height scale starting from 1 m so the histogram reads intuitively. */
-function buildScale(heights: number[]): HeightScale {
-  let hi = 0;
-  for (const h of heights) {
-    if (h > hi) hi = h;
+/**
+ * Linear scale starting from 0 so the histogram reads intuitively.
+ *
+ * The top is the 95th percentile, not the maximum: one 1,900 km ride or
+ * 26,000 m Everesting among five-kilometre runs would otherwise stretch the
+ * track so far that every handle stop landed a hundred kilometres apart and
+ * no real bound could be picked. The tail folds into the last bucket and is
+ * still reachable — the top stop means "no bound", and a min handle there
+ * keeps everything at and above `hi`.
+ */
+function buildScale(values: number[]): RangeScale {
+  let max = 0;
+  for (const h of values) {
+    if (h > max) max = h;
   }
-  if (hi <= 1) return { lo: 0, hi: 1, step: 1, stops: [0, 1], counts: [] };
-  hi = Math.ceil(hi);
+  if (max <= 1) return { lo: 0, hi: 1, step: 1, stops: [0, 1], counts: [], truncated: false };
+  const sorted = [...values].sort((a, b) => a - b);
+  const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
+  const hi = Math.ceil(Math.max(1, Math.min(max, p95)));
   const step = Math.max(1, Math.ceil(hi / BUCKETS));
 
   const stops: number[] = [0];
@@ -716,21 +733,21 @@ function buildScale(heights: number[]): HeightScale {
   if (stops[stops.length - 1] < hi) stops.push(hi);
 
   const counts = new Array(BUCKETS).fill(0);
-  for (const h of heights) {
+  for (const h of values) {
     const bucket = Math.min(BUCKETS - 1, Math.floor(h / step));
     counts[bucket] += 1;
   }
 
-  return { lo: 0, hi, step, stops, counts };
+  return { lo: 0, hi, step, stops, counts, truncated: max > hi };
 }
 
-/** Where a height sits along the track, 0 to 1. */
-function positionOf(value: number, scale: HeightScale): number {
+/** Where a value sits along the track, 0 to 1. */
+function positionOf(value: number, scale: RangeScale): number {
   return clamp(value, 0, scale.hi) / scale.hi;
 }
 
 /** The stop nearest a point on the track. */
-function stopAt(ratio: number, scale: HeightScale): number {
+function stopAt(ratio: number, scale: RangeScale): number {
   const target = clamp(ratio, 0, 1) * scale.hi;
   let best = 0;
   let bestGap = Infinity;
@@ -745,7 +762,7 @@ function stopAt(ratio: number, scale: HeightScale): number {
 }
 
 /** The stop index holding a value already in the filters. */
-function indexOfValue(value: number, scale: HeightScale): number {
+function indexOfValue(value: number, scale: RangeScale): number {
   return stopAt(positionOf(clamp(value, 0, scale.hi), scale), scale);
 }
 
@@ -753,16 +770,21 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n));
 }
 
-interface HeightRangeProps {
-  heights: number[];
-  minHeightM: number | null;
-  maxHeightM: number | null;
-  onChange: (minHeightM: number | null, maxHeightM: number | null) => void;
+interface ValueRangeProps {
+  /** The pool the histogram and scale are built from, in the values' own units. */
+  values: number[];
+  min: number | null;
+  max: number | null;
+  /** How a bound is printed ("163 m", "12.4 km") and read out to screen readers. */
+  format: (value: number) => string;
+  /** aria-labels for the two handles, e.g. "Minimum distance". */
+  minLabel: string;
+  maxLabel: string;
+  onChange: (min: number | null, max: number | null) => void;
 }
 
-function HeightRange({ heights, minHeightM, maxHeightM, onChange }: HeightRangeProps) {
-  const units = useUnits();
-  const scale = useMemo(() => buildScale(heights), [heights]);
+function ValueRange({ values, min, max, format, minLabel, maxLabel, onChange }: ValueRangeProps) {
+  const scale = useMemo(() => buildScale(values), [values]);
   const trackRef = useRef<HTMLDivElement>(null);
   const dragging = useRef<'min' | 'max' | null>(null);
 
@@ -770,8 +792,8 @@ function HeightRange({ heights, minHeightM, maxHeightM, onChange }: HeightRangeP
   // Derived from the filters every render rather than held here as well. Two
   // copies of the same number is how "Clear all" ends up moving the pins but
   // leaving the handles where they were.
-  const minIndex = minHeightM == null ? 0 : indexOfValue(minHeightM, scale);
-  const maxIndex = maxHeightM == null ? lastIndex : indexOfValue(maxHeightM, scale);
+  const minIndex = min == null ? 0 : indexOfValue(min, scale);
+  const maxIndex = max == null ? lastIndex : indexOfValue(max, scale);
   const minValue = scale.stops[minIndex];
   const maxValue = scale.stops[maxIndex];
 
@@ -881,11 +903,11 @@ function HeightRange({ heights, minHeightM, maxHeightM, onChange }: HeightRangeP
           style={{ left: `${minPos * 100}%` }}
           role="slider"
           tabIndex={0}
-          aria-label="Minimum height"
+          aria-label={minLabel}
           aria-valuemin={scale.lo}
           aria-valuemax={maxValue}
           aria-valuenow={minValue}
-          aria-valuetext={units.height(minValue)}
+          aria-valuetext={format(minValue)}
           onKeyDown={onHandleKey('min')}
         />
         <div
@@ -894,29 +916,29 @@ function HeightRange({ heights, minHeightM, maxHeightM, onChange }: HeightRangeP
           style={{ left: `${maxPos * 100}%` }}
           role="slider"
           tabIndex={0}
-          aria-label="Maximum height"
+          aria-label={maxLabel}
           aria-valuemin={minValue}
           aria-valuemax={scale.hi}
           aria-valuenow={maxValue}
-          aria-valuetext={maxIndex === lastIndex ? `${units.height(maxValue)} or more` : units.height(maxValue)}
+          aria-valuetext={maxIndex === lastIndex ? `${format(maxValue)} or more` : format(maxValue)}
           onKeyDown={onHandleKey('max')}
         />
       </div>
 
       <div className="range-scale small muted" aria-hidden="true">
-        <span>{units.height(scale.lo)}</span>
-        <span>{units.height(scale.hi)}</span>
+        <span>{format(scale.lo)}</span>
+        <span>{scale.truncated ? `${format(scale.hi)}+` : format(scale.hi)}</span>
       </div>
 
       <div className="range-readouts">
         <div className="range-readout">
           <span className="range-readout-label">Minimum</span>
-          <span className="range-readout-value">{units.height(minValue)}</span>
+          <span className="range-readout-value">{format(minValue)}</span>
         </div>
         <div className="range-readout">
           <span className="range-readout-label">Maximum</span>
           <span className="range-readout-value">
-            {maxIndex === lastIndex ? `${units.height(maxValue)}+` : units.height(maxValue)}
+            {maxIndex === lastIndex ? `${format(maxValue)}+` : format(maxValue)}
           </span>
         </div>
       </div>

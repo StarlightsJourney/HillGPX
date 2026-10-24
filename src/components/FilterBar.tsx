@@ -23,6 +23,7 @@ import {
   type Bounds,
   type VenueFilters,
 } from '../lib/venues';
+import { useRouteBookmarks } from '../lib/useRouteBookmarks';
 import { NO_ROUTE_FILTERS, ROUTE_CATEGORIES, filterRoutes, routeIntersects, type RouteCategory, type RouteFilters } from '../lib/routes';
 import { ACTIVITY_PATHS } from '../lib/activityGlyphs';
 import { VENUE_GLYPH_PATH } from '../lib/venueGlyphs';
@@ -74,6 +75,8 @@ const CLIMB_PATHS: Record<string, string> = {
   carpark: 'M4 21V4h16v17 M9 16V8h3.5a2.5 2.5 0 0 1 0 5H9',
 };
 
+const HEART = <path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z" />;
+
 export function CategoryIcon({ id }: { id: string }) {
   if (id in CLIMB_PATHS) {
     return (
@@ -96,8 +99,11 @@ export function CategoryIcon({ id }: { id: string }) {
     loop: <><path d="M17 7a7 7 0 1 0 2 5" /><path d="M20 3v5h-5" /></>,
     short: <><circle cx="6" cy="18" r="2" /><circle cx="18" cy="6" r="2" /><path d="M8 16l8-8" /></>,
     long: <><circle cx="4" cy="19" r="2" /><circle cx="20" cy="5" r="2" /><path d="M6 18c6-1 3-7 8-9s4-3 4-3" /></>,
-    saved: <><rect x="6" y="2" width="12" height="20" rx="2.5" /><path d="M10 18h4" /></>,
-    liked: <path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z" />,
+    // A phone: route files kept on this device.
+    device: <><rect x="6" y="2" width="12" height="20" rx="2.5" /><path d="M10 18h4" /></>,
+    // A heart: saved places (climbs) and saved routes.
+    liked: HEART,
+    saved: HEART,
     run: <path d={ACTIVITY_PATHS.run} />,
     trail: <path d={ACTIVITY_PATHS.trail} />,
     cycle: <path d={ACTIVITY_PATHS.cycle} />,
@@ -135,8 +141,15 @@ function CategoryBarInner({
     const inView = viewport ? routes.filter((route) => routeIntersects(route, viewport)) : routes;
     return inView.length > 0 ? inView : routes;
   }, [routes, viewport]);
-  const savedRoutes = useMemo(() => filterRoutes(routes, { ...NO_ROUTE_FILTERS, category: 'saved' }).length, [routes]);
-  const routeSlots = ROUTE_CATEGORIES.filter((category) => category.id !== 'saved' || savedRoutes > 0).length;
+  const bookmarks = useRouteBookmarks();
+  // Route category ids: `saved` is the hearted routes ("Saved"), always shown
+  // so it can say how to fill it; `device` is GPX files kept on this device
+  // ("On this device"), shown once there is one, or while picked.
+  const hiddenRouteCategory = (id: RouteCategory) =>
+    id === 'device' &&
+    routeFilters.category !== id &&
+    filterRoutes(routes, { ...NO_ROUTE_FILTERS, category: id }, bookmarks).length === 0;
+  const routeSlots = ROUTE_CATEGORIES.filter((category) => !hiddenRouteCategory(category.id)).length;
   // All, one per type, With photos, and Saved once something is hearted.
   const climbSlots = 2 + climbProps.types.length + (climbProps.savedCount > 0 || climbProps.filters.savedOnly ? 1 : 0);
 
@@ -169,11 +182,11 @@ function CategoryBarInner({
           <>
             <div className="categories" role="tablist" aria-label="Route type">
               {ROUTE_CATEGORIES.map((category) => {
-                if (category.id === 'saved' && savedRoutes === 0) return null;
+                if (hiddenRouteCategory(category.id)) return null;
                 const active = routeFilters.category === category.id;
-                // Routes on this device can be anywhere; the list shows them all.
-                const pool = category.id === 'saved' ? routes : routePool;
-                const count = filterRoutes(pool, { ...NO_ROUTE_FILTERS, category: category.id }).length;
+                // Saved and on-device routes can be anywhere; the list shows them all.
+                const pool = category.id === 'device' || category.id === 'saved' ? routes : routePool;
+                const count = filterRoutes(pool, { ...NO_ROUTE_FILTERS, category: category.id }, bookmarks).length;
                 return (
                   <CategoryButton
                     key={category.id}
@@ -181,7 +194,7 @@ function CategoryBarInner({
                     label={category.label}
                     shortLabel={category.shortLabel}
                     active={active}
-                    unavailable={!active && count === 0}
+                    unavailable={!active && count === 0 && category.id !== 'saved'}
                     onClick={() => onRouteFiltersChange({ ...routeFilters, category: category.id as RouteCategory })}
                   />
                 );
@@ -281,7 +294,8 @@ function RouteFilterModal({
   // Every choice applies straight away (the list and map update behind the
   // dialog); the footer button only closes it.
   const [closing, setClosing] = useState(false);
-  const count = filterRoutes(routes, filters).length;
+  const bookmarks = useRouteBookmarks();
+  const count = filterRoutes(routes, filters, bookmarks).length;
   const close = useCallback(() => setClosing(true), []);
 
   useEffect(() => {

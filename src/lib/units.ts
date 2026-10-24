@@ -16,7 +16,9 @@
 export type Units = 'metric' | 'imperial';
 
 export const M_TO_FT = 3.280839895;
-const M_TO_MI = 0.000621371;
+/** One international mile. */
+export const METRES_PER_MILE = 1609.344;
+const M_TO_MI = 1 / METRES_PER_MILE;
 
 /**
  * Below this, an imperial distance reads better in feet than as "0.1 mi".
@@ -70,10 +72,21 @@ export function formatRadius(metres: number, units: Units): string {
 
 /** A distance — feet and miles under imperial, metres and kilometres otherwise. */
 export function formatDistanceIn(metres: number, units: Units): string {
+  return distanceText(metres, units, (value) => value.toFixed(1));
+}
+
+/**
+ * A distance in running prose: like formatDistanceIn, but a whole number
+ * reads as one ("2 km away", not "2.0 km away"); a decimal that says
+ * something stays ("2.5 km").
+ */
+export function formatDistanceShort(metres: number, units: Units): string {
+  return distanceText(metres, units, (value) => String(Math.round(value * 10) / 10));
+}
+
+function distanceText(metres: number, units: Units, large: (value: number) => string): string {
   if (units === 'imperial') {
-    return metres < FEET_BELOW_M
-      ? `${Math.round(metres * M_TO_FT)} ft`
-      : `${(metres * M_TO_MI).toFixed(1)} mi`;
+    return metres < FEET_BELOW_M ? `${Math.round(metres * M_TO_FT)} ft` : `${large(metres * M_TO_MI)} mi`;
   }
-  return metres < 1000 ? `${Math.round(metres)} m` : `${(metres / 1000).toFixed(1)} km`;
+  return metres < 1000 ? `${Math.round(metres)} m` : `${large(metres / 1000)} km`;
 }

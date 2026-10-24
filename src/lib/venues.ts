@@ -4,23 +4,51 @@ import { haversineM } from './elevation';
 import { formatDistanceIn, type Units } from './units';
 
 const FAVORITES_KEY = 'hillgpx:favorites';
+/** Bookmarked route slugs, kept apart from place favourites and from GPX files saved on the device. */
+export const ROUTE_BOOKMARKS_KEY = 'hillgpx:routeBookmarks';
 
-/** Saved venue slugs. The key and shape (a JSON array of slugs) are part of the storage contract. */
-export function loadFavorites(): Set<string> {
+function loadSlugs(key: string): Set<string> {
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
+    const value: unknown = JSON.parse(localStorage.getItem(key) || '[]');
     return new Set(Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
   } catch {
     return new Set();
   }
 }
 
-export function saveFavorites(favorites: Set<string>): void {
+function saveSlugs(key: string, slugs: Set<string>): void {
   try {
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]));
+    localStorage.setItem(key, JSON.stringify([...slugs]));
   } catch {
     return;
   }
+}
+
+/** Saved venue slugs. The key and shape (a JSON array of slugs) are part of the storage contract. */
+export function loadFavorites(): Set<string> {
+  return loadSlugs(FAVORITES_KEY);
+}
+
+export function saveFavorites(favorites: Set<string>): void {
+  saveSlugs(FAVORITES_KEY, favorites);
+}
+
+/** Bookmarked route slugs on this device (`hillgpx:routeBookmarks`, a JSON array of slugs; public contract). */
+export function loadRouteBookmarks(): Set<string> {
+  return loadSlugs(ROUTE_BOOKMARKS_KEY);
+}
+
+export function saveRouteBookmarks(bookmarks: Set<string>): void {
+  saveSlugs(ROUTE_BOOKMARKS_KEY, bookmarks);
+}
+
+/** Adds or removes one route bookmark, saves, and returns the new set. */
+export function toggleRouteBookmark(slug: string): Set<string> {
+  const next = loadRouteBookmarks();
+  if (next.has(slug)) next.delete(slug);
+  else next.add(slug);
+  saveRouteBookmarks(next);
+  return next;
 }
 
 /** Friendly rounded count: exact under 100, rounded to the hundred above that. */

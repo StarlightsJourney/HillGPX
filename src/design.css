@@ -7103,3 +7103,33 @@
     transition: none;
   }
 }
+
+/* ─── Route bookmarks (hearts on route cards, landing tiles and the panel) ── */
+
+/* The landing tile is a button, so its heart sits beside it in a wrapper. */
+.tile-wrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+.tile-wrap > .tile {
+  flex: 1;
+}
+.route-bookmark {
+  top: 10px;
+  right: 10px;
+}
+.route-bookmark svg {
+  transition: transform 0.25s var(--ease-spring), fill 0.2s ease;
+}
+.route-bookmark.on svg {
+  animation: heart-pop 0.45s var(--ease-spring);
+}
+/* The heart owns the top-right corner; the hover download steps left of it. */
+.route-item .result-action {
+  right: 48px;
+}
+.route-bookmark-panel.on {
+  color: var(--accent);
+}

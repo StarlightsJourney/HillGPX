@@ -9,6 +9,7 @@ import { routeActivity } from '../lib/routeAnalysis';
 import { useUnits } from './UnitsContext';
 import { DownloadIcon, UploadIcon } from './icons';
 import { downloadRoute } from './VenueCard';
+import { RouteBookmarkButton } from './RouteBookmarkButton';
 
 interface RoutesListProps {
   routes: Route[];
@@ -73,6 +74,7 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
                 onMouseLeave={() => onHover(null)}
               >
                 <span className="result-badge">{routeDifficulty(route)}</span>
+                <RouteBookmarkButton route={route} variant="card" />
                 <button
                   type="button"
                   className="result-action"

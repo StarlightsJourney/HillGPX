@@ -34,7 +34,8 @@ import {
 } from './lib/venues';
 import { haversineM } from './lib/elevation';
 import type { Route, RoutePoint, Venue } from './types';
-import { CloseIcon, ListIcon, LocationArrowIcon, MapIcon } from './components/icons';
+import { ListIcon, MapIcon } from './components/icons';
+import { LocateNote } from './components/LocateNote';
 import { loadLocalRoutes, saveLocalRoutes } from './lib/localRoutes';
 import { logSession } from './lib/training';
 import { TrainingPanel } from './components/TrainingPanel';
@@ -954,6 +955,8 @@ function MapApp() {
                 onLocateHint={(text) => setLocateHint(text ? askAgain(text) : null)}
                 userLocation={userLocation}
                 onMapError={setMapError}
+                // The first pan or zoom by hand closes a note that only informs.
+                onUserMove={() => setLocateHint((hint) => (hint && hint.retry === null ? null : hint))}
                 onViewportChange={(b, userInitiated) => {
                   // Every zoom or pan ends here, and a new bounds object
                   // re-runs the list's filter over ~12k venues and re-renders
@@ -973,26 +976,11 @@ function MapApp() {
             {mapError && <div className="map-error small">The map failed to load: {mapError}</div>}
 
             {locateHint && (
-              <div className={`locate-hint${locateHint.retry ? ' retry' : ''}`} role="status" onClick={locateHint.retry === 'plan' ? planner.plan : locateHint.retry === 'near-me' ? handleLocate : undefined}>
-                <span className="locate-hint-icon" aria-hidden="true">
-                  <LocationArrowIcon size={22} />
-                </span>
-                <div className="locate-hint-body">
-                  <p className="locate-hint-title">{locateHint.title}</p>
-                  <p className="locate-hint-text">{locateHint.text}</p>
-                </div>
-                <button
-                  type="button"
-                  className="locate-hint-close"
-                  aria-label="Dismiss location hint"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setLocateHint(null);
-                  }}
-                >
-                  <CloseIcon size={12} />
-                </button>
-              </div>
+              <LocateNote
+                hint={locateHint}
+                onRetry={locateHint.retry === 'plan' ? planner.plan : locateHint.retry === 'near-me' ? handleLocate : undefined}
+                onDismiss={() => setLocateHint(null)}
+              />
             )}
 
             {!droppedGpx && selectedRoute && (

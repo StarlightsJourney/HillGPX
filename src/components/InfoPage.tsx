@@ -33,7 +33,7 @@ function Privacy() {
         </>
       )}
       <h2>Routes near you</h2>
-      <p>If you share your location, it stays in your browser and is used only to find routes near you; it is never sent to us. If you do not, we use the country your connection comes from, which Cloudflare (our host) already sees, or your device's time zone. Neither is stored.</p>
+      <p>If you share your location, it stays in your browser and is used only to find routes near you, or to place a photo or hazard on a route; it is never sent to us. A photo or hazard is pinned to the route point nearest you, not to your exact position. If you do not, we use the country your connection comes from, which Cloudflare (our host) already sees, or your device's time zone. Neither is stored.</p>
       <h2>What stays in your browser</h2>
       <p>Saved places, routes you keep on this device, your unit choice and the name you last contributed under are stored in your browser only. Clearing your browser data removes them.</p>
       <h2>What is stored when you contribute</h2>

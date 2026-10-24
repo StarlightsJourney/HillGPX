@@ -4457,6 +4457,36 @@
   width: 100%;
   accent-color: var(--accent);
 }
+/* "Use my location" sits above the slider, which stays as the fallback. */
+.route-photo-where {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.route-photo-where .field {
+  align-self: stretch;
+}
+.route-photo-locate-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.route-photo-locate-note.warn {
+  color: var(--danger);
+}
+/* On phones: open the camera straight away (the dashed box is the library). */
+.route-photo-camera {
+  position: relative;
+  align-self: flex-start;
+}
+.route-photo-camera input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
 .route-photo-pin {
   position: relative;
   width: 38px;

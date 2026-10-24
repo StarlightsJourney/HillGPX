@@ -51,4 +51,4 @@ test-results/
 playwright-report/
 
 dummy_gpx/
-bulk_uploads/
+bulk_uploads/*

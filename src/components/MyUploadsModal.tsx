@@ -48,7 +48,7 @@ export function UploadsList() {
       {routes && routes.length === 0 && (
         <div className="uploads-empty">
           <p className="profile-note">
-            Nothing published yet. Routes you share through <strong>Add a GPX</strong> while signed in show up here,
+            Nothing published yet. Routes you share through <strong>Upload GPX</strong> while signed in show up here,
             ready to download again.
           </p>
         </div>

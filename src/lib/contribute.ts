@@ -28,11 +28,11 @@ export function requestReport(detail: ReportRequest): void {
   window.dispatchEvent(new CustomEvent<ReportRequest>(REPORT_EVENT, { detail }));
 }
 
-/** Asks the map page (which also hosts venue pages) to open the "Add a GPX" dialog where you are. */
+/** Asks the map page (which also hosts venue pages) to open the "Upload GPX" dialog where you are. */
 export const IMPORT_EVENT = 'hillgpx:import';
 
 /**
- * Click handler for every "Add a GPX" link. On a venue page, following
+ * Click handler for every "Upload GPX" link. On a venue page, following
  * `#import` left the page for the map; the dialog opens over the venue page
  * instead. Elsewhere the link is followed as usual.
  */

@@ -1461,6 +1461,17 @@ button {
   background: var(--bg-raised);
 }
 
+.locate-hint.leaving {
+  animation: locate-hint-out 200ms ease-in forwards;
+}
+
+@keyframes locate-hint-out {
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+}
+
 .locate-hint-icon {
   display: inline-flex;
   flex: none;

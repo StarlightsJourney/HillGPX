@@ -139,6 +139,8 @@ interface MapViewProps {
   favorites: Set<string>;
   onToggleFavorite: (slug: string) => void;
   onLocateHint?: (message: string | null) => void;
+  /** A person started panning or zooming (never the app's own camera moves). */
+  onUserMove?: () => void;
   /** Raised when the basemap itself fails, so the failure is never silent. */
   onMapError?: (message: string) => void;
   /** The area currently on screen, so the list can show what is actually in view. */
@@ -426,6 +428,7 @@ export function MapView({
   favorites,
   onToggleFavorite,
   onLocateHint,
+  onUserMove,
   onMapError,
   onViewportChange,
   userLocation,
@@ -479,6 +482,8 @@ export function MapView({
   const visitedRef = useRef(new Set<string>());
   const onLocateHintRef = useRef(onLocateHint);
   onLocateHintRef.current = onLocateHint;
+  const onUserMoveRef = useRef(onUserMove);
+  onUserMoveRef.current = onUserMove;
   const onToggleExpandRef = useRef(onToggleExpand);
   onToggleExpandRef.current = onToggleExpand;
   const mapExpandedRef = useRef(mapExpanded);
@@ -745,7 +750,9 @@ export function MapView({
     // A pan or zoom by hand means the person has taken the camera; stop
     // re-framing whatever was framed for them last.
     map.on('movestart', (event: MapMovementEvent) => {
-      if (event.originalEvent) lastFrameRef.current = null;
+      if (!event.originalEvent) return;
+      lastFrameRef.current = null;
+      onUserMoveRef.current?.();
     });
     map.on('load', () => {
       if (lastFrameRef.current) frameTo(map, lastFrameRef.current, 0);

@@ -34,7 +34,8 @@ import {
 } from './lib/venues';
 import { haversineM } from './lib/elevation';
 import type { Route, RoutePoint, Venue } from './types';
-import { CloseIcon, ListIcon, LocationArrowIcon, MapIcon } from './components/icons';
+import { ListIcon, MapIcon } from './components/icons';
+import { LocateNote } from './components/LocateNote';
 import { loadLocalRoutes, saveLocalRoutes } from './lib/localRoutes';
 import { logSession } from './lib/training';
 import { TrainingPanel } from './components/TrainingPanel';
@@ -681,7 +682,8 @@ function MapApp() {
   /**
    * Without a usable location, the visitor's country (lib/country.ts): its
    * routes, or its climbs when it has none. False when the country is not
-   * known, so the caller can say why instead.
+   * known, so the caller can say why instead. The note closes by itself even
+   * without a location: the locate button is always there to ask again.
    */
   const showCountry = useCallback(
     async (note: (country: string, kind: 'routes' | 'climbs') => string, here: { lng: number; lat: number } | null = null) => {
@@ -689,7 +691,7 @@ function MapApp() {
       const area = code ? await countryArea(code) : null;
       if (!area) return false;
       const hasRoutes = filteredRoutes.some((route) => routeIntersects(route, area.bounds));
-      const hint: LocateHint = { title: hasRoutes ? `Routes in ${area.name}` : `Climbs in ${area.name}`, text: note(area.name, hasRoutes ? 'routes' : 'climbs'), retry: here ? null : 'near-me' };
+      const hint: LocateHint = { title: hasRoutes ? `Routes in ${area.name}` : `Climbs in ${area.name}`, text: note(area.name, hasRoutes ? 'routes' : 'climbs'), retry: null };
       if (hasRoutes) {
         showNearbyRoutes(area.bounds, here, hint);
       } else {
@@ -954,6 +956,8 @@ function MapApp() {
                 onLocateHint={(text) => setLocateHint(text ? askAgain(text) : null)}
                 userLocation={userLocation}
                 onMapError={setMapError}
+                // The first pan or zoom by hand closes a note that only informs.
+                onUserMove={() => setLocateHint((hint) => (hint && hint.retry === null ? null : hint))}
                 onViewportChange={(b, userInitiated) => {
                   // Every zoom or pan ends here, and a new bounds object
                   // re-runs the list's filter over ~12k venues and re-renders
@@ -973,26 +977,11 @@ function MapApp() {
             {mapError && <div className="map-error small">The map failed to load: {mapError}</div>}
 
             {locateHint && (
-              <div className={`locate-hint${locateHint.retry ? ' retry' : ''}`} role="status" onClick={locateHint.retry === 'plan' ? planner.plan : locateHint.retry === 'near-me' ? handleLocate : undefined}>
-                <span className="locate-hint-icon" aria-hidden="true">
-                  <LocationArrowIcon size={22} />
-                </span>
-                <div className="locate-hint-body">
-                  <p className="locate-hint-title">{locateHint.title}</p>
-                  <p className="locate-hint-text">{locateHint.text}</p>
-                </div>
-                <button
-                  type="button"
-                  className="locate-hint-close"
-                  aria-label="Dismiss location hint"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setLocateHint(null);
-                  }}
-                >
-                  <CloseIcon size={12} />
-                </button>
-              </div>
+              <LocateNote
+                hint={locateHint}
+                onRetry={locateHint.retry === 'plan' ? planner.plan : locateHint.retry === 'near-me' ? handleLocate : undefined}
+                onDismiss={() => setLocateHint(null)}
+              />
             )}
 
             {!droppedGpx && selectedRoute && (

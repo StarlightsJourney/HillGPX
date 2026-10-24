@@ -52,3 +52,6 @@ playwright-report/
 
 dummy_gpx/
 supabase/.temp/
+
+# Wrangler local state
+.wrangler/

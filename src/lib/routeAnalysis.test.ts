@@ -54,4 +54,12 @@ describe('duplicates and overlaps', () => {
     expect(overlap.route.name).toBe('Kluang');
     expect(overlap.share).toBeGreaterThan(0.9);
   });
+
+  it('skips a corrupt stored route instead of throwing', () => {
+    const noDistance = { ...asRoute('Broken', []), distanceM: NaN };
+    const noCoords = { ...asRoute('Broken', []), coordinates: undefined as unknown as RoutePoint[] };
+    expect(isSameRoute(kluang.points, noDistance)).toBe(false);
+    expect(() => isSameRoute(kluang.points, noCoords)).not.toThrow();
+    expect(isSameRoute(kluang.points, noCoords)).toBe(false);
+  });
 });

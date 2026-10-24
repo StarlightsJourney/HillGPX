@@ -59,6 +59,20 @@ function GoogleHealthSection() {
     }
   };
 
+  const link = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await connectGoogleHealth();
+      // Re-read the granted scopes — a partial consent shows the warning.
+      setStatus(await googleHealthStatus());
+    } catch (caught) {
+      setError(errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <section className="profile-section">
       <h3>Connected apps</h3>
@@ -82,9 +96,9 @@ function GoogleHealthSection() {
             type="button"
             className="btn btn-light btn-sm"
             disabled={status === null || busy}
-            onClick={() => void connectGoogleHealth().catch((caught) => setError(errorText(caught)))}
+            onClick={() => void link()}
           >
-            Link
+            {busy ? 'Linking…' : 'Link'}
           </button>
         )}
       </div>

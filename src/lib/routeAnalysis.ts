@@ -144,6 +144,8 @@ export function findOverlaps(points: RoutePoint[], others: Route[], selfSlug?: s
  */
 export function isSameRoute(points: RoutePoint[], other: Route): boolean {
   const d = totalDistanceM(points);
+  // Stored routes are trusted data but a corrupt entry must not break an import.
+  if (!Number.isFinite(other.distanceM) || !Array.isArray(other.coordinates)) return false;
   if (Math.abs(d - other.distanceM) > 0.1 * Math.max(d, other.distanceM)) return false;
   return overlapShare(points, other.coordinates) >= 0.9 && overlapShare(other.coordinates, points) >= 0.9;
 }

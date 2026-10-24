@@ -1,6 +1,6 @@
 import { ApiError } from './api';
 import { GOOGLE_CLIENT_ID } from './auth';
-import { loadGis, type TokenResponse } from './gis';
+import { loadGis, type RevocationResponse, type TokenResponse } from './gis';
 import { track } from './analytics';
 import type { RouteActivity } from '../types';
 
@@ -96,13 +96,23 @@ async function requestToken(prompt: '' | 'consent'): Promise<TokenResponse> {
       error_callback: (error) =>
         reject(
           new ApiError(
-            error?.type === 'popup_closed' ? 'The Google popup was closed before finishing.' : 'The Google popup did not open — allow popups and try again.',
+            error?.type === 'popup_closed'
+              ? 'The Google popup was closed before finishing.'
+              : error?.type === 'opt_out_or_no_session'
+                ? 'Google could not reach your account — allow third-party cookies for accounts.google.com and try again.'
+                : 'The Google popup did not open — allow popups and try again.',
             400,
             error?.type,
           ),
         ),
     });
-    client.requestAccessToken({ prompt });
+    try {
+      client.requestAccessToken({ prompt });
+    } catch {
+      // A synchronous throw would otherwise leave the promise unsettled and
+      // the dialog stuck on "Checking the connection…" forever.
+      reject(new ApiError('The Google popup did not open — allow popups and try again.', 400, 'popup_failed_to_open'));
+    }
   });
 }
 
@@ -122,25 +132,61 @@ async function accessToken(): Promise<string> {
 }
 
 /** Turn a failed health.googleapis.com response into the sentence to show. */
-async function healthError(response: Response): Promise<ApiError> {
-  const body = await response.text().catch(() => '');
+function healthError(status: number, body: string): ApiError {
   if (body.includes('ACCOUNT_NOT_LINKED')) {
     return new ApiError('That Google account is not linked to Google Health yet — finish setup at fitbit.google.com, then try again.', 400, 'unlinked');
   }
-  if (response.status === 403 && body.includes('location')) {
+  if (status === 403 && body.includes('location')) {
     return new ApiError('Google refused the GPS export — unlink and reconnect, allowing location access.', 403, 'location_scope');
   }
-  return new ApiError(`Google Health did not answer (HTTP ${response.status}).`, 502);
+  return new ApiError(`Google Health did not answer (HTTP ${status}).`, 502);
+}
+
+/**
+ * Revoke the whole grant at Google and wait for the answer. revoke() only
+ * accepts a valid access token; an already-dead grant answers invalid_token,
+ * which Google says counts as revoked.
+ */
+async function revokeGrant(value: string): Promise<void> {
+  const google = await loadGis().catch(() => {
+    throw new ApiError('Google did not load — check your connection and try again.', 503);
+  });
+  const result = await new Promise<RevocationResponse>((resolve) => {
+    const timer = setTimeout(() => resolve({}), 8000);
+    try {
+      google.accounts.oauth2.revoke(value, (response) => {
+        clearTimeout(timer);
+        resolve(response);
+      });
+    } catch {
+      clearTimeout(timer);
+      resolve({ successful: false, error: 'invalid_request' });
+    }
+  });
+  if (result.error && result.error !== 'invalid_token') {
+    throw new ApiError('Google could not unlink right now — try again, or remove hillGPX under your Google account permissions.', 502, result.error);
+  }
 }
 
 /** Consent popup → access token. Resolves connected; throws an ApiError. */
 export async function connectGoogleHealth(): Promise<void> {
+  // Drop any token this session still holds so a grant a failed unlink left
+  // behind cannot carry into the new consent. Fire-and-forget: awaiting a
+  // token request first would spend the click's user gesture and Google
+  // would refuse to open the consent popup.
+  const stale = token?.value;
+  token = null;
+  if (stale) void revokeGrant(stale).catch(() => {});
   storeToken(await requestToken('consent'));
   track('ghealth_connect');
 }
 
 /** Whether the silent path can mint a token: consent exists and is usable. */
 export async function googleHealthStatus(): Promise<GoogleHealthStatus> {
+  // Warm the GIS script while the dialog is open so a Link click reaches
+  // requestAccessToken inside the user gesture — a cold script load spends
+  // it and the consent popup gets blocked.
+  if (GOOGLE_CLIENT_ID) void loadGis().catch(() => {});
   const at = linkedAt();
   if (!at && !token) return { connected: false, hasLocation: false, connectedAt: null };
   try {
@@ -153,13 +199,13 @@ export async function googleHealthStatus(): Promise<GoogleHealthStatus> {
 
 /** Revoke at Google and forget the link locally. */
 export async function disconnectGoogleHealth(): Promise<void> {
-  const value = token?.value;
+  // revoke() needs a valid access token: reuse the live one, or let the
+  // silent path mint a fresh one while a grant still stands. When no token
+  // can be issued the grant is already gone — just clear the local flag.
+  const value = await accessToken().catch(() => null);
+  if (value) await revokeGrant(value);
   token = null;
   clearLinked();
-  if (value) {
-    const google = await loadGis().catch(() => null);
-    google?.accounts.oauth2.revoke(value);
-  }
 }
 
 interface DataPoint {
@@ -189,24 +235,73 @@ const toWorkout = (point: DataPoint): GoogleWorkout | null => {
   };
 };
 
+/** The reason fetch() itself rejected — kept for the error message so a
+ *  blocked request (extension, DNS, offline) is diagnosable. */
+function fetchReason(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : 'unknown error';
+}
+
+interface HttpResult {
+  ok: boolean;
+  status: number;
+  body: string;
+}
+
+/** GET over XMLHttpRequest — fetch() patches in blockers usually leave it alone. */
+function xhrGet(url: string, headers: Record<string, string>): Promise<HttpResult> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url);
+    for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
+    xhr.onload = () => resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, body: xhr.responseText });
+    xhr.onerror = () => reject(new TypeError('Network request failed'));
+    xhr.onabort = () => reject(new TypeError('Network request aborted'));
+    xhr.send();
+  });
+}
+
+/** GET a Google Health endpoint: fetch first, XHR once, same-origin relay last. */
+async function healthGet(url: string, proxyPath: string, accept?: string): Promise<HttpResult> {
+  const headers: Record<string, string> = { Authorization: `Bearer ${await accessToken()}` };
+  if (accept) headers.Accept = accept;
+  try {
+    const response = await fetch(url, { headers });
+    return { ok: response.ok, status: response.status, body: await response.text() };
+  } catch (directError) {
+    // A fetch() rejection is network-level — offline, or an extension that
+    // hooked window.fetch. XHR rides a different code path, so try it once.
+    try {
+      return await xhrGet(url, headers);
+    } catch {
+      // Last resort on Google-blocked networks: the Cloudflare Pages relay at
+      // /api/ghealth forwards the request server-side. On hosts without
+      // functions (vite dev, the GitHub Pages backup) the marker header is
+      // missing — that is just "unreachable", not an answer.
+      const relayed = await fetch(proxyPath, { headers }).catch(() => null);
+      if (relayed?.headers.get('x-ghealth-proxy')) {
+        return { ok: relayed.ok, status: relayed.status, body: await relayed.text() };
+      }
+      throw new ApiError(`Could not reach Google Health — ${fetchReason(directError)}.`, 502);
+    }
+  }
+}
+
 /** Every exercise session Google Health knows about (one page, 50 max). */
 export async function listGoogleWorkouts(): Promise<GoogleWorkout[]> {
-  const response = await fetch(`${HEALTH}/users/me/dataTypes/exercise/dataPoints?page_size=50`, {
-    headers: { Authorization: `Bearer ${await accessToken()}`, Accept: 'application/json' },
-  });
-  if (!response.ok) throw await healthError(response);
-  const data = (await response.json()) as { dataPoints?: DataPoint[] };
+  const result = await healthGet(`${HEALTH}/users/me/dataTypes/exercise/dataPoints?page_size=50`, '/api/ghealth?kind=workouts', 'application/json');
+  if (!result.ok) throw healthError(result.status, result.body);
+  const data = JSON.parse(result.body) as { dataPoints?: DataPoint[] };
   return (data.dataPoints ?? []).map(toWorkout).filter((w): w is GoogleWorkout => Boolean(w));
 }
 
-/** The workout's GPS route as TCX text (Google's own export). */
+/** The workout's GPS route as TCX text (Google's own export). Needs BOTH the
+ *  activity and location scopes — a partial grant lists workouts but every
+ *  export fails, so callers check hasLocation first. */
 export async function fetchWorkoutTcx(id: string): Promise<string> {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(id)) throw new ApiError('Unknown workout id.', 400);
-  const response = await fetch(`${HEALTH}/users/me/dataTypes/exercise/dataPoints/${id}:exportExerciseTcx?alt=media`, {
-    headers: { Authorization: `Bearer ${await accessToken()}` },
-  });
-  if (!response.ok) throw await healthError(response);
-  return response.text();
+  const result = await healthGet(`${HEALTH}/users/me/dataTypes/exercise/dataPoints/${id}:exportExerciseTcx?alt=media`, `/api/ghealth?kind=tcx&id=${encodeURIComponent(id)}`);
+  if (!result.ok) throw healthError(result.status, result.body);
+  return result.body;
 }
 
 /** Google's exerciseType → our icon set; unknowns draw as a trail glyph. */

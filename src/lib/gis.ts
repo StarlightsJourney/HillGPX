@@ -16,6 +16,12 @@ export interface TokenClient {
   requestAccessToken(overrides?: { prompt?: '' | 'consent' | 'select_account' }): void;
 }
 
+export interface RevocationResponse {
+  successful?: boolean;
+  error?: string;
+  error_description?: string;
+}
+
 export interface GoogleAccounts {
   accounts: {
     id: {
@@ -29,7 +35,7 @@ export interface GoogleAccounts {
         callback: (response: TokenResponse) => void;
         error_callback?: (error: { type?: string; message?: string }) => void;
       }): TokenClient;
-      revoke(token: string, done?: () => void): void;
+      revoke(token: string, done?: (response: RevocationResponse) => void): void;
     };
   };
 }

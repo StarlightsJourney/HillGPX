@@ -4,7 +4,7 @@ import type { ElevationModel } from '../lib/elevation';
 import { GpxParseError, toGpx } from '../lib/gpx';
 import { parseTcx } from '../lib/tcx';
 import { buildLoadedRoute, type LoadedRoute } from '../lib/loadRoute';
-import { errorText } from '../lib/api';
+import { ApiError, errorText } from '../lib/api';
 import {
   connectGoogleHealth,
   disconnectGoogleHealth,
@@ -46,6 +46,8 @@ export function GoogleHealthImport({ elevationModel, venues, existingRoutes, onL
   const [alert, setAlert] = useState<{ message: string } | { duplicate: Route } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [statusLine, setStatusLine] = useState('');
+  // Granular consent lets the user decline location; exports then always fail.
+  const [hasLocation, setHasLocation] = useState(true);
 
   const loadWorkouts = async () => {
     setStage('loading');
@@ -64,6 +66,7 @@ export function GoogleHealthImport({ elevationModel, venues, existingRoutes, onL
     googleHealthStatus()
       .then((status) => {
         if (!live) return;
+        setHasLocation(status.hasLocation);
         if (status.connected) void loadWorkouts();
         else setStage('disconnected');
       })
@@ -87,6 +90,10 @@ export function GoogleHealthImport({ elevationModel, venues, existingRoutes, onL
   };
 
   const importWorkout = async (workout: GoogleWorkout) => {
+    if (!hasLocation) {
+      setAlert({ message: 'Google did not get location access, so GPS tracks cannot be exported — unlink and relink, allowing it.' });
+      return;
+    }
     setBusyId(workout.id);
     setAlert(null);
     setStatusLine('Downloading the GPS track…');
@@ -110,8 +117,13 @@ export function GoogleHealthImport({ elevationModel, venues, existingRoutes, onL
       track('ghealth_import', workout.name);
       onLoaded(result.loaded);
     } catch (caught) {
-      // Parse failures ("no GPS track points") are phrased for people too.
-      setAlert({ message: caught instanceof GpxParseError ? caught.message : errorText(caught) });
+      // Show the real cause — a bare "something went wrong" is undiagnosable.
+      setAlert({
+        message:
+          caught instanceof GpxParseError || caught instanceof ApiError
+            ? caught.message
+            : `Could not import that workout: ${caught instanceof Error ? caught.message : 'something went wrong.'}`,
+      });
     } finally {
       setBusyId(null);
       setStatusLine('');
@@ -148,6 +160,11 @@ export function GoogleHealthImport({ elevationModel, venues, existingRoutes, onL
         </div>
       ) : (
         <>
+          {!hasLocation && (
+            <p className="ghealth-note error">
+              Location access was refused, so GPS tracks cannot be exported — unlink and relink, allowing it.
+            </p>
+          )}
           {workouts.length === 0 ? (
             <p className="ghealth-row muted">No workouts found — outdoor runs, rides and hikes with GPS show up here.</p>
           ) : (
@@ -191,10 +208,12 @@ export function GoogleHealthImport({ elevationModel, venues, existingRoutes, onL
             type="button"
             className="ghealth-unlink"
             onClick={() => {
-              void disconnectGoogleHealth().then(() => {
-                setWorkouts([]);
-                setStage('disconnected');
-              });
+              void disconnectGoogleHealth()
+                .then(() => {
+                  setWorkouts([]);
+                  setStage('disconnected');
+                })
+                .catch((caught) => setAlert({ message: errorText(caught) }));
             }}
           >
             Unlink Google Health

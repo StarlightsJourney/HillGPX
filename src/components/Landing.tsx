@@ -5,7 +5,7 @@ import { HEIGHT_LABEL, boundsOf, loadDataset, photoSrc, rankingHeight, townName,
 import { DESTINATIONS, boundsToHash, normalisePlace, regionBounds, regionOf } from '../lib/regions';
 import { countrySummaries, type CountrySummary } from '../lib/worldPeaks';
 import { SiteFooter, SiteHeader } from './SiteChrome';
-import { routeDifficulty, routeHasElevation } from '../lib/routes';
+import { mixByDifficulty, routeDifficulty, routeHasElevation } from '../lib/routes';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { RatingLabel } from './ResultsList';
 import { RouteThumb } from './RouteThumb';
@@ -58,8 +58,9 @@ export function Landing() {
     () => (dataset && countries ? buildRows(dataset.venues, new Set(worldList.map((c) => normalisePlace(c.name)))) : null),
     [dataset, countries, worldList],
   );
+  // Two routes per difficulty level in turn, so the row is not all big climbs.
   const routes = useMemo(
-    () => (dataset ? [...dataset.routes].sort((a, b) => b.gainM - a.gainM) : null),
+    () => (dataset ? mixByDifficulty(dataset.routes) : null),
     [dataset],
   );
 

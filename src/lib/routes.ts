@@ -197,6 +197,24 @@ export function routeDifficulty(route: Route): 'Easy' | 'Moderate' | 'Hard' | 'B
   return 'Easy';
 }
 
+const DIFFICULTY_ORDER = ['Easy', 'Moderate', 'Hard', 'Brutal'] as const;
+
+/**
+ * Mixes difficulty levels in turn: `perLevel` Easy, then Moderate, Hard and
+ * Brutal, round and round, most EG first within each level. A level that runs
+ * out is skipped; every route appears once.
+ */
+export function mixByDifficulty(routes: Route[], perLevel = 2): Route[] {
+  const levels = DIFFICULTY_ORDER.map((level) =>
+    routes.filter((route) => routeDifficulty(route) === level).sort((a, b) => b.gainM - a.gainM),
+  );
+  const mixed: Route[] = [];
+  for (let start = 0; mixed.length < routes.length; start += perLevel) {
+    for (const level of levels) mixed.push(...level.slice(start, start + perLevel));
+  }
+  return mixed;
+}
+
 export function linkVenues(points: RoutePoint[], venues: Venue[], radiusM = 150): string[] {
   if (points.length === 0) return [];
   const lngs = points.map((point) => point[0]);

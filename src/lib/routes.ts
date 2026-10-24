@@ -81,7 +81,7 @@ export function routesBounds(routes: Route[]): Bounds | null {
 }
 
 /** Closest approach of a route to a point, in metres. */
-function distanceToRouteM(route: Route, lng: number, lat: number): number {
+export function distanceToRouteM(route: Route, lng: number, lat: number): number {
   let best = Infinity;
   for (const [pLng, pLat] of route.coordinates) {
     const d = haversineM(lng, lat, pLng, pLat);

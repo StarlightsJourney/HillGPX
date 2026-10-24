@@ -10,6 +10,7 @@ import { RoutesList } from './components/RoutesList';
 import { RoutePanel } from './components/RoutePanel';
 import { DEFAULT_RUN_LENGTH, DEFAULT_TERRAIN, RunNeedsBar, lengthText } from './components/RunNeedsBar';
 import { DEFAULT_PACE_S_PER_KM, matchRoutes, type RunLength, type RunNeeds, type RunWhere, type Terrain } from './lib/routeMatch';
+import { useRouteBookmarks } from './lib/useRouteBookmarks';
 import { NO_ROUTE_FILTERS, filterRoutes, linkVenues, routesBounds, routesNear, routesWithin, routeIntersects, type RouteFilters } from './lib/routes';
 import { boundsFromHash } from './lib/regions';
 import { ElevationModel } from './lib/elevation';
@@ -442,7 +443,8 @@ function MapApp() {
     () => [...(dataset?.routes ?? []), ...communityRoutes, ...localRoutes],
     [dataset, communityRoutes, localRoutes],
   );
-  const filteredRoutes = useMemo(() => filterRoutes(allRoutes, routeFilters), [allRoutes, routeFilters]);
+  const routeBookmarks = useRouteBookmarks();
+  const filteredRoutes = useMemo(() => filterRoutes(allRoutes, routeFilters, routeBookmarks), [allRoutes, routeFilters, routeBookmarks]);
   const runNeeds = useMemo<RunNeeds | null>(
     () => (runWhere ? { where: runWhere.where, length: runLength, terrain: runTerrain, paceSPerKm: DEFAULT_PACE_S_PER_KM } : null),
     [runWhere, runLength, runTerrain],
@@ -976,7 +978,14 @@ function MapApp() {
           }}
           routes={allRoutes}
           routeFilters={routeFilters}
-          onRouteFiltersChange={setRouteFilters}
+          onRouteFiltersChange={(next) => {
+            // Bookmarked routes can be anywhere: frame them all when Saved is picked.
+            if (next.category === 'bookmarked' && routeFilters.category !== 'bookmarked') {
+              const bounds = routesBounds(allRoutes.filter((route) => routeBookmarks.has(route.slug)));
+              if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
+            }
+            setRouteFilters(next);
+          }}
         />
         </div>
         </div>

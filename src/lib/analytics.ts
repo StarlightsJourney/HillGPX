@@ -79,7 +79,8 @@ export type TrackedEvent =
   | 'password_reset'
   | 'map_expand'
   | 'run_needs_submit'
-  | 'ranked_route_open';
+  | 'ranked_route_open'
+  | 'route_bookmarked';
 
 /** Record one product action (and an optional short label, e.g. the route). */
 export function track(event: TrackedEvent, label?: string): void {

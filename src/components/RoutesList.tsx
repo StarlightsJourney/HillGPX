@@ -11,6 +11,7 @@ import { DownloadIcon, UploadIcon } from './icons';
 import { downloadRoute } from './VenueCard';
 import type { RouteMatch } from '../lib/routeMatch';
 import { MATCH_LABEL_TEXT, describeMiss, describeReasons } from '../lib/matchText';
+import { RouteBookmarkButton } from './RouteBookmarkButton';
 
 interface RoutesListProps {
   routes: Route[];
@@ -84,6 +85,7 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
                 ) : (
                   <span className="result-badge">{routeDifficulty(route)}</span>
                 )}
+                <RouteBookmarkButton route={route} variant="card" />
                 <button
                   type="button"
                   className="result-action"

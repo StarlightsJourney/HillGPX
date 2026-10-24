@@ -4457,6 +4457,36 @@
   width: 100%;
   accent-color: var(--accent);
 }
+/* "Use my location" sits above the slider, which stays as the fallback. */
+.route-photo-where {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.route-photo-where .field {
+  align-self: stretch;
+}
+.route-photo-locate-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.route-photo-locate-note.warn {
+  color: var(--danger);
+}
+/* On phones: open the camera straight away (the dashed box is the library). */
+.route-photo-camera {
+  position: relative;
+  align-self: flex-start;
+}
+.route-photo-camera input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
 .route-photo-pin {
   position: relative;
   width: 38px;
@@ -7151,4 +7181,34 @@
   margin-top: 2px;
   color: var(--accent);
   font-size: 13px;
+}
+
+/* ─── Route bookmarks (hearts on route cards, landing tiles and the panel) ── */
+
+/* The landing tile is a button, so its heart sits beside it in a wrapper. */
+.tile-wrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+.tile-wrap > .tile {
+  flex: 1;
+}
+.route-bookmark {
+  top: 10px;
+  right: 10px;
+}
+.route-bookmark svg {
+  transition: transform 0.25s var(--ease-spring), fill 0.2s ease;
+}
+.route-bookmark.on svg {
+  animation: heart-pop 0.45s var(--ease-spring);
+}
+/* The heart owns the top-right corner; the hover download steps left of it. */
+.route-item .result-action {
+  right: 48px;
+}
+.route-bookmark-panel.on {
+  color: var(--accent);
 }

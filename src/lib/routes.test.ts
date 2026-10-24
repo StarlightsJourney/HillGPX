@@ -2,7 +2,7 @@ import kluangGpx from '../../data/routes/kluang-district-trail-run.gpx?raw';
 import ridgesGpx from '../../data/routes/southern-ridges-walk.gpx?raw';
 import { describe, expect, it } from 'vitest';
 import { parseGpx } from './gpx';
-import { routeFromPoints, routesBounds, routesNear, routesWithin } from './routes';
+import { NO_ROUTE_FILTERS, filterRoutes, routeFromPoints, routesBounds, routesNear, routesWithin } from './routes';
 
 const kluang = routeFromPoints('Kluang', parseGpx(kluangGpx).points, []);
 const ridges = routeFromPoints('Southern Ridges', parseGpx(ridgesGpx).points, []);
@@ -41,6 +41,25 @@ describe('routesBounds', () => {
 
   it('is null for nothing', () => {
     expect(routesBounds([])).toBeNull();
+  });
+});
+
+describe('filterRoutes: Saved (bookmarks) and On this device', () => {
+  const local = { ...kluang, slug: 'local-kluang', source: 'local' as const };
+  const pool = [{ ...ridges, slug: 'southern-ridges', source: 'curated' as const }, local];
+
+  it('lists only bookmarked routes under Saved, wherever they come from', () => {
+    const saved = filterRoutes(pool, { ...NO_ROUTE_FILTERS, category: 'bookmarked' }, new Set(['southern-ridges']));
+    expect(saved.map((r) => r.slug)).toEqual(['southern-ridges']);
+  });
+
+  it('shows nothing under Saved without bookmarks', () => {
+    expect(filterRoutes(pool, { ...NO_ROUTE_FILTERS, category: 'bookmarked' })).toEqual([]);
+  });
+
+  it('keeps On this device to GPX files saved locally, not bookmarks', () => {
+    const device = filterRoutes(pool, { ...NO_ROUTE_FILTERS, category: 'saved' }, new Set(['southern-ridges']));
+    expect(device.map((r) => r.slug)).toEqual(['local-kluang']);
   });
 });
 

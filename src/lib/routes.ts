@@ -7,7 +7,7 @@ import type { Bounds } from './venues';
  * Quick route categories, shown as the icon row in routes mode. Each is a
  * question the route data can answer on its own — no invented tags.
  */
-export type RouteCategory = 'all' | RouteActivity | 'saved';
+export type RouteCategory = 'all' | RouteActivity | 'bookmarked' | 'saved';
 
 /** Same number of slots as the climbs bar, so switching modes does not shift the icons. */
 export const ROUTE_CATEGORIES: { id: RouteCategory; label: string; shortLabel: string }[] = [
@@ -15,7 +15,8 @@ export const ROUTE_CATEGORIES: { id: RouteCategory; label: string; shortLabel: s
   { id: 'run', label: 'Road runs', shortLabel: 'Run' },
   { id: 'trail', label: 'Trails', shortLabel: 'Trail' },
   { id: 'cycle', label: 'Cycling', shortLabel: 'Cycle' },
-  { id: 'saved', label: 'On this device', shortLabel: 'Saved' },
+  { id: 'bookmarked', label: 'Saved', shortLabel: 'Saved' },
+  { id: 'saved', label: 'On this device', shortLabel: 'Device' },
 ];
 
 export interface RouteFilters {
@@ -30,7 +31,8 @@ export function routeHasElevation(route: Route): boolean {
   return route.elevationAvailable !== false;
 }
 
-export function filterRoutes(routes: Route[], filters: RouteFilters): Route[] {
+/** `bookmarks` are the hearted route slugs ("Saved"); "On this device" is GPX files saved locally. */
+export function filterRoutes(routes: Route[], filters: RouteFilters, bookmarks: ReadonlySet<string> = new Set()): Route[] {
   return routes.filter((route) => {
     if (filters.minGainM != null && route.gainM < filters.minGainM) return false;
     if (filters.maxDistanceM != null && route.distanceM > filters.maxDistanceM) return false;
@@ -39,6 +41,8 @@ export function filterRoutes(routes: Route[], filters: RouteFilters): Route[] {
       case 'trail':
       case 'cycle':
         return routeActivity(route) === filters.category;
+      case 'bookmarked':
+        return bookmarks.has(route.slug);
       case 'saved':
         return route.source === 'local';
       default:

@@ -106,7 +106,9 @@ export function DeleteAccountDialog({ user, onClose }: { user: AuthUser; onClose
           </div>
 
           <label className="field">
-            Type <strong className="acct-confirm-name">{user.username}</strong> to confirm
+            <span>
+              Type <strong className="acct-confirm-name">{user.username}</strong> to confirm
+            </span>
             <input
               type="text"
               autoComplete="off"

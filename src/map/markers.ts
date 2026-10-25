@@ -7,6 +7,7 @@ import { setSvgIcon } from '../lib/dom';
 import { activityGlyphSvg } from '../lib/activityGlyphs';
 import { ACTIVITY_LABEL, routeActivity } from '../lib/routeAnalysis';
 import { setRouteStarts } from './layers';
+import { placePins, type PinBox } from './collisions';
 
 export interface MarkerState {
   selected: string | null;
@@ -195,19 +196,48 @@ interface RouteMarkerEntry {
   anchor: HTMLDivElement;
   element: HTMLButtonElement;
   label: HTMLSpanElement;
+  /** Measured pill width for the current label; null until measured. */
+  width: number | null;
 }
+
+interface RouteClusterEntry {
+  marker: Marker;
+  anchor: HTMLDivElement;
+  element: HTMLButtonElement;
+  label: HTMLSpanElement;
+  lngLat: [number, number];
+  count: number;
+  width: number | null;
+}
+
+/** A pill in the collision pass; `holder` keeps its measured width between passes. */
+interface PinCandidate {
+  id: string;
+  anchor: HTMLDivElement;
+  element: HTMLButtonElement;
+  lngLat: [number, number];
+  forced: boolean;
+  /** Higher keeps its place first. */
+  rank: number;
+  holder: { width: number | null };
+}
+
+const ROUTE_PIN_HEIGHT = 32;
+/** Space kept between two pills so neither edge hides under the other's shadow. */
+const ROUTE_PIN_GAP = 3;
 
 /**
  * One pill per route, at its start, labelled with its distance — the route
  * equivalent of a price tag on a listing map. Zoomed out, starts that crowd
  * each other merge into one "12 routes" pill (the clustered `route-starts`
- * source decides which), and tapping it zooms in until they part.
+ * source decides which), and tapping it zooms in until they part. Pills that
+ * would still cover each other are hidden until zooming in parts them.
  */
 export class RouteMarkers {
   private readonly map: MlMap;
   private readonly handlers: RouteMarkerHandlers;
   private readonly entries = new Map<string, RouteMarkerEntry>();
-  private readonly clusters = new Map<number, { marker: Marker; element: HTMLButtonElement; label: HTMLSpanElement }>();
+  private readonly clusters = new Map<number, RouteClusterEntry>();
   /** Slugs the source shows on their own; null until its tiles have loaded once. */
   private singles: Set<string> | null = null;
   private selected: string | null = null;
@@ -215,11 +245,15 @@ export class RouteMarkers {
   // Once the map has settled: mid-zoom, the tiles on screen can mix two zoom
   // levels, and a route would show as both a pin and part of a count.
   private readonly onIdle = () => this.sync();
+  // Zoom changes which pills touch; panning moves them all together, so it
+  // never needs a pass.
+  private readonly onZoomEnd = () => this.applyVisibility();
 
   constructor(map: MlMap, handlers: RouteMarkerHandlers) {
     this.map = map;
     this.handlers = handlers;
     map.on('idle', this.onIdle);
+    map.on('zoomend', this.onZoomEnd);
   }
 
   setRoutes(routes: Route[], units: Units): void {
@@ -256,11 +290,13 @@ export class RouteMarkers {
         anchor.appendChild(element);
         const [lng, lat] = route.coordinates[0];
         const marker = new Marker({ element: anchor, anchor: 'center' }).setLngLat([lng, lat]).addTo(this.map);
-        entry = { route, marker, anchor, element, label };
+        entry = { route, marker, anchor, element, label, width: null };
         this.entries.set(route.slug, entry);
       }
       entry.route = route;
-      entry.label.textContent = formatDistanceIn(route.distanceM, units);
+      const text = formatDistanceIn(route.distanceM, units);
+      if (entry.label.textContent !== text) entry.width = null;
+      entry.label.textContent = text;
       entry.element.setAttribute('aria-label', `${route.name}, ${ACTIVITY_LABEL[routeActivity(route)]}, ${entry.label.textContent}`);
     }
     if (routes.length === 0) this.clearClusters();
@@ -281,6 +317,7 @@ export class RouteMarkers {
 
   remove(): void {
     this.map.off('idle', this.onIdle);
+    this.map.off('zoomend', this.onZoomEnd);
     for (const entry of this.entries.values()) entry.marker.remove();
     this.entries.clear();
     this.clearClusters();
@@ -343,21 +380,60 @@ export class RouteMarkers {
         });
         anchor.appendChild(element);
         const marker = new Marker({ element: anchor, anchor: 'center' }).setLngLat(lngLat).addTo(this.map);
-        cluster = { marker, element, label };
+        cluster = { marker, anchor, element, label, lngLat, count, width: null };
         this.clusters.set(id, cluster);
       }
       cluster.marker.setLngLat(lngLat);
-      cluster.label.textContent = `${count} routes`;
+      cluster.lngLat = lngLat;
+      cluster.count = count;
+      const text = `${count} routes`;
+      if (cluster.label.textContent !== text) cluster.width = null;
+      cluster.label.textContent = text;
       cluster.element.setAttribute('aria-label', `${count} routes here, zoom in`);
     }
     this.applyVisibility();
   }
 
-  /** A route inside a cluster has no pin of its own, unless it is the one hovered or open. */
+  /**
+   * A route inside a cluster has no pin of its own, unless it is the one
+   * hovered or open. Of the pills left, any that would cover another is
+   * hidden: the open and hovered routes always show, then clusters (most
+   * routes first), then routes by most gain, the order the lines stack in.
+   */
   private applyVisibility(): void {
-    for (const [slug, entry] of this.entries) {
-      const shown = !this.singles || this.singles.has(slug) || slug === this.selected || slug === this.hovered;
-      entry.anchor.classList.toggle('is-hidden', !shown);
+    const candidates: PinCandidate[] = [];
+    for (const [id, cluster] of this.clusters) {
+      const { anchor, element, lngLat } = cluster;
+      // Above any route's gain: a count stands for several routes.
+      candidates.push({ id: `c${id}`, anchor, element, lngLat, forced: false, rank: 1e9 + cluster.count, holder: cluster });
     }
+    for (const [slug, entry] of this.entries) {
+      const forced = slug === this.selected || slug === this.hovered;
+      if (!forced && this.singles && !this.singles.has(slug)) {
+        entry.anchor.classList.add('is-hidden');
+        continue;
+      }
+      const [lng, lat] = entry.route.coordinates[0];
+      const { anchor, element } = entry;
+      candidates.push({ id: slug, anchor, element, lngLat: [lng, lat], forced, rank: entry.route.gainM, holder: entry });
+    }
+
+    // Widths are read once per label: unhide the unmeasured pills, then read
+    // them all together so the browser lays out once.
+    const unmeasured = candidates.filter((c) => c.holder.width === null);
+    for (const c of unmeasured) c.anchor.classList.remove('is-hidden');
+    for (const c of unmeasured) {
+      const width = c.element.offsetWidth;
+      // 0 while the map is hidden (the list view on phones): measure next time.
+      if (width > 0) c.holder.width = width;
+    }
+
+    candidates.sort((a, b) => b.rank - a.rank || (a.id < b.id ? -1 : 1));
+    const boxes: PinBox[] = candidates.map((c) => {
+      const point = this.map.project(c.lngLat);
+      return { id: c.id, x: point.x, y: point.y, width: c.holder.width ?? 0, height: ROUTE_PIN_HEIGHT, forced: c.forced };
+    });
+    const shown = placePins(boxes, ROUTE_PIN_GAP);
+    for (const c of candidates) c.anchor.classList.toggle('is-hidden', !shown.has(c.id));
   }
 }

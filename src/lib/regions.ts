@@ -58,11 +58,13 @@ export function normalisePlace(text: string): string {
 const PHOTON = 'https://photon.komoot.io/api/';
 /** How many of Photon's answers may be weighed against the visitor's country. */
 const GEOCODE_CANDIDATES = 5;
+/** Photon's `type` values for places with an area, rather than a street, building or shop. */
+const AREA_TYPES = new Set(['country', 'state', 'county', 'city', 'district', 'locality']);
 
 interface PhotonResponse {
   features?: {
     geometry?: { coordinates?: [number, number] };
-    properties?: { extent?: [number, number, number, number]; countrycode?: string };
+    properties?: { extent?: [number, number, number, number]; countrycode?: string; type?: string };
   }[];
 }
 
@@ -92,7 +94,12 @@ export async function geocodePlace(query: string, signal?: AbortSignal, preferCo
     // visitor's own country wins; a famous place ("paris") still has no rival
     // at home among its top answers, so it keeps first place.
     const home = preferCountry?.toUpperCase();
-    const feature = (home && features.find((f) => f.properties?.countrycode?.toUpperCase() === home)) || features[0];
+    const atHome = home ? features.filter((f) => f.properties?.countrycode?.toUpperCase() === home) : [];
+    const pool = atHome.length > 0 ? atHome : features;
+    // Photon answers with anything that has a name: a station, a shop, a
+    // street. An area with an outline frames the search best ("kyoto" came
+    // back as a point before the city), so one wins over the first answer.
+    const feature = pool.find((f) => AREA_TYPES.has(f.properties?.type ?? '') && f.properties?.extent) ?? pool[0];
     if (!feature) return null;
     const extent = feature.properties?.extent;
     if (extent && extent.every(Number.isFinite)) {

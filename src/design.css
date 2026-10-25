@@ -6917,6 +6917,77 @@
   }
 }
 
+/* Folded while the map is moved by hand (usePanelFold): a slim strip with
+   the name and Distance / EG / EL, so the route's outline shows. Everything
+   else stays mounted, only hidden, so "More details" is as it was when the
+   panel opens again. One button over the whole strip opens it. The map is
+   never re-framed for the change of size. */
+.route-panel.folded > .profile,
+.route-panel.folded > .route-elevation-unavailable,
+.route-panel.folded > .route-more,
+.route-panel.folded > .route-more-toggle,
+.route-panel.folded .gpx-panel-actions,
+.route-panel.folded .route-panel-title .info-tip,
+.route-panel.folded > .gpx-stats > .gpx-stat:nth-child(n + 4) {
+  display: none;
+}
+.route-panel.folded .route-panel-title h2 {
+  font-size: 15px;
+}
+.route-panel.folded > .gpx-stats,
+.map-wrap > .gpx-panel.route-panel.folded > .gpx-stats {
+  gap: 4px 16px;
+  margin-top: 6px;
+}
+.route-panel.folded .gpx-stat strong {
+  font-size: 15px;
+}
+.route-panel.folded .gpx-stat span {
+  font-size: 12px;
+}
+/* As a side sheet it sits centred over the middle of the map, right where the
+   visitor is looking; folded, it moves up into the top-left corner. */
+@container mapwrap (min-width: 600px) {
+  .map-wrap > .gpx-panel.route-panel.folded {
+    margin: 0 0 auto;
+  }
+}
+.route-panel-unfold {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  padding: 0;
+  border: none;
+  border-radius: inherit;
+  background: none;
+  cursor: pointer;
+}
+.route-panel-unfold:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+/* Opening again: the hidden parts come back with a short fade. */
+.route-panel:not(.folded) > .profile,
+.route-panel:not(.folded) > .route-elevation-unavailable,
+.route-panel:not(.folded) > .route-more-toggle,
+.route-panel:not(.folded) .gpx-panel-actions {
+  animation: route-unfold 0.22s var(--ease-out);
+}
+@keyframes route-unfold {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-panel:not(.folded) > .profile,
+  .route-panel:not(.folded) > .route-elevation-unavailable,
+  .route-panel:not(.folded) > .route-more-toggle,
+  .route-panel:not(.folded) .gpx-panel-actions {
+    animation: none;
+  }
+}
+
 /* "Upload GPX" (a round + on phones) and "Routes near me" (a crosshair):
    hovering or focusing either says what it does. From 744 px the upload
    button carries its own label, so it drops the + and the tooltip. */

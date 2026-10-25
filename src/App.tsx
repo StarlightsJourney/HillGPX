@@ -801,6 +801,15 @@ function MapApp() {
     [noteOpened, selectRoute],
   );
 
+  /** A route found by name in the search: open it in Routes mode. */
+  const pickRouteFromSearch = useCallback(
+    (slug: string) => {
+      setMode('routes');
+      openRoute(slug);
+    },
+    [openRoute],
+  );
+
   // A search or "near me" from a page without the map (mapIntent.ts) runs once
   // the routes it chooses between have loaded. On the map page itself (the
   // venue page's search) the hash change wakes this up.
@@ -831,14 +840,15 @@ function MapApp() {
         const bounds = boundsOf(allVenues.filter((venue) => favorites.has(venue.slug)));
         if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
       }
-    } else pickFromSearch(intent.slug, false);
-  }, [dataset, routesReady, intentNonce, handleLocate, searchArea, pickFromSearch, selectRoute, allRoutes, allVenues, routeBookmarks, favorites]);
+    } else if (intent.kind === 'route') pickRouteFromSearch(intent.slug);
+    else pickFromSearch(intent.slug, false);
+  }, [dataset, routesReady, intentNonce, handleLocate, searchArea, pickFromSearch, pickRouteFromSearch, selectRoute, allRoutes, allVenues, routeBookmarks, favorites]);
 
   return (
     <div className={`app map-page${mapFullWidth ? ' is-expanded' : ''}${routeOpen && mapFullWidth ? ' bar-folded' : ''}`} ref={pageRef}>
       {/* Header and category bar stay put while the page scrolls the list. */}
       <div className="map-top" ref={topRef}>
-        <SiteHeader center={<SearchBar venues={allVenues} onPick={pickFromSearch} onFitBounds={searchArea} onLocate={handleLocate} />} />
+        <SiteHeader center={<SearchBar venues={allVenues} routes={allRoutes} onPick={pickFromSearch} onPickRoute={pickRouteFromSearch} onFitBounds={searchArea} onLocate={handleLocate} />} />
 
         <div className={`map-filters${routeOpen && mapFullWidth ? ' folded' : ''}`} aria-hidden={routeOpen && mapFullWidth ? true : undefined}>
         <div>

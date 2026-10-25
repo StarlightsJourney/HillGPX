@@ -9,6 +9,7 @@ import type { Bounds } from './venues';
 export type MapIntent =
   | { kind: 'area'; bounds: Bounds }
   | { kind: 'place'; slug: string }
+  | { kind: 'route'; slug: string }
   | { kind: 'near-me' }
   | { kind: 'saved'; what: 'routes' | 'places' };
 
@@ -46,7 +47,7 @@ export function takeMapIntent(): MapIntent | null {
   if (!raw) return null;
   try {
     const intent = JSON.parse(raw) as MapIntent;
-    return intent.kind === 'area' || intent.kind === 'place' || intent.kind === 'saved' ? intent : null;
+    return intent.kind === 'area' || intent.kind === 'place' || intent.kind === 'route' || intent.kind === 'saved' ? intent : null;
   } catch {
     return null;
   }

@@ -167,6 +167,20 @@ export function OpenSourceBadge({ placement }: { placement: 'landing' | 'corner'
   );
 }
 
+/** The same pill, sitting in the footer's base row instead of floating over the page. */
+export function OpenSourceInline() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="oss-inline" onClick={() => setOpen(true)} aria-haspopup="dialog">
+        <Mark size={16} />
+        Free and open source
+      </button>
+      {open && <OpenSourceDialog onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
 /**
  * First visit, once per browser session: a small centred card modelled on
  * Airbnb's "one price, all fees included" pop-up. The brand mark, one

@@ -364,8 +364,12 @@ export async function changeUsername(next: string): Promise<void> {
   track('username_change');
 }
 
-/** Delete the account and drop the local session. */
-export async function deleteAccount(password: string): Promise<void> {
+/**
+ * Delete the account and drop the local session. Goes back to the landing page
+ * unless `stay` is set, which the settings dialog uses to show its own
+ * "account deleted" confirmation first.
+ */
+export async function deleteAccount(password: string, options: { stay?: boolean } = {}): Promise<void> {
   const current = requireUser();
   // Password accounts confirm with their password; Google-only accounts have
   // nothing to check against and delete straight away.
@@ -376,7 +380,7 @@ export async function deleteAccount(password: string): Promise<void> {
   const { error } = await supabase.rpc('delete_user');
   if (error) throw dbError(error);
   apply(null);
-  goHome();
+  if (!options.stay) goHome();
   await supabase.auth.signOut().catch(() => {});
 }
 

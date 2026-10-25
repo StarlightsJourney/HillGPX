@@ -4,6 +4,7 @@ import { AccountMenu } from './AccountMenu';
 import { HeaderControls } from './HeaderControls';
 import { CoverageModal, useCoverage } from './Coverage';
 import { GitHubIcon, Mark } from './icons';
+import { OpenSourceInline } from './OpenSourceNotice';
 
 /**
  * The logo lockup: the mark and the name in one brand colour, set in Nunito
@@ -51,7 +52,7 @@ export function SiteHeader({ center, sticky = false }: { center?: ReactNode; sti
  * The same footer on every page. On the map it sits at the end of the list,
  * so it only shows once you have scrolled past the results.
  */
-export function SiteFooter() {
+export function SiteFooter({ openSourcePill = false }: { openSourcePill?: boolean }) {
   const [coverageOpen, setCoverageOpen] = useState(false);
   return (
     <footer className="site-footer">
@@ -85,6 +86,7 @@ export function SiteFooter() {
           </div>
         </div>
         <div className="site-footer-base">
+          {openSourcePill && <OpenSourceInline />}
           <span>© hillGPX · Code MIT · Routes and reviews CC BY 4.0 · Photos CC BY-SA 4.0</span>
           <span className="site-footer-credits">
             Data: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>,{' '}

@@ -42,7 +42,8 @@ import { logSession } from './lib/training';
 import { TrainingPanel } from './components/TrainingPanel';
 import { AccountPage } from './components/AccountPage';
 import { InfoPage, type InfoPageId } from './components/InfoPage';
-import { MyUploadsPage } from './components/MyUploadsPage';
+import { SettingsPage } from './components/SettingsPage';
+import { parseAccountHash } from './lib/accountRoute';
 import { UnitsProvider, useUnits } from './components/UnitsContext';
 import { Modal } from './components/Modal';
 import { SiteFooter, SiteHeader } from './components/SiteChrome';
@@ -68,7 +69,7 @@ const NO_PHOTOS: RoutePhoto[] = [];
 // fetched once someone actually opens it.
 const MapView = lazy(() => import('./map/MapView').then((m) => ({ default: m.MapView })));
 
-type View = 'landing' | 'map' | 'training' | 'account' | 'uploads' | InfoPageId;
+type View = 'landing' | 'map' | 'training' | 'account' | 'settings' | InfoPageId;
 
 const INFO_PAGES: ReadonlySet<string> = new Set<InfoPageId>(['privacy', 'terms', 'contact']);
 
@@ -76,8 +77,8 @@ function viewFromHash(): View {
   const hash = window.location.hash;
   if (hash === '#map' || hash === '#routes' || hash === '#import' || hash.startsWith('#map/') || hash.startsWith('#venue/')) return 'map';
   if (hash === '#training') return 'training';
-  if (hash === '#account') return 'account';
-  if (hash === '#uploads') return 'uploads';
+  const account = parseAccountHash(hash);
+  if (account) return account.page;
   if (INFO_PAGES.has(hash.slice(1))) return hash.slice(1) as InfoPageId;
   return 'landing';
 }
@@ -117,8 +118,8 @@ export default function App() {
         <TrainingPanel />
       ) : view === 'account' ? (
         <AccountPage />
-      ) : view === 'uploads' ? (
-        <MyUploadsPage />
+      ) : view === 'settings' ? (
+        <SettingsPage />
       ) : view !== 'map' ? (
         <InfoPage page={view} />
       ) : (
@@ -127,7 +128,7 @@ export default function App() {
       {view === 'landing' && <OpenSourceNotice />}
       {report && <ReportModal targetType={report.targetType} targetSlug={report.targetSlug} targetName={report.targetName} onClose={() => setReport(null)} />}
       {recovering && <SetPasswordModal onClose={clearPasswordRecovery} />}
-      {view !== 'map' && <OpenSourceBadge placement={view === 'landing' ? 'landing' : 'corner'} />}
+      {view !== 'map' && view !== 'account' && view !== 'settings' && <OpenSourceBadge placement={view === 'landing' ? 'landing' : 'corner'} />}
     </UnitsProvider>
   );
 }
@@ -808,6 +809,20 @@ function MapApp() {
     [openRoute],
   );
 
+  /** Select one place and frame it, as tapping its pin does. */
+  const openVenue = useCallback(
+    (slug: string) => {
+      setMode('climbs');
+      selectRoute(null);
+      setFilters(NO_FILTERS);
+      selectVenue(slug);
+      const known = venueBySlug.get(slug);
+      const found = known ? Promise.resolve(known) : isWorldPeakSlug(slug) ? worldPeakBySlug(slug) : Promise.resolve(null);
+      void found.then((venue) => venue && setFocus({ lng: venue.lng, lat: venue.lat, nonce: Date.now() }));
+    },
+    [selectRoute, selectVenue, venueBySlug],
+  );
+
   // A search or "near me" from a page without the map (mapIntent.ts) runs once
   // the routes it chooses between have loaded. On the map page itself (the
   // venue page's search) the hash change wakes this up.
@@ -838,9 +853,10 @@ function MapApp() {
         const bounds = boundsOf(allVenues.filter((venue) => favorites.has(venue.slug)));
         if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
       }
-    } else if (intent.kind === 'route') pickRouteFromSearch(intent.slug);
+    } else if (intent.kind === 'venue') openVenue(intent.slug);
+    else if (intent.kind === 'route') pickRouteFromSearch(intent.slug);
     else pickFromSearch(intent.slug, false);
-  }, [dataset, routesReady, intentNonce, handleLocate, searchArea, pickFromSearch, pickRouteFromSearch, selectRoute, allRoutes, allVenues, routeBookmarks, favorites]);
+  }, [dataset, routesReady, intentNonce, handleLocate, searchArea, pickFromSearch, pickRouteFromSearch, selectRoute, allRoutes, allVenues, routeBookmarks, favorites, openVenue]);
 
   return (
     <div className={`app map-page${mapFullWidth ? ' is-expanded' : ''}${routeOpen && mapFullWidth ? ' bar-folded' : ''}`} ref={pageRef}>

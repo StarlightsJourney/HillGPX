@@ -9,6 +9,8 @@ import type { Bounds } from './venues';
 export type MapIntent =
   | { kind: 'area'; bounds: Bounds }
   | { kind: 'place'; slug: string }
+  /** One place, selected and framed as if its pin had been tapped (the account's Saved list). */
+  | { kind: 'venue'; slug: string }
   | { kind: 'route'; slug: string }
   | { kind: 'near-me' }
   | { kind: 'saved'; what: 'routes' | 'places' };

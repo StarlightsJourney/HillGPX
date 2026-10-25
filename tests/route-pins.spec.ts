@@ -38,7 +38,7 @@ test('zoomed out to a country, routes are start pins and clusters; a cluster zoo
   await page.goto('/#routes');
   await dismissNotice(page);
   await expect(page.locator('.route-item').first()).toBeVisible({ timeout: 15_000 });
-  await page.getByLabel('Search countries, hills, blocks and streets').fill('malaysia');
+  await page.getByLabel('Search countries, hills, routes, blocks and streets').fill('malaysia');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.locator('.mode-tab.on')).toHaveText('Routes');
 
@@ -117,7 +117,7 @@ test('zoomed in on a busy city, route pins never cover each other; the hovered a
   await page.goto('/#routes');
   await dismissNotice(page);
   await expect(page.locator('.route-item').first()).toBeVisible({ timeout: 15_000 });
-  await page.getByLabel('Search countries, hills, blocks and streets').fill('singapore');
+  await page.getByLabel('Search countries, hills, routes, blocks and streets').fill('singapore');
   await page.getByRole('button', { name: 'Search' }).click();
   await expect(page.locator('.mode-tab.on')).toHaveText('Routes');
   await page.waitForTimeout(2_000);

@@ -30,7 +30,7 @@ async function openRoutes(page: Page) {
 test('opening and switching routes leaves the panel whole', async ({ page }) => {
   await openRoutes(page);
   const panel = page.locator('.route-panel');
-  await page.getByLabel('Search countries, hills, blocks and streets').fill('hong kong');
+  await page.getByLabel('Search countries, hills, routes, blocks and streets').fill('hong kong');
   await page.getByRole('button', { name: 'Search' }).click();
   await page.locator('.route-item .result-card', { hasText: 'Hong Kong Trail Section 2' }).click();
   await expect(page.getByRole('region', { name: /Route: Hong Kong Trail Section 2/ })).toBeVisible();

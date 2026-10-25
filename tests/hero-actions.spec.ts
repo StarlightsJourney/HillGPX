@@ -6,7 +6,7 @@ async function dismissNotice(page: Page) {
   if (await gotIt.isVisible({ timeout: 3_000 }).catch(() => false)) await gotIt.click();
 }
 
-const search = (page: Page) => page.getByLabel('Search countries, hills, blocks and streets');
+const search = (page: Page) => page.getByLabel('Search countries, hills, routes, blocks and streets');
 const actions = (page: Page) => page.locator('.trail-hero-actions');
 
 test('hero offers Routes near me, Search by Region and Upload GPX', async ({ page }) => {

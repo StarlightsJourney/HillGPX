@@ -1,3 +1,4 @@
+import { saveFile } from '../lib/dom';
 import { useSavedPlaces, useSavedRoutes } from '../lib/saved';
 import { nameFromSlug, useSavedDetails } from '../lib/savedDetails';
 import { ArchiveIcon, DownloadIcon } from './icons';
@@ -15,12 +16,7 @@ export function SettingsData() {
       routes: [...routes].map((slug) => ({ slug, name: details.routes.get(slug)?.name ?? nameFromSlug(slug) })),
       places: [...places].map((slug) => ({ slug, name: details.places.get(slug)?.name ?? nameFromSlug(slug) })),
     };
-    const url = URL.createObjectURL(new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'hillgpx-saved.json';
-    link.click();
-    URL.revokeObjectURL(url);
+    saveFile(new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' }), 'hillgpx-saved.json');
   };
 
   return (

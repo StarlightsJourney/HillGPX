@@ -125,6 +125,7 @@ Phones parse the file in the browser, and much larger files can crash a mobile t
 - Weather from [Open-Meteo](https://open-meteo.com) (CC BY 4.0, non-commercial).
 - Terrain from [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/).
 - HDB data from [data.gov.sg](https://data.gov.sg); geocoding via OneMap and [Photon](https://photon.komoot.io).
+- Singapore neighbourhood search (planning areas and subzones, as boxes) contains information from Master Plan 2019 Subzone Boundary (No Sea) accessed on 25 October 2026 from data.gov.sg which is made available under the terms of the Singapore Open Data Licence version 1.0 ([licence](https://data.gov.sg/open-data-licence)). Rebuild with `python3 scripts/build_sg_areas.py`.
 - Community routes and reviews CC BY 4.0; community photos under the licence the contributor chose.
 
 ## Known limitations

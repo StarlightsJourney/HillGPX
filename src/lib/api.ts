@@ -366,7 +366,7 @@ export interface PublishRouteInput {
 export async function publishRoute(input: PublishRouteInput): Promise<Route> {
   const { route } = input;
   // Originals are gzipped: a 50 MB ultra GPX becomes a few MB, inside the bucket limit.
-  const canGzip = typeof CompressionStream !== 'undefined';
+  const canGzip = typeof CompressionStream !== 'undefined' && typeof Blob.prototype.stream === 'function';
   const gpxPath = `${storageSafe(route.slug)}.gpx${canGzip ? '.gz' : ''}`;
   const lngs = route.coordinates.map((p) => p[0]);
   const lats = route.coordinates.map((p) => p[1]);

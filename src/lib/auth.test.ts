@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { changeUsername, deleteMyRoute, fetchMyRoutes, logIn, logOut, resendConfirmation, resetPasswordForEmail, signUp, useAuthUser } from './auth';
+import { changeUsername, deleteMyRoute, editMyRoute, fetchMyRoutes, logIn, logOut, resendConfirmation, resetPasswordForEmail, signUp, useAuthUser } from './auth';
 
 const USER = {
   id: 'u1',
@@ -244,6 +244,111 @@ describe('auth', () => {
     vi.stubGlobal('fetch', fetchMock);
     await logIn('r@x.com', 'password123');
     await expect(deleteMyRoute('not-mine')).rejects.toThrow('No such route on your account.');
+  });
+
+  it('renames and re-credits an owned route through the edit RPC, without touching storage', async () => {
+    let body: Record<string, unknown> | null = null;
+    const fetchMock = mockApi({
+      '/auth/v1/token': () => json(SESSION),
+      '/rest/v1/rpc/edit_community_route': (init) => {
+        body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return new Response(null, { status: 204 });
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await logIn('r@x.com', 'password123');
+    await expect(editMyRoute('mine', { name: ' Ridge Loop ', anonymous: true })).resolves.toEqual({ gpxPath: null });
+    expect(body).toMatchObject({ p_slug: 'mine', p_name: 'Ridge Loop', p_anonymous: true, p_points: null, p_gpx_path: null });
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/storage/'))).toBe(false);
+  });
+
+  it('uploads the regenerated file before the RPC swaps it in for a trim', async () => {
+    const calls: string[] = [];
+    let body: Record<string, unknown> | null = null;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes('/auth/v1/token')) return json(SESSION);
+      if (url.includes('/rest/v1/profiles')) return url.includes('ilike') ? json([]) : json([{ username: 'RidgeRunner', avatar_path: null }]);
+      if (url.includes('/storage/v1/object/gpx/')) return json({ Key: 'gpx/x' });
+      if (url.includes('/rest/v1/rpc/edit_community_route')) {
+        body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return new Response(null, { status: 204 });
+      }
+      return json({}, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await logIn('r@x.com', 'password123');
+    const result = await editMyRoute('mine', {
+      track: {
+        points: [
+          [103.8, 1.36, 10],
+          [103.81, 1.37, 12],
+        ],
+        distanceM: 1000,
+        gainM: 20,
+        lossM: 5,
+        venueSlugs: ['bukit-timah'],
+        fingerprint: 'abc12345',
+        gpxText: '<gpx/>',
+      },
+    });
+    expect(result.gpxPath).toMatch(/^mine-e[0-9a-f]{8}\.gpx(\.gz)?$/);
+    const uploadIdx = calls.findIndex((url) => url.includes('/storage/v1/object/gpx/'));
+    const rpcIdx = calls.findIndex((url) => url.includes('edit_community_route'));
+    expect(uploadIdx).toBeGreaterThanOrEqual(0);
+    expect(rpcIdx).toBeGreaterThan(uploadIdx);
+    expect(calls[uploadIdx]).toContain(result.gpxPath ?? 'never');
+    expect(body).toMatchObject({
+      p_slug: 'mine',
+      p_gpx_path: result.gpxPath,
+      p_distance_m: 1000,
+      p_gain_m: 20,
+      p_loss_m: 5,
+      p_geom_hash: 'abc12345',
+      p_venue_slugs: ['bukit-timah'],
+    });
+  });
+
+  it('maps a trimmed track that duplicates another route to the duplicate sentence', async () => {
+    const fetchMock = mockApi({
+      '/auth/v1/token': () => json(SESSION),
+      '/storage/v1/object/gpx/': () => json({ Key: 'gpx/x' }),
+      '/rest/v1/rpc/edit_community_route': () =>
+        json({ code: '23505', message: 'duplicate key value violates unique constraint "routes_geom_hash_key"' }, 409),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await logIn('r@x.com', 'password123');
+    await expect(
+      editMyRoute('mine', {
+        track: {
+          points: [
+            [103.8, 1.36, 10],
+            [103.81, 1.37, 12],
+          ],
+          distanceM: 1000,
+          gainM: 20,
+          lossM: 5,
+          venueSlugs: [],
+          fingerprint: 'abc12345',
+          gpxText: '<gpx/>',
+        },
+      }),
+    ).rejects.toThrow('That trimmed track is already in the community archive.');
+  });
+
+  it('explains when the edit RPC has not been applied yet', async () => {
+    const fetchMock = mockApi({
+      '/auth/v1/token': () => json(SESSION),
+      '/rest/v1/rpc/edit_community_route': () =>
+        json({ code: 'PGRST202', message: 'Could not find the function' }, 404),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await logIn('r@x.com', 'password123');
+    await expect(editMyRoute('mine', { name: 'Ridge Loop' })).rejects.toMatchObject({
+      message: 'Route editing is not available yet — the latest database change is still being applied.',
+      status: 503,
+    });
   });
 
   it('refreshes an expired session token once before retrying the RPC', async () => {

@@ -228,6 +228,9 @@ function MapApp() {
   const [selectedRouteSlug, setSelectedRouteSlug] = useState<string | null>(null);
   const [hoveredRouteSlug, setHoveredRouteSlug] = useState<string | null>(null);
   const [routeHoverIndex, setRouteHoverIndex] = useState<number | null>(null);
+  // Post-publish editing of your own upload: which route's panel is in edit
+  // mode, and the kept range while trimming (the cut ends draw ghosted).
+  const [routeEdit, setRouteEdit] = useState<{ slug: string; trim: [number, number] | null } | null>(null);
   // A venue picked from a route's "Passes" list: pinned on the map beside the
   // route rather than opening its detail page over it.
   const [spotlight, setSpotlight] = useState<{ slug: string; nonce: number } | null>(null);
@@ -453,6 +456,7 @@ function MapApp() {
       setSelectedRouteSlug(slug);
       setRouteHoverIndex(null);
       setSpotlight(null);
+      setRouteEdit(null);
       if (slug) {
         track('route_open', slug);
         setSelectedSlug(null);
@@ -854,7 +858,12 @@ function MapApp() {
         if (bounds) setFocusBounds({ bounds, nonce: Date.now() });
       }
     } else if (intent.kind === 'venue') openVenue(intent.slug);
-    else if (intent.kind === 'route') pickRouteFromSearch(intent.slug);
+    else if (intent.kind === 'route') {
+      pickRouteFromSearch(intent.slug);
+      // From the account's pencil: land straight in the panel's edit mode.
+      // Ownership is re-checked in the panel — the flag only asks for it.
+      if (intent.edit) setRouteEdit({ slug: intent.slug, trim: null });
+    }
     else pickFromSearch(intent.slug, false);
   }, [dataset, routesReady, intentNonce, handleLocate, searchArea, pickFromSearch, pickRouteFromSearch, selectRoute, allRoutes, allVenues, routeBookmarks, favorites, openVenue]);
 
@@ -985,7 +994,7 @@ function MapApp() {
                   setMapExpanded(!mapExpanded);
                 }}
                 injectedVenueSlugs={gpxVenueSlugs}
-                activeRouteTrim={droppedGpx ? gpxTrim : null}
+                activeRouteTrim={droppedGpx ? gpxTrim : routeEdit && routeEdit.slug === selectedRouteSlug ? routeEdit.trim : null}
                 hoverPoint={gpxHoverPoint ?? routeHoverPoint}
                 onRouteHover={droppedGpx ? setGpxHoverIndex : setRouteHoverIndex}
                 routePanelOpen={Boolean(droppedGpx || selectedRoute)}
@@ -1049,6 +1058,16 @@ function MapApp() {
                 onPhotoAdded={(photo) => {
                   setMyRoutePhotos((current) => [photo, ...current]);
                   setPhotoFocus({ id: photo.id, nonce: Date.now() });
+                }}
+                editing={routeEdit?.slug === selectedRoute.slug}
+                editTrim={routeEdit?.trim ?? null}
+                onEditTrimChange={(trim) => setRouteEdit((current) => (current ? { ...current, trim } : current))}
+                onEditStart={() => setRouteEdit({ slug: selectedRoute.slug, trim: null })}
+                onEditEnd={(updated) => {
+                  setRouteEdit(null);
+                  if (updated) {
+                    setCommunityRoutes((current) => current.map((existing) => (existing.slug === updated.slug ? updated : existing)));
+                  }
                 }}
               />
             )}

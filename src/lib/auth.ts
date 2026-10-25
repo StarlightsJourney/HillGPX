@@ -13,6 +13,7 @@ import type { AuthError, User } from '@supabase/supabase-js';
 import { ApiError, apiErrorMessage, isSchemaError, publicUrl, supabase } from './api';
 import { track } from './analytics';
 import { syncSavedForUser } from './saved';
+import type { RoutePoint } from '../types';
 
 export interface AuthUser {
   id: string;
@@ -477,4 +478,79 @@ export async function deleteMyRoute(slug: string): Promise<void> {
     throw new ApiError('No such route on your account.', 404);
   }
   if (error) throw dbError(error);
+}
+
+/** A replacement track from a post-publish trim: the kept slice and its stats. */
+export interface RouteTrackEdit {
+  points: RoutePoint[];
+  distanceM: number;
+  gainM: number;
+  lossM: number;
+  venueSlugs: string[];
+  fingerprint: string;
+  /** Serialised GPX for the kept slice — the stored file is replaced with it. */
+  gpxText: string;
+}
+
+/**
+ * Rename, re-credit or re-trim a route the signed-in user published. Only the
+ * fields passed change; the slug — and so every link and bookmark — stays.
+ * A trim also swaps the stored GPX: the regenerated file goes up under a
+ * fresh name first, then the RPC points the row at it and deletes the old
+ * object, so the cut-off ends leave the archive too. Returns the new file's
+ * storage path when the track was replaced.
+ */
+export async function editMyRoute(
+  slug: string,
+  edit: { name?: string; anonymous?: boolean; track?: RouteTrackEdit },
+): Promise<{ gpxPath: string | null }> {
+  requireUser();
+  let gpxPath: string | null = null;
+  if (edit.track) {
+    const canGzip = typeof CompressionStream !== 'undefined' && typeof Blob.prototype.stream === 'function';
+    gpxPath = `${slug}-e${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}.gpx${canGzip ? '.gz' : ''}`;
+    const file = new Blob([edit.track.gpxText], { type: 'application/gpx+xml' });
+    const body = canGzip ? await new Response(file.stream().pipeThrough(new CompressionStream('gzip'))).blob() : file;
+    const { error: uploadError } = await supabase.storage
+      .from('gpx')
+      .upload(gpxPath, body, { contentType: canGzip ? 'application/gzip' : 'application/gpx+xml' });
+    if (uploadError) throw dbError(uploadError);
+  }
+  const params = {
+    p_slug: slug,
+    p_name: edit.name?.trim() ?? null,
+    p_anonymous: edit.anonymous ?? null,
+    p_points: edit.track?.points ?? null,
+    p_distance_m: edit.track?.distanceM ?? null,
+    p_gain_m: edit.track?.gainM ?? null,
+    p_loss_m: edit.track?.lossM ?? null,
+    p_geom_hash: edit.track?.fingerprint ?? null,
+    p_venue_slugs: edit.track?.venueSlugs ?? null,
+    p_gpx_path: gpxPath,
+  };
+  const call = () => supabase.rpc('edit_community_route', params);
+  let { error } = await call();
+  if (error && /^PGRST3/.test(error.code ?? '')) {
+    // The access token died while the panel was open — refresh once, then retry.
+    await supabase.auth.refreshSession().catch(() => undefined);
+    if (!user) {
+      throw new ApiError('Your sign-in has expired — sign in again, then try saving the route.', 401);
+    }
+    ({ error } = await call());
+    if (error && /^PGRST3/.test(error.code ?? '')) {
+      throw new ApiError('Your sign-in has expired — sign in again, then try saving the route.', 401);
+    }
+  }
+  if (error) {
+    if (error.code === '23505' || /duplicate key/i.test(error.message)) {
+      // geom_hash is unique: the kept slice duplicates a route already up.
+      throw new ApiError('That trimmed track is already in the community archive.', 409);
+    }
+    if (isSchemaError(error)) {
+      throw new ApiError('Route editing is not available yet — the latest database change is still being applied.', 503, error.code);
+    }
+    throw dbError(error);
+  }
+  track('route_edit', slug);
+  return { gpxPath };
 }

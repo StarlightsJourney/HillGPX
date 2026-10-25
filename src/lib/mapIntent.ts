@@ -11,7 +11,8 @@ export type MapIntent =
   | { kind: 'place'; slug: string }
   /** One place, selected and framed as if its pin had been tapped (the account's Saved list). */
   | { kind: 'venue'; slug: string }
-  | { kind: 'route'; slug: string }
+  /** One route, opened on the map; `edit` lands in the panel's edit mode (the owner's own upload). */
+  | { kind: 'route'; slug: string; edit?: boolean }
   | { kind: 'near-me' }
   | { kind: 'saved'; what: 'routes' | 'places' };
 

@@ -12,6 +12,7 @@ import { useSyncExternalStore } from 'react';
 import type { AuthError, User } from '@supabase/supabase-js';
 import { ApiError, apiErrorMessage, isSchemaError, publicUrl, supabase } from './api';
 import { track } from './analytics';
+import { syncSavedForUser } from './saved';
 
 export interface AuthUser {
   id: string;
@@ -75,7 +76,9 @@ let resolving = 0;
 let recovering = typeof window !== 'undefined' && /type=recovery/.test(window.location.hash);
 
 function apply(next: AuthUser | null): void {
+  const changed = (user?.id ?? null) !== (next?.id ?? null);
   user = next;
+  if (changed) void syncSavedForUser(next?.id ?? null);
   listeners.forEach((listener) => listener());
 }
 
@@ -361,8 +364,12 @@ export async function changeUsername(next: string): Promise<void> {
   track('username_change');
 }
 
-/** Delete the account and drop the local session. */
-export async function deleteAccount(password: string): Promise<void> {
+/**
+ * Delete the account and drop the local session. Goes back to the landing page
+ * unless `stay` is set, which the settings dialog uses to show its own
+ * "account deleted" confirmation first.
+ */
+export async function deleteAccount(password: string, options: { stay?: boolean } = {}): Promise<void> {
   const current = requireUser();
   // Password accounts confirm with their password; Google-only accounts have
   // nothing to check against and delete straight away.
@@ -373,7 +380,7 @@ export async function deleteAccount(password: string): Promise<void> {
   const { error } = await supabase.rpc('delete_user');
   if (error) throw dbError(error);
   apply(null);
-  goHome();
+  if (!options.stay) goHome();
   await supabase.auth.signOut().catch(() => {});
 }
 

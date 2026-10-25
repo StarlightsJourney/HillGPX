@@ -443,6 +443,39 @@ export function recordRouteDownload(slug: string): void {
   void rest(`/rest/v1/rpc/record_route_download`, { method: 'POST', body: JSON.stringify({ p_slug: slug }) }).catch(() => {});
 }
 
+/* ─── Saved items (account) ─────────────────────────────────────────────── */
+
+export type SavedKind = 'route' | 'place';
+
+export interface SavedItems {
+  routes: string[];
+  places: string[];
+}
+
+/** Everything the signed-in account has saved. Throws when the table is unavailable. */
+export async function fetchSaved(): Promise<SavedItems> {
+  const { data, error } = await supabase.from('saved_items').select('kind,slug').limit(2000);
+  if (error) throw error;
+  const rows = (data ?? []) as { kind: SavedKind; slug: string }[];
+  return {
+    routes: rows.filter((row) => row.kind === 'route').map((row) => row.slug),
+    places: rows.filter((row) => row.kind === 'place').map((row) => row.slug),
+  };
+}
+
+/** Save items for the account. Re-saving one is a no-op (the primary key dedupes). */
+export async function addSaved(userId: string, kind: SavedKind, slugs: string[]): Promise<void> {
+  if (slugs.length === 0) return;
+  const rows = slugs.map((slug) => ({ user_id: userId, kind, slug }));
+  const { error } = await supabase.from('saved_items').upsert(rows, { onConflict: 'user_id,kind,slug', ignoreDuplicates: true });
+  if (error) throw error;
+}
+
+export async function removeSaved(userId: string, kind: SavedKind, slug: string): Promise<void> {
+  const { error } = await supabase.from('saved_items').delete().eq('user_id', userId).eq('kind', kind).eq('slug', slug);
+  if (error) throw error;
+}
+
 /* ─── Stats ────────────────────────────────────────────────────────────── */
 
 let statsPromise: Promise<CommunityStats | null> | null = null;

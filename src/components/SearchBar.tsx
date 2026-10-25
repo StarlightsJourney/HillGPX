@@ -90,15 +90,47 @@ const MAX_ROUTES = 3;
 
 type Lookup = { state: 'idle' } | { state: 'searching'; query: string } | { state: 'missing'; query: string };
 
-/** Countries and curated destinations; destinations win a name clash (their boxes are hand-drawn). */
+interface SgAreaFile {
+  /** kind: 'area' (planning area), 'subzone' or 'alias'; b: [west, south, east, north]. */
+  areas: { name: string; kind: string; in?: string; b: number[] }[];
+}
+
+/**
+ * Singapore's planning areas, subzones and a few everyday names (Buona Vista,
+ * Marina Bay), from URA Master Plan 2019 via scripts/build_sg_areas.py. Photon
+ * answers these with a station or a building, and only on submit; here they
+ * are suggested as you type and framed by their real extent.
+ */
+function neighbourhoodPlaces(file: SgAreaFile): Place[] {
+  return file.areas.map((area) => ({
+    key: `n:${area.name}`,
+    name: area.name,
+    meta: area.kind === 'area' ? 'Planning area · Singapore' : `Neighbourhood · ${area.in ?? 'Singapore'}`,
+    bounds: { west: area.b[0], south: area.b[1], east: area.b[2], north: area.b[3] },
+    peaks: [],
+    // "one north" finds "one-north".
+    aliases: area.name.includes('-') ? [fold(area.name.replace(/-/g, ' '))] : undefined,
+  }));
+}
+
+/**
+ * Countries, curated destinations and Singapore's neighbourhoods. Destinations
+ * win a name clash (their boxes are hand-drawn), then countries.
+ */
 function usePlaces(): Place[] {
   const destinations = useMemo<Place[]>(
     () => DESTINATIONS.map((d) => ({ key: `d:${d.name}`, name: d.name, meta: d.hint, bounds: d.bounds, peaks: [] })),
     [],
   );
   const [countries, setCountries] = useState<Place[]>([]);
+  const [neighbourhoods, setNeighbourhoods] = useState<Place[]>([]);
   useEffect(() => {
     let cancelled = false;
+    void import('../lib/sgAreas.json')
+      .then((module) => {
+        if (!cancelled) setNeighbourhoods(neighbourhoodPlaces(module.default satisfies SgAreaFile));
+      })
+      .catch(() => undefined);
     void countrySummaries().then((summaries) => {
       if (cancelled) return;
       setCountries(
@@ -118,8 +150,10 @@ function usePlaces(): Place[] {
   }, []);
   return useMemo(() => {
     const taken = new Set(destinations.map((d) => d.name.toLowerCase()));
-    return [...destinations, ...countries.filter((c) => !taken.has(c.name.toLowerCase()))];
-  }, [destinations, countries]);
+    const kept = countries.filter((c) => !taken.has(c.name.toLowerCase()));
+    for (const country of kept) taken.add(country.name.toLowerCase());
+    return [...destinations, ...kept, ...neighbourhoods.filter((n) => !taken.has(n.name.toLowerCase()))];
+  }, [destinations, countries, neighbourhoods]);
 }
 
 /**
@@ -261,7 +295,13 @@ export function SearchBar({ venues, routes = [], onPick, onPickRoute = openRoute
   }, [normalised, haystack, pool]);
 
   const results = useMemo(() => matches.slice(0, MAX_RESULTS), [matches]);
-  const areaHits = useMemo(() => matchAreas(areas, normalised, MAX_AREAS), [areas, normalised]);
+  // A town of blocks named like a place ("Queenstown") gives way to it: the
+  // place has the real boundary, the town only the box round its blocks.
+  const placeNames = useMemo(() => new Set(places.map((place) => fold(place.name))), [places]);
+  const areaHits = useMemo(
+    () => matchAreas(areas.filter((area) => !placeNames.has(fold(area.name))), normalised, MAX_AREAS),
+    [areas, placeNames, normalised],
+  );
   const placeHits = useMemo(() => matchPlaces(places, plain), [places, plain]);
   const routeHits = useMemo(() => matchRoutes(routes, plain), [routes, plain]);
   const routeRows = useMemo(() => routeHits.hits.slice(0, MAX_ROUTES), [routeHits]);

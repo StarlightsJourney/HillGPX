@@ -91,7 +91,8 @@ function Terms() {
       </ul>
       <h2>The code and the data we build on</h2>
       <p>
-        The code is open source under the <a href={`${REPO_URL}/blob/HEAD/LICENSE`} target="_blank" rel="noreferrer">MIT licence</a>. Map data © OpenStreetMap contributors (ODbL), summits from GeoNames (CC BY 4.0), photos from Wikimedia Commons and Mapillary under their own licences, weather from Open-Meteo (CC BY 4.0). The full list is in the{' '}
+        The code is open source under the <a href={`${REPO_URL}/blob/HEAD/LICENSE`} target="_blank" rel="noreferrer">MIT licence</a>. Map data © OpenStreetMap contributors (ODbL), summits from GeoNames (CC BY 4.0), photos from Wikimedia Commons and Mapillary under their own licences, weather from Open-Meteo (CC BY 4.0). Singapore neighbourhood search contains information from Master Plan 2019 Subzone Boundary (No Sea) accessed on 25 October 2026 from data.gov.sg which is made available under the terms of the Singapore Open Data Licence version 1.0{' '}
+        (<a href="https://data.gov.sg/open-data-licence" target="_blank" rel="noreferrer">licence</a>). The full list is in the{' '}
         <a href={`${REPO_URL}/blob/HEAD/README.md#data-sources-and-licensing`} target="_blank" rel="noreferrer">data sources and licences</a>.
       </p>
     </>

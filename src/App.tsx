@@ -19,6 +19,7 @@ import { ElevationModel } from './lib/elevation';
 import {
   NO_FILTERS,
   boundsOf,
+  inBounds,
   filterVenues,
   loadDataset,
   loadFavorites,
@@ -233,6 +234,14 @@ function MapApp() {
   const [viewport, setViewport] = useState<
     { west: number; south: number; east: number; north: number } | null
   >(null);
+  // The box last searched or opened from a link (showArea). It ranks the list
+  // only while the map's centre is still inside it, so panning away by hand
+  // goes back to plain ranking without anything having to clear it.
+  const [searchedBox, setSearchedBox] = useState<Bounds | null>(null);
+  const activeSearchedBox =
+    searchedBox && viewport && inBounds(searchedBox, (viewport.west + viewport.east) / 2, (viewport.south + viewport.north) / 2)
+      ? searchedBox
+      : null;
 
   useEffect(() => {
     loadDataset()
@@ -587,6 +596,7 @@ function MapApp() {
   // hidden map behind the list), and a stored route left open would be
   // describing the place you just left, so it closes.
   const showArea = useCallback((bounds: Bounds, showMap = true) => {
+    setSearchedBox(bounds);
     setSelectedSlug(null);
     setActiveRouteSlug(null);
     setUserLocation(null);
@@ -895,6 +905,7 @@ function MapApp() {
             <ResultsList
               venues={venues}
               bounds={viewport}
+              searched={activeSearchedBox}
               routeCounts={routeCounts}
               onHover={setHoveredSlug}
               favorites={favorites}

@@ -288,24 +288,15 @@ export function effectiveGain(venue: Venue): number | null {
   return venue.gainM ?? venue.summitM ?? null;
 }
 
-export function venuesInBounds(
-  venues: Venue[],
-  bounds: { west: number; south: number; east: number; north: number },
-  types?: Set<VenueType>,
-): Venue[] {
-  // A view across the antimeridian arrives as west > east or east > 180.
-  const within = (lng: number) => lng >= bounds.west && lng <= bounds.east;
-  const inLng = (lng: number) =>
-    bounds.west <= bounds.east
-      ? within(lng) || within(lng + 360) || within(lng - 360)
-      : lng >= bounds.west || lng <= bounds.east;
-  return venues.filter(
-    (v) =>
-      inLng(v.lng) &&
-      v.lat >= bounds.south &&
-      v.lat <= bounds.north &&
-      (!types || types.has(v.type)),
-  );
+/** Whether a point lies in a box. A box across the antimeridian arrives as west > east or east > 180. */
+export function inBounds(bounds: Bounds, lng: number, lat: number): boolean {
+  if (lat < bounds.south || lat > bounds.north) return false;
+  const within = (x: number) => x >= bounds.west && x <= bounds.east;
+  return bounds.west <= bounds.east ? within(lng) || within(lng + 360) || within(lng - 360) : lng >= bounds.west || lng <= bounds.east;
+}
+
+export function venuesInBounds(venues: Venue[], bounds: Bounds, types?: Set<VenueType>): Venue[] {
+  return venues.filter((v) => inBounds(bounds, v.lng, v.lat) && (!types || types.has(v.type)));
 }
 
 export function routesForVenue(dataset: Dataset, venue: Venue): Route[] {

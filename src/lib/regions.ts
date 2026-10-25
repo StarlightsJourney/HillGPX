@@ -56,11 +56,13 @@ export function normalisePlace(text: string): string {
 }
 
 const PHOTON = 'https://photon.komoot.io/api/';
+/** How many of Photon's answers may be weighed against the visitor's country. */
+const GEOCODE_CANDIDATES = 5;
 
 interface PhotonResponse {
   features?: {
     geometry?: { coordinates?: [number, number] };
-    properties?: { extent?: [number, number, number, number] };
+    properties?: { extent?: [number, number, number, number]; countrycode?: string };
   }[];
 }
 
@@ -74,7 +76,7 @@ interface PhotonResponse {
  * globe in it (Fiji: -180…180) or has none (a peak, a hut) is framed around
  * its point instead.
  */
-export async function geocodePlace(query: string, signal?: AbortSignal): Promise<Bounds | null> {
+export async function geocodePlace(query: string, signal?: AbortSignal, preferCountry?: string | null): Promise<Bounds | null> {
   const q = query.trim();
   if (!q) return null;
   const timeout = new AbortController();
@@ -82,9 +84,15 @@ export async function geocodePlace(query: string, signal?: AbortSignal): Promise
   const abort = () => timeout.abort();
   signal?.addEventListener('abort', abort);
   try {
-    const response = await fetch(`${PHOTON}?q=${encodeURIComponent(q)}&limit=1&lang=en`, { signal: timeout.signal });
+    const response = await fetch(`${PHOTON}?q=${encodeURIComponent(q)}&limit=${GEOCODE_CANDIDATES}&lang=en`, { signal: timeout.signal });
     if (!response.ok) throw new Error(`Place search failed (${response.status})`);
-    const feature = ((await response.json()) as PhotonResponse).features?.[0];
+    const features = ((await response.json()) as PhotonResponse).features ?? [];
+    // Photon ranks by fame, not by who is asking: "utown night walk" from
+    // Singapore came back as a street in England. A close match in the
+    // visitor's own country wins; a famous place ("paris") still has no rival
+    // at home among its top answers, so it keeps first place.
+    const home = preferCountry?.toUpperCase();
+    const feature = (home && features.find((f) => f.properties?.countrycode?.toUpperCase() === home)) || features[0];
     if (!feature) return null;
     const extent = feature.properties?.extent;
     if (extent && extent.every(Number.isFinite)) {

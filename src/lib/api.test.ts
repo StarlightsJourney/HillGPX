@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, apiErrorMessage, combinedRating, fetchReviews, isSchemaError, loadAuthor, saveAuthor, submitReview } from './api';
+import { ApiError, apiErrorMessage, combinedRating, fetchReviews, isSchemaError, submitReview } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -8,11 +8,6 @@ describe('api', () => {
     const reviews = [{ id: '1', venueSlug: 'x', rating: 5, comment: '', author: 'A', createdAt: '' }];
     expect(combinedRating({ average: 3, count: 1 }, reviews)).toEqual({ average: 4, count: 2 });
     expect(combinedRating(undefined, [])).toBeUndefined();
-  });
-
-  it('persists author name', () => {
-    saveAuthor('Alex');
-    expect(loadAuthor()).toBe('Alex');
   });
 
   it('posts a review with only insertable columns', async () => {

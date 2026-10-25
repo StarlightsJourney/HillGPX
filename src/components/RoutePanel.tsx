@@ -24,6 +24,9 @@ interface RoutePanelProps {
   hoverIndex: number | null;
   onHoverIndex: (index: number | null) => void;
   onClose: () => void;
+  /** Folded to a slim strip (name and the three numbers) while the map is moved by hand. */
+  folded?: boolean;
+  onUnfold?: () => void;
   spotlightSlug: string | null;
   onShowVenue: (slug: string) => void;
   onShowRoute: (slug: string) => void;
@@ -200,8 +203,14 @@ function useTerrainFill(route: Route): { points: RoutePoint[]; gainM: number; lo
  * Compact by default — title, the three numbers people compare routes by, and
  * a short profile — so the route itself keeps most of the map. "More details"
  * grows it into the full sheet (every stat, places passed, overlaps, photos).
+ *
+ * While the visitor pans or zooms by hand it folds to a slim strip so the
+ * route's outline is in view; the rest stays mounted (and "More details"
+ * keeps its state), only hidden, and comes back on a tap or once the map
+ * rests. Its size changes never re-frame the map: framing reads the panel
+ * only when the app itself moves the camera.
  */
-export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHoverIndex, onClose, spotlightSlug, onShowVenue, onShowRoute, routePhotos, onFocusPhoto, onPhotoAdded }: RoutePanelProps) {
+export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHoverIndex, onClose, folded = false, onUnfold, spotlightSlug, onShowVenue, onShowRoute, routePhotos, onFocusPhoto, onPhotoAdded }: RoutePanelProps) {
   const [adding, setAdding] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -222,9 +231,12 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
   const unavailable = elevation.pending ? 'Measuring…' : 'Unavailable';
 
   return (
-    <section className={`gpx-panel route-panel ${expanded ? 'expanded' : 'compact'}`} aria-label={`Route: ${route.name}`} key={route.slug}>
+    <section className={`gpx-panel route-panel ${expanded ? 'expanded' : 'compact'}${folded ? ' folded' : ''}`} aria-label={`Route: ${route.name}`} key={route.slug}>
       {/* A light runs once round the card's edge when a route opens. */}
       <span className="route-panel-orbit" aria-hidden="true" />
+      {folded && (
+        <button type="button" className="route-panel-unfold" onClick={onUnfold} aria-label={`Show details for ${route.name}`} />
+      )}
       <header className="gpx-panel-head">
         <div className="route-panel-title">
           <h2 title={route.name}>

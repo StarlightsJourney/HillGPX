@@ -150,7 +150,6 @@ The sibling `.bin` file is a row-major `Int16Array` of size `width * height`. Va
 
 - Favourites: `localStorage` key owned by `src/lib/venues.ts`.
 - Saved local routes: `localStorage` key owned by `src/lib/localRoutes.ts`.
-- Contributor name: `hillgpx:authorName`, owned by `src/lib/api.ts`.
 - Auth session: Supabase Auth's own localStorage key (`sb-<project-ref>-auth-token`), owned by `src/lib/auth.ts` through the shared client in `src/lib/api.ts` — the JWT auto-refreshes and rides on community calls, which is how `routes.user_id` gets stamped. The public username and avatar live in the `profiles` table (`supabase/migrations/20261022000000_accounts.sql`); avatars are 256 px JPEGs in the public `avatars` bucket.
 
 Neither is considered authoritative for the public dataset. To publish a route, add the GPX to `data/routes/` and rebuild.

@@ -141,6 +141,8 @@ interface MapViewProps {
   onLocateHint?: (message: string | null) => void;
   /** A person started panning or zooming (never the app's own camera moves). */
   onUserMove?: () => void;
+  /** The pan or zoom that person started has come to rest (after any inertia). */
+  onUserMoveEnd?: () => void;
   /** Raised when the basemap itself fails, so the failure is never silent. */
   onMapError?: (message: string) => void;
   /** The area currently on screen, so the list can show what is actually in view. */
@@ -429,6 +431,7 @@ export function MapView({
   onToggleFavorite,
   onLocateHint,
   onUserMove,
+  onUserMoveEnd,
   onMapError,
   onViewportChange,
   userLocation,
@@ -484,6 +487,8 @@ export function MapView({
   onLocateHintRef.current = onLocateHint;
   const onUserMoveRef = useRef(onUserMove);
   onUserMoveRef.current = onUserMove;
+  const onUserMoveEndRef = useRef(onUserMoveEnd);
+  onUserMoveEndRef.current = onUserMoveEnd;
   const onToggleExpandRef = useRef(onToggleExpand);
   onToggleExpandRef.current = onToggleExpand;
   const mapExpandedRef = useRef(mapExpanded);
@@ -749,10 +754,17 @@ export function MapView({
     const layoutMarkers = () => markersRef.current?.layout();
     // A pan or zoom by hand means the person has taken the camera; stop
     // re-framing whatever was framed for them last.
+    let movedByHand = false;
     map.on('movestart', (event: MapMovementEvent) => {
       if (!event.originalEvent) return;
+      movedByHand = true;
       lastFrameRef.current = null;
       onUserMoveRef.current?.();
+    });
+    map.on('moveend', () => {
+      if (!movedByHand) return;
+      movedByHand = false;
+      onUserMoveEndRef.current?.();
     });
     map.on('load', () => {
       if (lastFrameRef.current) frameTo(map, lastFrameRef.current, 0);

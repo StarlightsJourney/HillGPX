@@ -4,13 +4,13 @@
  * refreshed automatically); this module mirrors the signed-in user — plus
  * their public profile row — into a store components can read.
  *
- * Signing in is optional: contributions still work anonymously. When a
- * visitor signs in and has no saved contributor name, their username fills
- * it.
+ * Signing in is optional: contributions still work, credited anonymously.
+ * A signed-in contributor's only credit choices are their username or
+ * anonymous — the profile handle is the name every form offers.
  */
 import { useSyncExternalStore } from 'react';
 import type { AuthError, User } from '@supabase/supabase-js';
-import { ApiError, apiErrorMessage, isSchemaError, loadAuthor, publicUrl, saveAuthor, supabase } from './api';
+import { ApiError, apiErrorMessage, isSchemaError, publicUrl, supabase } from './api';
 import { track } from './analytics';
 
 export interface AuthUser {
@@ -195,11 +195,6 @@ function dbError(error: { message: string; code?: string }): ApiError {
   return new ApiError(apiErrorMessage(JSON.stringify({ message: error.message, code: error.code }), 400), 400, error.code);
 }
 
-/** After any sign-in, an empty contributor name inherits the username. */
-function fillAuthor(): void {
-  if (user && !loadAuthor()) saveAuthor(user.username);
-}
-
 /**
  * Returns true when the account still needs email confirmation (no session
  * yet — the modal shows a "check your inbox" screen); false when it signed
@@ -225,7 +220,6 @@ export async function signUp(username: string, email: string, password: string):
   if (error) throw authError(error);
   if (!data.session) return true;
   await syncUser(data.session.user);
-  fillAuthor();
   track('sign_up');
   return false;
 }
@@ -272,7 +266,6 @@ export async function logIn(email: string, password: string): Promise<void> {
   const { data, error } = await supabase.auth.signInWithPassword({ email: accountEmail(email), password });
   if (error) throw authError(error);
   await syncUser(data.session.user);
-  fillAuthor();
   track('log_in');
 }
 
@@ -281,7 +274,6 @@ export async function logInWithGoogle(credential: string): Promise<void> {
   if (error) throw authError(error);
   if (!data.session) throw new ApiError('Google sign-in did not complete — try again.', 401);
   await syncUser(data.session.user);
-  fillAuthor();
   track('log_in');
 }
 
@@ -343,9 +335,10 @@ export async function removeAvatar(): Promise<void> {
 /**
  * Rename the public handle. The unique index on lower(username) and the
  * column's format check are the real guards — the lookup just says it
- * first. The sync_route_contributor trigger rewrites the credit on routes
- * the owner published under the old name; a custom-typed credit is left
- * alone. Needs the editable-username migration's column grant.
+ * first. The sync_credit_name trigger rewrites the credit on every
+ * contribution the owner published under the old name — routes, reviews,
+ * photos, route photos and reports alike. Needs the editable-username
+ * migration's column grant.
  */
 export async function changeUsername(next: string): Promise<void> {
   const current = requireUser();
@@ -362,10 +355,8 @@ export async function changeUsername(next: string): Promise<void> {
   }
   const { error } = await supabase.from('profiles').update({ username }).eq('id', current.id);
   if (error) throw dbError(error);
-  // Keep the auth-metadata fallback (a missing profile row) in step, and a
-  // saved contributor name that was just the old handle follows the rename.
+  // Keep the auth-metadata fallback (a missing profile row) in step.
   await supabase.auth.updateUser({ data: { username } }).catch(() => undefined);
-  if (loadAuthor() === current.username) saveAuthor(username);
   await refreshUser();
   track('username_change');
 }

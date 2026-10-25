@@ -2426,6 +2426,20 @@
   font-size: 14px;
 }
 
+/* ─── Editing one of your uploads in the route panel: same shape as the
+   publish form, the profile and trim control sit inside it. */
+.route-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+.route-edit-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 /* ─── Route trimming on upload ─────────────────────────────────────────────
    The trim track lines up exactly under the profile chart: the chart is
    offset 34 px for its height labels and the range handles hang 13 px past

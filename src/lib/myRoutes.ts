@@ -37,6 +37,20 @@ export function forgetMyRoute(slug: string): void {
   if (state.routes) set({ ...state, routes: state.routes.filter((route) => route.slug !== slug) });
 }
 
+/** Prepend a route the user just published, so owner controls appear at once. */
+export function addMyRoute(upload: MyUpload): void {
+  if (state.routes && state.userId) {
+    set({ ...state, routes: [upload, ...state.routes.filter((route) => route.slug !== upload.slug)] });
+  }
+}
+
+/** Patch a route in the shared list after an edit (name, credit, stats). */
+export function updateMyRoute(slug: string, patch: Partial<MyUpload>): void {
+  if (state.routes) {
+    set({ ...state, routes: state.routes.map((route) => (route.slug === slug ? { ...route, ...patch } : route)) });
+  }
+}
+
 export function useMyRoutes(): { routes: MyUpload[] | null; error: string | null; reload: () => void } {
   const userId = useAuthUser()?.id ?? null;
   const snapshot = useSyncExternalStore(subscribe, () => state);

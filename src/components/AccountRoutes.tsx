@@ -8,7 +8,7 @@ import type { RouteActivity } from '../types';
 import { ActivityIcon } from './ActivityIcon';
 import { ContourArt, formatShortDate, Panel, pluralise, UnitsSwitch } from './AccountParts';
 import { useUnits } from './UnitsContext';
-import { ChevronRightIcon, HeartIcon, TrashIcon, UploadIcon } from './icons';
+import { ChevronRightIcon, HeartIcon, PencilIcon, TrashIcon, UploadIcon } from './icons';
 
 type Sort = 'newest' | 'downloads';
 
@@ -118,6 +118,14 @@ export function AccountRoutes({ user, routes, error, onRetry }: Props) {
               <span className="ac-chip">{pluralise(route.downloads, 'download', 'downloads')}</span>
               <ChevronRightIcon size={16} />
               <span className="sr-only">Open {route.name} on the map</span>
+            </button>
+            <button
+              type="button"
+              className="ac-icon-btn quiet"
+              aria-label={`Edit ${route.name}`}
+              onClick={() => openMapWith({ kind: 'route', slug: route.slug, edit: true })}
+            >
+              <PencilIcon size={18} />
             </button>
             {confirming === route.slug ? (
               <span className="ac-row-confirm">

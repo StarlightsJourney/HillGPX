@@ -10,6 +10,7 @@ import { RoutesList } from './components/RoutesList';
 import { RoutePanel } from './components/RoutePanel';
 import { RunNeedsBar } from './components/RunNeedsBar';
 import { useRouteBookmarks } from './lib/useRouteBookmarks';
+import { toggleSavedPlace, useSavedPlaces } from './lib/saved';
 import { useRunPlanner } from './lib/useRunPlanner';
 import { usePanelFold } from './lib/usePanelFold';
 import { askAgain, locate, locationProblemText, type LocateHint } from './lib/geolocation';
@@ -22,8 +23,6 @@ import {
   inBounds,
   filterVenues,
   loadDataset,
-  loadFavorites,
-  saveFavorites,
   nearest,
   presentVenueTypes,
   routesForVenue,
@@ -189,7 +188,7 @@ function MapApp() {
   const [activeRouteSlug, setActiveRouteSlug] = useState<string | null>(null);
   const [detailSlug, setDetailSlug] = useState(detailSlugFromHash);
   const [hoveredSlug, setHoveredSlug] = useState<string | null>(null);
-  const [favorites, setFavorites] = useState<Set<string>>(loadFavorites);
+  const favorites = useSavedPlaces();
   const [localRoutes, setLocalRoutes] = useState<Route[]>(loadLocalRoutes);
   const [droppedGpx, setDroppedGpx] = useState<LoadedGpx | null>(null);
   const [gpxHoverIndex, setGpxHoverIndex] = useState<number | null>(null);
@@ -315,10 +314,6 @@ function MapApp() {
     window.addEventListener('hashchange', syncDetail);
     return () => window.removeEventListener('hashchange', syncDetail);
   }, []);
-
-  useEffect(() => {
-    saveFavorites(favorites);
-  }, [favorites]);
 
   useEffect(() => {
     sessionStorage.setItem('hillgpx:mode', mode);
@@ -518,14 +513,7 @@ function MapApp() {
     [closeDetail, detailVenue, selectVenue, selectRoute],
   );
 
-  const toggleFavorite = useCallback((slug: string) => {
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(slug)) next.delete(slug);
-      else next.add(slug);
-      return next;
-    });
-  }, []);
+  const toggleFavorite = toggleSavedPlace;
 
   const onPublished = useCallback((route: Route) => {
     setCommunityRoutes((current) => [route, ...current.filter((existing) => existing.slug !== route.slug)]);

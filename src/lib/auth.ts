@@ -12,6 +12,7 @@ import { useSyncExternalStore } from 'react';
 import type { AuthError, User } from '@supabase/supabase-js';
 import { ApiError, apiErrorMessage, isSchemaError, publicUrl, supabase } from './api';
 import { track } from './analytics';
+import { syncSavedForUser } from './saved';
 
 export interface AuthUser {
   id: string;
@@ -75,7 +76,9 @@ let resolving = 0;
 let recovering = typeof window !== 'undefined' && /type=recovery/.test(window.location.hash);
 
 function apply(next: AuthUser | null): void {
+  const changed = (user?.id ?? null) !== (next?.id ?? null);
   user = next;
+  if (changed) void syncSavedForUser(next?.id ?? null);
   listeners.forEach((listener) => listener());
 }
 

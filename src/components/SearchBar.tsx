@@ -48,6 +48,18 @@ export const SEARCH_OPENS_MAP: Pick<SearchBarProps, 'onPick' | 'onFitBounds'> = 
 
 const locateNearMe = () => openMapWith({ kind: 'near-me' });
 
+/** Asks the header search to take the cursor and open its suggestions (the hero's "Search by Region"). */
+export const SEARCH_FOCUS_EVENT = 'hillgpx:search';
+
+/**
+ * Puts the cursor in the header search. The event is dispatched (and the box
+ * focused) synchronously, so calling this from a click handler still counts
+ * as the tap that iOS needs before it opens the keyboard.
+ */
+export function focusSiteSearch(): void {
+  window.dispatchEvent(new Event(SEARCH_FOCUS_EVENT));
+}
+
 /** A country or a curated destination: somewhere to go rather than something to climb. */
 interface Place {
   key: string;
@@ -224,6 +236,20 @@ export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit, onLocate
     [placeHits],
   );
 
+  // Places offered before anything is typed.
+  const suggestions = useMemo(() => places.filter((place) => place.key.startsWith('d:')), [places]);
+
+  // focusSiteSearch(): the page has already scrolled (or is scrolling) to the
+  // header, so focusing must not jump it again.
+  useEffect(() => {
+    const onRequest = () => {
+      inputRef.current?.focus({ preventScroll: true });
+      setOpen(true);
+    };
+    window.addEventListener(SEARCH_FOCUS_EVENT, onRequest);
+    return () => window.removeEventListener(SEARCH_FOCUS_EVENT, onRequest);
+  }, []);
+
   // Close the dropdown when clicking anywhere else.
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -320,6 +346,7 @@ export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit, onLocate
   };
 
   const hasLocal = areaHits.length > 0 || results.length > 0 || placeRows.length > 0;
+  const suggesting = query.trim() === '' && lookup.state === 'idle' && suggestions.length > 0;
   const status =
     lookup.state === 'searching' ? (
       <p className="small muted results-head" role="status">Looking up “{lookup.query}”…</p>
@@ -372,9 +399,17 @@ export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit, onLocate
           <SearchIcon size={16} />
           <span>Search</span>
         </button>
-        {open && (status !== null || hasLocal) && (
+        {open && (status !== null || hasLocal || suggesting) && (
           <div className="searchbar-results">
             {status}
+            {suggesting && <p className="small muted results-head">Popular regions</p>}
+            {suggesting &&
+              suggestions.map((place) => (
+                <button type="button" key={place.key} className="result-row area-row" onClick={() => pickPlace(place)}>
+                  <span className="result-name">{place.name}</span>
+                  <span className="result-meta small muted">{place.meta}</span>
+                </button>
+              ))}
             {placeRows.map((place) => (
               <button type="button" key={place.key} className="result-row area-row" onClick={() => pickPlace(place)}>
                 <span className="result-name">{place.name}</span>

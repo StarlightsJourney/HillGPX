@@ -53,7 +53,7 @@ function Points({ onClose }: { onClose: () => void }) {
     {
       id: 'share',
       icon: <UploadIcon size={20} />,
-      title: 'Add a GPX',
+      title: 'Upload GPX',
       detail: 'Share a route from your watch and it goes on the map for everyone.',
       href: '#import',
       onClick: (event) => {
@@ -160,6 +160,20 @@ export function OpenSourceBadge({ placement }: { placement: 'landing' | 'corner'
     <>
       <button type="button" className={`oss-badge${placement === 'landing' ? '' : ` ${placement}`}`} onClick={() => setOpen(true)} aria-haspopup="dialog">
         <Mark size={18} />
+        Free and open source
+      </button>
+      {open && <OpenSourceDialog onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+/** The same pill, sitting in the footer's base row instead of floating over the page. */
+export function OpenSourceInline() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="oss-inline" onClick={() => setOpen(true)} aria-haspopup="dialog">
+        <Mark size={16} />
         Free and open source
       </button>
       {open && <OpenSourceDialog onClose={() => setOpen(false)} />}

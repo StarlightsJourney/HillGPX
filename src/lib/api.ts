@@ -51,24 +51,6 @@ export interface CommunityStats {
   photoVenues: string[];
 }
 
-const AUTHOR_KEY = 'hillgpx:authorName';
-
-export function loadAuthor(): string {
-  try {
-    return localStorage.getItem(AUTHOR_KEY) || '';
-  } catch {
-    return '';
-  }
-}
-
-export function saveAuthor(author: string): void {
-  try {
-    localStorage.setItem(AUTHOR_KEY, author);
-  } catch {
-    // Private mode: the name is a convenience, not data.
-  }
-}
-
 export class ApiError extends Error {
   constructor(message: string, readonly status: number, readonly code?: string) {
     super(message);
@@ -225,7 +207,7 @@ export async function submitReview(input: { venueSlug: string; rating: number; c
   await rest('/rest/v1/reviews', {
     method: 'POST',
     headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ id: review.id, venue_slug: review.venueSlug, rating: review.rating, comment: review.comment, author: review.author }),
+    body: JSON.stringify({ id: review.id, venue_slug: review.venueSlug, rating: review.rating, comment: review.comment, author: input.author.trim().slice(0, 60) || null }),
   });
   track('review_post', review.venueSlug);
   return review;
@@ -384,7 +366,7 @@ export interface PublishRouteInput {
 export async function publishRoute(input: PublishRouteInput): Promise<Route> {
   const { route } = input;
   // Originals are gzipped: a 50 MB ultra GPX becomes a few MB, inside the bucket limit.
-  const canGzip = typeof CompressionStream !== 'undefined';
+  const canGzip = typeof CompressionStream !== 'undefined' && typeof Blob.prototype.stream === 'function';
   const gpxPath = `${storageSafe(route.slug)}.gpx${canGzip ? '.gz' : ''}`;
   const lngs = route.coordinates.map((p) => p[0]);
   const lats = route.coordinates.map((p) => p[1]);
@@ -459,6 +441,39 @@ export async function fetchRouteDownloads(): Promise<Record<string, number>> {
 /** Count one download. Fire-and-forget — the file matters, not the number. */
 export function recordRouteDownload(slug: string): void {
   void rest(`/rest/v1/rpc/record_route_download`, { method: 'POST', body: JSON.stringify({ p_slug: slug }) }).catch(() => {});
+}
+
+/* ─── Saved items (account) ─────────────────────────────────────────────── */
+
+export type SavedKind = 'route' | 'place';
+
+export interface SavedItems {
+  routes: string[];
+  places: string[];
+}
+
+/** Everything the signed-in account has saved. Throws when the table is unavailable. */
+export async function fetchSaved(): Promise<SavedItems> {
+  const { data, error } = await supabase.from('saved_items').select('kind,slug').limit(2000);
+  if (error) throw error;
+  const rows = (data ?? []) as { kind: SavedKind; slug: string }[];
+  return {
+    routes: rows.filter((row) => row.kind === 'route').map((row) => row.slug),
+    places: rows.filter((row) => row.kind === 'place').map((row) => row.slug),
+  };
+}
+
+/** Save items for the account. Re-saving one is a no-op (the primary key dedupes). */
+export async function addSaved(userId: string, kind: SavedKind, slugs: string[]): Promise<void> {
+  if (slugs.length === 0) return;
+  const rows = slugs.map((slug) => ({ user_id: userId, kind, slug }));
+  const { error } = await supabase.from('saved_items').upsert(rows, { onConflict: 'user_id,kind,slug', ignoreDuplicates: true });
+  if (error) throw error;
+}
+
+export async function removeSaved(userId: string, kind: SavedKind, slug: string): Promise<void> {
+  const { error } = await supabase.from('saved_items').delete().eq('user_id', userId).eq('kind', kind).eq('slug', slug);
+  if (error) throw error;
 }
 
 /* ─── Stats ────────────────────────────────────────────────────────────── */

@@ -6,6 +6,8 @@ import { HEIGHT_LABEL, venueHeight } from '../lib/venues';
 import { ACTIVITY_LABEL, findOverlaps, routeFingerprint } from '../lib/routeAnalysis';
 import { ApiError, DuplicateRouteError, publishRoute, uploadRouteThumb } from '../lib/api';
 import { useAuthUser } from '../lib/auth';
+import { addMyRoute } from '../lib/myRoutes';
+import { CreditChips } from './CreditChips';
 import type { LoadedGpx } from './GpxDropzone';
 import { ElevationProfile } from './ElevationProfile';
 import { RouteTrim } from './RouteTrim';
@@ -101,6 +103,21 @@ export function GpxPanel({
         anonymous: !user || anonymous,
       });
       onPublished(stored);
+      // The new upload joins "Your routes" now, so the edit/delete controls
+      // know it is yours without waiting for the next fetch.
+      if (user) {
+        addMyRoute({
+          slug: stored.slug,
+          name: stored.name,
+          activity,
+          distanceM: stored.distanceM,
+          gainM: stored.gainM,
+          downloads: 0,
+          anonymous,
+          createdAt: new Date().toISOString(),
+          gpxUrl: stored.gpxUrl ?? '',
+        });
+      }
       // The card image is a nicety: render it after publishing, never block on it.
       void import('../map/renderThumb')
         .then(({ renderRouteThumb }) => renderRouteThumb(stored))
@@ -224,18 +241,9 @@ export function GpxPanel({
             </div>
           </div>
           {user && (
-            <div className="field">
-              <span>Credit</span>
-              <div className="chip-row" role="radiogroup" aria-label="Credit">
-                <button type="button" role="radio" aria-checked={!anonymous} className={`chip${anonymous ? '' : ' on'}`} onClick={() => setAnonymous(false)}>
-                  {user.username}
-                </button>
-                <button type="button" role="radio" aria-checked={anonymous} className={`chip${anonymous ? ' on' : ''}`} onClick={() => setAnonymous(true)}>
-                  Anonymous
-                </button>
-              </div>
+            <CreditChips username={user.username} anonymous={anonymous} onChange={setAnonymous}>
               {anonymous && <span className="photo-note">Credited as anonymous — still in My uploads, so you can delete it later.</span>}
-            </div>
+            </CreditChips>
           )}
           <p className="photo-note publish-note">
             Free for everyone under CC BY 4.0, credited to you.

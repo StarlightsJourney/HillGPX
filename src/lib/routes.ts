@@ -22,10 +22,18 @@ export const ROUTE_CATEGORIES: { id: RouteCategory; label: string; shortLabel: s
 export interface RouteFilters {
   category: RouteCategory;
   minGainM: number | null;
+  maxGainM: number | null;
+  minDistanceM: number | null;
   maxDistanceM: number | null;
 }
 
-export const NO_ROUTE_FILTERS: RouteFilters = { category: 'all', minGainM: null, maxDistanceM: null };
+export const NO_ROUTE_FILTERS: RouteFilters = {
+  category: 'all',
+  minGainM: null,
+  maxGainM: null,
+  minDistanceM: null,
+  maxDistanceM: null,
+};
 
 export function routeHasElevation(route: Route): boolean {
   return route.elevationAvailable !== false;
@@ -34,7 +42,12 @@ export function routeHasElevation(route: Route): boolean {
 /** `bookmarks` are the hearted route slugs ("Saved"); "On this device" is GPX files saved locally. */
 export function filterRoutes(routes: Route[], filters: RouteFilters, bookmarks: ReadonlySet<string> = new Set()): Route[] {
   return routes.filter((route) => {
+    // A gain cap is a question about EG: a route whose elevation is unknown
+    // cannot answer it, whatever its stored number says.
+    if ((filters.minGainM != null || filters.maxGainM != null) && !routeHasElevation(route)) return false;
     if (filters.minGainM != null && route.gainM < filters.minGainM) return false;
+    if (filters.maxGainM != null && route.gainM > filters.maxGainM) return false;
+    if (filters.minDistanceM != null && route.distanceM < filters.minDistanceM) return false;
     if (filters.maxDistanceM != null && route.distanceM > filters.maxDistanceM) return false;
     switch (filters.category) {
       case 'run':
@@ -195,6 +208,24 @@ export function routeDifficulty(route: Route): 'Easy' | 'Moderate' | 'Hard' | 'B
   if (score > 25 || rate > 40) return 'Hard';
   if (score > 10 || rate > 15) return 'Moderate';
   return 'Easy';
+}
+
+const DIFFICULTY_ORDER = ['Easy', 'Moderate', 'Hard', 'Brutal'] as const;
+
+/**
+ * Mixes difficulty levels in turn: `perLevel` Easy, then Moderate, Hard and
+ * Brutal, round and round, most EG first within each level. A level that runs
+ * out is skipped; every route appears once.
+ */
+export function mixByDifficulty(routes: Route[], perLevel = 2): Route[] {
+  const levels = DIFFICULTY_ORDER.map((level) =>
+    routes.filter((route) => routeDifficulty(route) === level).sort((a, b) => b.gainM - a.gainM),
+  );
+  const mixed: Route[] = [];
+  for (let start = 0; mixed.length < routes.length; start += perLevel) {
+    for (const level of levels) mixed.push(...level.slice(start, start + perLevel));
+  }
+  return mixed;
 }
 
 export function linkVenues(points: RoutePoint[], venues: Venue[], radiusM = 150): string[] {

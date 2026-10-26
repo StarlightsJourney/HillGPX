@@ -1,3 +1,4 @@
+/* global Response, URL, fetch */
 /**
  * GET /api/ghealth — same-origin relay for Google Health reads.
  *

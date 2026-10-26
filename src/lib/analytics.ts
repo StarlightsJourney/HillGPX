@@ -76,11 +76,13 @@ export type TrackedEvent =
   | 'report_sent'
   | 'sign_up'
   | 'log_in'
+  | 'username_change'
   | 'password_reset'
   | 'map_expand'
   | 'run_needs_submit'
   | 'ranked_route_open'
   | 'route_bookmarked'
+  | 'route_edit'
   | 'ghealth_connect'
   | 'ghealth_import';
 

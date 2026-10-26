@@ -27,6 +27,7 @@ import { VenueCard } from '../components/VenueCard';
 import {
   addAllRouteLayers,
   addRouteLayers,
+  addRouteStartSource,
   addVenueLayers,
   animateActiveRoute,
   routesToGeoJson,
@@ -138,6 +139,10 @@ interface MapViewProps {
   favorites: Set<string>;
   onToggleFavorite: (slug: string) => void;
   onLocateHint?: (message: string | null) => void;
+  /** A person started panning or zooming (never the app's own camera moves). */
+  onUserMove?: () => void;
+  /** The pan or zoom that person started has come to rest (after any inertia). */
+  onUserMoveEnd?: () => void;
   /** Raised when the basemap itself fails, so the failure is never silent. */
   onMapError?: (message: string) => void;
   /** The area currently on screen, so the list can show what is actually in view. */
@@ -425,6 +430,8 @@ export function MapView({
   favorites,
   onToggleFavorite,
   onLocateHint,
+  onUserMove,
+  onUserMoveEnd,
   onMapError,
   onViewportChange,
   userLocation,
@@ -478,6 +485,10 @@ export function MapView({
   const visitedRef = useRef(new Set<string>());
   const onLocateHintRef = useRef(onLocateHint);
   onLocateHintRef.current = onLocateHint;
+  const onUserMoveRef = useRef(onUserMove);
+  onUserMoveRef.current = onUserMove;
+  const onUserMoveEndRef = useRef(onUserMoveEnd);
+  onUserMoveEndRef.current = onUserMoveEnd;
   const onToggleExpandRef = useRef(onToggleExpand);
   onToggleExpandRef.current = onToggleExpand;
   const mapExpandedRef = useRef(mapExpanded);
@@ -585,6 +596,7 @@ export function MapView({
         (map.getSource('user-location') as GeoJSONSource).setData(userLocationFeature(loc.lng, loc.lat));
       }
       addAllRouteLayers(map, routesToGeoJson(allRoutesRef.current));
+      addRouteStartSource(map);
       addRouteLayers(map);
       markersRef.current = new VenueMarkers(map, {
         onSelect: (slug) => onSelectRef.current(slug),
@@ -593,6 +605,12 @@ export function MapView({
       routeMarkersRef.current = new RouteMarkers(map, {
         onSelect: (slug) => onSelectRouteRef.current(slug),
         onHover: (slug) => onHoverRouteRef.current(slug),
+        onCluster: (center, zoom) => {
+          // A tap is the person taking the camera, like a pan.
+          lastFrameRef.current = null;
+          releaseGeolocate(map);
+          map.easeTo({ center, zoom: Math.max(zoom, map.getZoom() + 1), duration: 600 });
+        },
       });
       refreshMarkersRef.current(true);
       setReady(true);
@@ -736,8 +754,17 @@ export function MapView({
     const layoutMarkers = () => markersRef.current?.layout();
     // A pan or zoom by hand means the person has taken the camera; stop
     // re-framing whatever was framed for them last.
+    let movedByHand = false;
     map.on('movestart', (event: MapMovementEvent) => {
-      if (event.originalEvent) lastFrameRef.current = null;
+      if (!event.originalEvent) return;
+      movedByHand = true;
+      lastFrameRef.current = null;
+      onUserMoveRef.current?.();
+    });
+    map.on('moveend', () => {
+      if (!movedByHand) return;
+      movedByHand = false;
+      onUserMoveEndRef.current?.();
     });
     map.on('load', () => {
       if (lastFrameRef.current) frameTo(map, lastFrameRef.current, 0);

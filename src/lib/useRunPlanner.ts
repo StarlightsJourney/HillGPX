@@ -113,7 +113,7 @@ export function useRunPlanner(host: RunPlannerHost) {
     if (!ready) return;
     track('run_needs_submit', `${runLength.kind === 'time' ? `${runLength.minutes} min` : `${Math.round(runLength.metres)} m`} ${runTerrain}`);
     setBusy(true);
-    const inCountry = async (note: (country: string) => string, retry: boolean, problem: string) => {
+    const inCountry = async (note: (country: string) => string, problem: string) => {
       const code = await detectCountry();
       const area = code ? await countryArea(code) : null;
       setBusy(false);
@@ -121,7 +121,7 @@ export function useRunPlanner(host: RunPlannerHost) {
         showHint(askAgain(problem, 'plan'));
         return;
       }
-      start({ kind: 'area', bounds: area.bounds }, area.name, { title: `Routes in ${area.name}`, text: note(area.name), retry: retry ? 'plan' : null }, runLength, runTerrain);
+      start({ kind: 'area', bounds: area.bounds }, area.name, { title: `Routes in ${area.name}`, text: note(area.name), retry: null }, runLength, runTerrain);
     };
     locate(
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
@@ -139,11 +139,11 @@ export function useRunPlanner(host: RunPlannerHost) {
           return;
         }
         const widest = formatRadius(NEAR_ME_RADII_M[NEAR_ME_RADII_M.length - 1], units);
-        void inCountry((country) => `No routes within ${widest} of you. Ranking routes in ${country}.`, false, `No routes within ${widest} of you.`);
+        void inCountry((country) => `No routes within ${widest} of you. Ranking routes in ${country}.`, `No routes within ${widest} of you.`);
       },
       (problem) => {
         const text = locationProblemText(problem, 'Allow location to rank routes near you.');
-        void inCountry((country) => `${text} Ranking routes in ${country} instead.`, true, text);
+        void inCountry((country) => `${text} Ranking routes in ${country} instead.`, text);
       },
     );
   }, [ready, routes, units, showHint, start]);

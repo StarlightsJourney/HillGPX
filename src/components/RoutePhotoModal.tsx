@@ -3,7 +3,9 @@ import type { Route } from '../types';
 import { haversineM } from '../lib/elevation';
 import { nearestPointOnRoute } from '../lib/routes';
 import { locate, locationProblemText } from '../lib/geolocation';
-import { errorText, loadAuthor, saveAuthor, submitRoutePhoto, type RoutePhoto } from '../lib/api';
+import { errorText, submitRoutePhoto, type RoutePhoto } from '../lib/api';
+import { useAuthUser } from '../lib/auth';
+import { CreditChips } from './CreditChips';
 import { LocateIcon } from './icons';
 import { Modal } from './Modal';
 import { useUnits } from './UnitsContext';
@@ -27,7 +29,8 @@ export function RoutePhotoModal({ route, startIndex, onPreviewIndex, onClose, on
   const [caption, setCaption] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [author, setAuthor] = useState(loadAuthor);
+  const user = useAuthUser();
+  const [anonymous, setAnonymous] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,10 +90,9 @@ export function RoutePhotoModal({ route, startIndex, onPreviewIndex, onClose, on
     if (!file) return;
     setBusy(true);
     setError(null);
-    saveAuthor(author);
     const [lng, lat] = route.coordinates[index];
     try {
-      onAdded(await submitRoutePhoto({ routeSlug: route.slug, lng, lat, kind, caption, file, author }));
+      onAdded(await submitRoutePhoto({ routeSlug: route.slug, lng, lat, kind, caption, file, author: user && !anonymous ? user.username : '' }));
       setDone(true);
     } catch (err) {
       setError(`Could not upload: ${errorText(err)}`);
@@ -145,10 +147,11 @@ export function RoutePhotoModal({ route, startIndex, onPreviewIndex, onClose, on
             <span>{kind === 'hazard' ? 'What is the hazard?' : 'Caption (optional)'}</span>
             <input value={caption} maxLength={280} onChange={(event) => setCaption(event.target.value)} placeholder={kind === 'hazard' ? 'Fallen tree blocks the trail after the bridge' : 'Water point at the shelter'} />
           </label>
-          <label className="field">
-            <span>Credit as (optional)</span>
-            <input value={author} maxLength={60} onChange={(event) => setAuthor(event.target.value)} placeholder="Your name or handle" />
-          </label>
+          {user ? (
+            <CreditChips username={user.username} anonymous={anonymous} onChange={setAnonymous} />
+          ) : (
+            <p className="photo-note">Uploaded anonymously — sign in to credit your username.</p>
+          )}
           <p className="photo-note">Appears straight away under the <a href="#terms">house rules</a>; anything reported by several people is hidden. Location data is removed from the file.</p>
           {error && <p className="review-error">{error}</p>}
         </div>

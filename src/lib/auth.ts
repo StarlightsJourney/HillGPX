@@ -4,14 +4,16 @@
  * refreshed automatically); this module mirrors the signed-in user — plus
  * their public profile row — into a store components can read.
  *
- * Signing in is optional: contributions still work anonymously. When a
- * visitor signs in and has no saved contributor name, their username fills
- * it.
+ * Signing in is optional: contributions still work, credited anonymously.
+ * A signed-in contributor's only credit choices are their username or
+ * anonymous — the profile handle is the name every form offers.
  */
 import { useSyncExternalStore } from 'react';
 import type { AuthError, User } from '@supabase/supabase-js';
-import { ApiError, apiErrorMessage, isSchemaError, loadAuthor, publicUrl, saveAuthor, supabase } from './api';
+import { ApiError, apiErrorMessage, isSchemaError, publicUrl, supabase } from './api';
 import { track } from './analytics';
+import { syncSavedForUser } from './saved';
+import type { RoutePoint } from '../types';
 
 export interface AuthUser {
   id: string;
@@ -24,6 +26,30 @@ export interface AuthUser {
 
 /** Google OAuth client ID for the rendered button; empty = Google sign-in off. */
 export const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) || '';
+
+/** Gmail addresses belong to Google sign-in. */
+export function isGoogleMail(email: string): boolean {
+  return /@(gmail\.com|googlemail\.com)$/i.test(email.trim());
+}
+
+/**
+ * When the Google button is configured, Gmail addresses cannot use the
+ * email/password paths at all — sign-up, log in, resend or reset. A reset
+ * link would bolt a password onto a Google-only account, so it is refused
+ * here too. Forks without VITE_GOOGLE_CLIENT_ID keep email-only sign-in for
+ * every address.
+ */
+function requireGoogleSignIn(email: string): void {
+  if (GOOGLE_CLIENT_ID && isGoogleMail(email)) {
+    throw new ApiError('Gmail addresses sign in with Google — use the Google button.', 400);
+  }
+}
+
+/** Signing out lands back on the home page — the wordmark's bare "#". */
+function goHome(): void {
+  if (typeof window === 'undefined' || window.location.hash === '') return;
+  window.location.hash = '#';
+}
 
 /**
  * Where email links bring the visitor back: always the canonical site
@@ -51,7 +77,9 @@ let resolving = 0;
 let recovering = typeof window !== 'undefined' && /type=recovery/.test(window.location.hash);
 
 function apply(next: AuthUser | null): void {
+  const changed = (user?.id ?? null) !== (next?.id ?? null);
   user = next;
+  if (changed) void syncSavedForUser(next?.id ?? null);
   listeners.forEach((listener) => listener());
 }
 
@@ -171,17 +199,13 @@ function dbError(error: { message: string; code?: string }): ApiError {
   return new ApiError(apiErrorMessage(JSON.stringify({ message: error.message, code: error.code }), 400), 400, error.code);
 }
 
-/** After any sign-in, an empty contributor name inherits the username. */
-function fillAuthor(): void {
-  if (user && !loadAuthor()) saveAuthor(user.username);
-}
-
 /**
  * Returns true when the account still needs email confirmation (no session
  * yet — the modal shows a "check your inbox" screen); false when it signed
  * in straight away.
  */
 export async function signUp(username: string, email: string, password: string): Promise<boolean> {
+  requireGoogleSignIn(email);
   username = username.trim();
   if (!/^[A-Za-z0-9_.-]{3,24}$/.test(username)) {
     throw new ApiError('Usernames are 3–24 letters, numbers, dots, dashes or underscores.', 400);
@@ -200,7 +224,6 @@ export async function signUp(username: string, email: string, password: string):
   if (error) throw authError(error);
   if (!data.session) return true;
   await syncUser(data.session.user);
-  fillAuthor();
   track('sign_up');
   return false;
 }
@@ -217,6 +240,7 @@ function accountEmail(value: string): string {
 
 /** Resend confirmation to the supplied email through Supabase Auth. */
 export async function resendConfirmation(email: string): Promise<void> {
+  requireGoogleSignIn(email);
   const { error } = await supabase.auth.resend({
     type: 'signup',
     email: accountEmail(email),
@@ -227,6 +251,7 @@ export async function resendConfirmation(email: string): Promise<void> {
 
 /** Send a password-reset link without exposing whether the email exists. */
 export async function resetPasswordForEmail(email: string): Promise<void> {
+  requireGoogleSignIn(email);
   const { error } = await supabase.auth.resetPasswordForEmail(accountEmail(email), { redirectTo: siteUrl() });
   if (error) throw authError(error);
 }
@@ -241,10 +266,10 @@ export async function finishPasswordReset(newPassword: string): Promise<void> {
 }
 
 export async function logIn(email: string, password: string): Promise<void> {
+  requireGoogleSignIn(email);
   const { data, error } = await supabase.auth.signInWithPassword({ email: accountEmail(email), password });
   if (error) throw authError(error);
   await syncUser(data.session.user);
-  fillAuthor();
   track('log_in');
 }
 
@@ -253,12 +278,12 @@ export async function logInWithGoogle(credential: string): Promise<void> {
   if (error) throw authError(error);
   if (!data.session) throw new ApiError('Google sign-in did not complete — try again.', 401);
   await syncUser(data.session.user);
-  fillAuthor();
   track('log_in');
 }
 
 export async function logOut(): Promise<void> {
   apply(null);
+  goHome();
   await supabase.auth.signOut().catch(() => {});
 }
 
@@ -272,22 +297,6 @@ function requireUser(): AuthUser {
 async function refreshUser(): Promise<void> {
   const { data } = await supabase.auth.getUser();
   if (data.user) await syncUser(data.user);
-}
-
-/** Change username and/or email; updates the stored user. */
-export async function updateProfile(input: { username?: string; email?: string }): Promise<void> {
-  const current = requireUser();
-  if (input.username && input.username !== current.username) {
-    const username = input.username.trim();
-    const { error } = await supabase.from('profiles').update({ username }).eq('id', current.id);
-    if (error) throw dbError(error);
-  }
-  if (input.email && input.email !== current.email) {
-    const { error } = await supabase.auth.updateUser({ email: input.email.trim() });
-    if (error) throw authError(error);
-  }
-  await refreshUser();
-  if (user) saveAuthor(user.username);
 }
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
@@ -327,8 +336,41 @@ export async function removeAvatar(): Promise<void> {
   await refreshUser();
 }
 
-/** Delete the account and drop the local session. */
-export async function deleteAccount(password: string): Promise<void> {
+/**
+ * Rename the public handle. The unique index on lower(username) and the
+ * column's format check are the real guards — the lookup just says it
+ * first. The sync_credit_name trigger rewrites the credit on every
+ * contribution the owner published under the old name — routes, reviews,
+ * photos, route photos and reports alike. Needs the editable-username
+ * migration's column grant.
+ */
+export async function changeUsername(next: string): Promise<void> {
+  const current = requireUser();
+  const username = next.trim();
+  if (!/^[A-Za-z0-9_.-]{3,24}$/.test(username)) {
+    throw new ApiError('Usernames are 3–24 letters, numbers, dots, dashes or underscores.', 400);
+  }
+  if (username === current.username) return;
+  // As at sign-up, ilike's wildcards only narrow the list; the lower() match
+  // below is the real comparison, and the owner's own row is not a clash.
+  const { data: hits } = await supabase.from('profiles').select('id,username').ilike('username', username).limit(10);
+  if (hits?.some((hit) => hit.id !== current.id && hit.username.toLowerCase() === username.toLowerCase())) {
+    throw new ApiError('That username is taken.', 409);
+  }
+  const { error } = await supabase.from('profiles').update({ username }).eq('id', current.id);
+  if (error) throw dbError(error);
+  // Keep the auth-metadata fallback (a missing profile row) in step.
+  await supabase.auth.updateUser({ data: { username } }).catch(() => undefined);
+  await refreshUser();
+  track('username_change');
+}
+
+/**
+ * Delete the account and drop the local session. Goes back to the landing page
+ * unless `stay` is set, which the settings dialog uses to show its own
+ * "account deleted" confirmation first.
+ */
+export async function deleteAccount(password: string, options: { stay?: boolean } = {}): Promise<void> {
   const current = requireUser();
   // Password accounts confirm with their password; Google-only accounts have
   // nothing to check against and delete straight away.
@@ -339,6 +381,7 @@ export async function deleteAccount(password: string): Promise<void> {
   const { error } = await supabase.rpc('delete_user');
   if (error) throw dbError(error);
   apply(null);
+  if (!options.stay) goHome();
   await supabase.auth.signOut().catch(() => {});
 }
 
@@ -403,12 +446,111 @@ export async function fetchMyRoutes(): Promise<MyUpload[]> {
 
 /** Remove a route the signed-in user published, with its files and counts. */
 export async function deleteMyRoute(slug: string): Promise<void> {
-  const { error } = await supabase.rpc('delete_community_route', { p_slug: slug });
-  if (!error) return;
-  // The RPC lives in the accounts migration — say so rather than leaking
-  // PostgREST's "could not find the function" wording.
-  if (isSchemaError(error)) {
-    throw new ApiError('This route could not be deleted right now — please try again later.', 500);
+  const current = requireUser();
+  const call = () => supabase.rpc('delete_community_route', { p_slug: slug });
+  let { error } = await call();
+  if (error && /^PGRST3/.test(error.code ?? '')) {
+    // The access token died while the dialog was open (a refresh that lost
+    // its race, or a revoked session). Force one refresh, then retry.
+    await supabase.auth.refreshSession().catch(() => undefined);
+    if (!user) {
+      throw new ApiError('Your sign-in has expired — sign in again, then try deleting the route.', 401);
+    }
+    ({ error } = await call());
+    if (error && /^PGRST3/.test(error.code ?? '')) {
+      throw new ApiError('Your sign-in has expired — sign in again, then try deleting the route.', 401);
+    }
   }
-  throw dbError(error);
+  if (error && isSchemaError(error)) {
+    // A partially applied migration can leave the RPC missing or denied
+    // (PGRST202/42501). The "delete own routes" policy makes the same
+    // ownership check server-side, so deleting the row directly is no less
+    // safe — it just cannot reach the stored GPX, thumbs and counters.
+    console.warn('hillgpx delete RPC unavailable, deleting row directly', error.code, error.message);
+    const { data, error: rowError } = await supabase
+      .from('routes')
+      .delete()
+      .eq('slug', slug)
+      .eq('user_id', current.id)
+      .select('slug');
+    if (rowError) throw dbError(rowError);
+    if (data && data.length > 0) return;
+    throw new ApiError('No such route on your account.', 404);
+  }
+  if (error) throw dbError(error);
+}
+
+/** A replacement track from a post-publish trim: the kept slice and its stats. */
+export interface RouteTrackEdit {
+  points: RoutePoint[];
+  distanceM: number;
+  gainM: number;
+  lossM: number;
+  venueSlugs: string[];
+  fingerprint: string;
+  /** Serialised GPX for the kept slice — the stored file is replaced with it. */
+  gpxText: string;
+}
+
+/**
+ * Rename, re-credit or re-trim a route the signed-in user published. Only the
+ * fields passed change; the slug — and so every link and bookmark — stays.
+ * A trim also swaps the stored GPX: the regenerated file goes up under a
+ * fresh name first, then the RPC points the row at it and deletes the old
+ * object, so the cut-off ends leave the archive too. Returns the new file's
+ * storage path when the track was replaced.
+ */
+export async function editMyRoute(
+  slug: string,
+  edit: { name?: string; anonymous?: boolean; track?: RouteTrackEdit },
+): Promise<{ gpxPath: string | null }> {
+  requireUser();
+  let gpxPath: string | null = null;
+  if (edit.track) {
+    const canGzip = typeof CompressionStream !== 'undefined' && typeof Blob.prototype.stream === 'function';
+    gpxPath = `${slug}-e${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}.gpx${canGzip ? '.gz' : ''}`;
+    const file = new Blob([edit.track.gpxText], { type: 'application/gpx+xml' });
+    const body = canGzip ? await new Response(file.stream().pipeThrough(new CompressionStream('gzip'))).blob() : file;
+    const { error: uploadError } = await supabase.storage
+      .from('gpx')
+      .upload(gpxPath, body, { contentType: canGzip ? 'application/gzip' : 'application/gpx+xml' });
+    if (uploadError) throw dbError(uploadError);
+  }
+  const params = {
+    p_slug: slug,
+    p_name: edit.name?.trim() ?? null,
+    p_anonymous: edit.anonymous ?? null,
+    p_points: edit.track?.points ?? null,
+    p_distance_m: edit.track?.distanceM ?? null,
+    p_gain_m: edit.track?.gainM ?? null,
+    p_loss_m: edit.track?.lossM ?? null,
+    p_geom_hash: edit.track?.fingerprint ?? null,
+    p_venue_slugs: edit.track?.venueSlugs ?? null,
+    p_gpx_path: gpxPath,
+  };
+  const call = () => supabase.rpc('edit_community_route', params);
+  let { error } = await call();
+  if (error && /^PGRST3/.test(error.code ?? '')) {
+    // The access token died while the panel was open — refresh once, then retry.
+    await supabase.auth.refreshSession().catch(() => undefined);
+    if (!user) {
+      throw new ApiError('Your sign-in has expired — sign in again, then try saving the route.', 401);
+    }
+    ({ error } = await call());
+    if (error && /^PGRST3/.test(error.code ?? '')) {
+      throw new ApiError('Your sign-in has expired — sign in again, then try saving the route.', 401);
+    }
+  }
+  if (error) {
+    if (error.code === '23505' || /duplicate key/i.test(error.message)) {
+      // geom_hash is unique: the kept slice duplicates a route already up.
+      throw new ApiError('That trimmed track is already in the community archive.', 409);
+    }
+    if (isSchemaError(error)) {
+      throw new ApiError('Route editing is not available yet — the latest database change is still being applied.', 503, error.code);
+    }
+    throw dbError(error);
+  }
+  track('route_edit', slug);
+  return { gpxPath };
 }

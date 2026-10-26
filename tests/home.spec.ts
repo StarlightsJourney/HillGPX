@@ -23,7 +23,7 @@ test('opening the map renders tiles without console errors', async ({ page }) =>
 
   await page.goto('/');
   await dismissNotice(page);
-  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.waitForSelector('.maplibregl-canvas', { timeout: 15_000 });
   expect(errors).toEqual([]);
 });
@@ -31,8 +31,8 @@ test('opening the map renders tiles without console errors', async ({ page }) =>
 test('typing a country and pressing Search opens that country on its routes', async ({ page }) => {
   await page.goto('/');
   await dismissNotice(page);
-  await page.getByLabel('Search countries, hills, blocks and streets').fill('japan');
-  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByLabel('Search countries, hills, routes, blocks and streets').fill('japan');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page).toHaveURL(/#map$/);
   await page.waitForSelector('.maplibregl-canvas', { timeout: 15_000 });
   await expect(page.locator('.mode-tab.on')).toHaveText('Routes', { timeout: 15_000 });
@@ -44,8 +44,8 @@ test('a search with no routes in the area falls back to climbs', async ({ page }
   await page.goto('/#map');
   await dismissNotice(page);
   await page.waitForSelector('.result-card', { timeout: 15_000 });
-  await page.getByLabel('Search countries, hills, blocks and streets').fill('norway');
-  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByLabel('Search countries, hills, routes, blocks and streets').fill('norway');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.locator('.mode-tab.on')).toHaveText('Climbs');
 });
 
@@ -128,10 +128,10 @@ test("What's mapped opens from the footer", async ({ page }) => {
   await expect(page.getByRole('dialog', { name: "What's mapped" })).toBeVisible({ timeout: 15_000 });
 });
 
-test('Add a GPX on a venue page opens the dialog over that page', async ({ page }) => {
+test('Upload GPX on a venue page opens the dialog over that page', async ({ page }) => {
   await page.goto('/#venue/bukit-timah-hill');
   await page.locator('.venue-detail .site-header-cta').click();
-  await expect(page.getByRole('dialog', { name: 'Add a GPX route' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Upload GPX' })).toBeVisible();
   await expect(page).toHaveURL(/#venue\/bukit-timah-hill$/);
   await expect(page.locator('.venue-detail')).toBeVisible();
 });

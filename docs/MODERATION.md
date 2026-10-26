@@ -21,7 +21,7 @@ as the project owner.
 
 | What | Where on the site | Goes live |
 | --- | --- | --- |
-| GPX route | **+ Add a GPX** in the header (or "Upload a GPX" on a place page) | Straight away |
+| GPX route | **Upload GPX** in the header (or on a place page) | Straight away |
 | Photos of a place | Place page → **Add photos** on the photo grid | Straight away |
 | Review and rating | Place page → **Reviews** (or the stars under the height) | Straight away |
 | Photo or hazard on a route | Open a route → **More details** → **Photo or hazard** | Straight away |

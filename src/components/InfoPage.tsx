@@ -17,7 +17,7 @@ function Privacy() {
     <>
       <h1>Privacy</h1>
       <p className="info-lead">
-        hillGPX has no accounts, no adverts and no tracking cookies.{!ANALYTICS.cloudflare && !ANALYTICS.clarity && ' It does not run analytics.'}
+        hillGPX has no adverts and no tracking cookies. Accounts are optional: you can browse, download and contribute without one.{!ANALYTICS.cloudflare && !ANALYTICS.clarity && ' It does not run analytics.'}
       </p>
       {(ANALYTICS.cloudflare || ANALYTICS.clarity) && (
         <>
@@ -32,6 +32,14 @@ function Privacy() {
           </ul>
         </>
       )}
+      <h2>If you make an account</h2>
+      <ul>
+        <li><strong>Email sign-up:</strong> your email address, a username and your password, which is stored only as a secure hash.</li>
+        <li><strong>Sign in with Google:</strong> Google shares your name, email address and profile picture with us. We use your email to identify your account and suggest a username from it. We never see your Google password, and we cannot access your Gmail, Drive, contacts or anything else in your Google account.</li>
+        <li><strong>What it is used for:</strong> signing you in, crediting your contributions to your username, keeping the places and routes you save, and letting you manage or delete what you uploaded. We never sell your data, use it for adverts or share it beyond the services that run the site.</li>
+        <li><strong>Where it is kept:</strong> accounts are handled by Supabase Auth. Your email address is never shown publicly; your username and avatar appear next to your contributions.</li>
+        <li><strong>Deleting it:</strong> delete your account at any time from your account settings, or ask through the contact page. Your profile, saved items and sign-in details are removed; routes, photos and reviews you published stay up but are no longer linked to your account, unless you delete them first. You can also remove hillGPX's access from your Google account settings.</li>
+      </ul>
       <h2>Routes near you</h2>
       <p>If you share your location, it stays in your browser and is used only to find routes near you, or to place a photo or hazard on a route; it is never sent to us. A photo or hazard is pinned to the route point nearest you, not to your exact position. If you do not, we use the country your connection comes from, which Cloudflare (our host) already sees, or your device's time zone. Neither is stored.</p>
       <h2>What stays in your browser</h2>
@@ -91,7 +99,8 @@ function Terms() {
       </ul>
       <h2>The code and the data we build on</h2>
       <p>
-        The code is open source under the <a href={`${REPO_URL}/blob/HEAD/LICENSE`} target="_blank" rel="noreferrer">MIT licence</a>. Map data © OpenStreetMap contributors (ODbL), summits from GeoNames (CC BY 4.0), photos from Wikimedia Commons and Mapillary under their own licences, weather from Open-Meteo (CC BY 4.0). The full list is in the{' '}
+        The code is open source under the <a href={`${REPO_URL}/blob/HEAD/LICENSE`} target="_blank" rel="noreferrer">MIT licence</a>. Map data © OpenStreetMap contributors (ODbL), summits from GeoNames (CC BY 4.0), photos from Wikimedia Commons and Mapillary under their own licences, weather from Open-Meteo (CC BY 4.0). Singapore neighbourhood search contains information from Master Plan 2019 Subzone Boundary (No Sea) accessed on 25 October 2026 from data.gov.sg which is made available under the terms of the Singapore Open Data Licence version 1.0{' '}
+        (<a href="https://data.gov.sg/open-data-licence" target="_blank" rel="noreferrer">licence</a>). The full list is in the{' '}
         <a href={`${REPO_URL}/blob/HEAD/README.md#data-sources-and-licensing`} target="_blank" rel="noreferrer">data sources and licences</a>.
       </p>
     </>

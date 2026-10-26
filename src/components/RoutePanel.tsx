@@ -3,16 +3,22 @@ import { createPortal } from 'react-dom';
 import { Marquee } from './Marquee';
 import { RouteBookmarkButton } from './RouteBookmarkButton';
 import type { Route, RoutePoint, Venue } from '../types';
-import { computeGain, totalDistanceM } from '../lib/elevation';
-import { routeHasElevation } from '../lib/routes';
+import { computeGain, cumulativeDistances, totalDistanceM } from '../lib/elevation';
+import { linkVenues, routeHasElevation } from '../lib/routes';
 import { regionOf } from '../lib/regions';
 import { terrainElevations } from '../lib/terrain';
-import { ACTIVITY_LABEL, findOverlaps, routeActivity, type RouteOverlap } from '../lib/routeAnalysis';
+import { toGpx } from '../lib/gpx';
+import { ACTIVITY_LABEL, findOverlaps, routeActivity, routeFingerprint, type RouteOverlap } from '../lib/routeAnalysis';
+import { errorText, publicUrl, uploadRouteThumb } from '../lib/api';
+import { editMyRoute, useAuthUser } from '../lib/auth';
+import { updateMyRoute, useMyRoutes } from '../lib/myRoutes';
+import { CreditChips } from './CreditChips';
+import { RouteTrim } from './RouteTrim';
 import { ElevationProfile } from './ElevationProfile';
 import { TypeGlyph } from './TypeGlyph';
 import { useUnits } from './UnitsContext';
 import { downloadRoute } from './VenueCard';
-import { ChevronRightIcon, CloseIcon, DownloadIcon } from './icons';
+import { ChevronRightIcon, CloseIcon, DownloadIcon, PencilIcon } from './icons';
 import type { RoutePhoto } from '../lib/api';
 import { RoutePhotoModal } from './RoutePhotoModal';
 import { FlagIcon, ReportModal } from './ReportModal';
@@ -24,12 +30,23 @@ interface RoutePanelProps {
   hoverIndex: number | null;
   onHoverIndex: (index: number | null) => void;
   onClose: () => void;
+  /** Folded to a slim strip (name and the three numbers) while the map is moved by hand. */
+  folded?: boolean;
+  onUnfold?: () => void;
   spotlightSlug: string | null;
   onShowVenue: (slug: string) => void;
   onShowRoute: (slug: string) => void;
   routePhotos: RoutePhoto[];
   onFocusPhoto: (photo: RoutePhoto) => void;
   onPhotoAdded: (photo: RoutePhoto) => void;
+  /** The signed-in owner is editing this route's name, credit and kept range. */
+  editing?: boolean;
+  /** Kept point range while editing; the ends outside it draw ghosted on the map. */
+  editTrim?: [number, number] | null;
+  onEditTrimChange?: (trim: [number, number] | null) => void;
+  onEditStart?: () => void;
+  /** Saved (the updated route) or cancelled (null). */
+  onEditEnd?: (route: Route | null) => void;
 }
 
 const YEAR_MS = 365.25 * 24 * 3600 * 1000;
@@ -193,6 +210,132 @@ function useTerrainFill(route: Route): { points: RoutePoint[]; gainM: number; lo
   }, [needsFill, ready, route, filled]);
 }
 
+interface RouteEditFormProps {
+  route: Route;
+  /** Every place the app knows, to re-link the kept range's "Passes" list. */
+  venues: Venue[];
+  username: string;
+  trim: [number, number] | null;
+  onTrimChange: (trim: [number, number] | null) => void;
+  hoverIndex: number | null;
+  onHoverIndex: (index: number | null) => void;
+  onSaved: (route: Route) => void;
+  onCancel: () => void;
+}
+
+/**
+ * Rename, re-credit or re-trim one of your own uploads. Mounted only while
+ * the panel is in edit mode, so its fields always start from the stored
+ * route. The trim drags ghost the ends on the map exactly like the
+ * pre-publish cut; saving swaps the stored GPX for the kept slice.
+ */
+function RouteEditForm({ route, venues, username, trim, onTrimChange, hoverIndex, onHoverIndex, onSaved, onCancel }: RouteEditFormProps) {
+  const [name, setName] = useState(route.name);
+  const [anonymous, setAnonymous] = useState(!route.contributor);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const trimmed = trim !== null;
+  const kept = useMemo(
+    () => (trim ? route.coordinates.slice(trim[0], trim[1] + 1) : route.coordinates),
+    [route.coordinates, trim],
+  );
+  const { gainM, lossM } = useMemo(() => computeGain(kept), [kept]);
+  const keptDistanceM = useMemo(() => Math.round(totalDistanceM(kept)), [kept]);
+  const keepRange = useMemo<[number, number] | null>(() => {
+    if (!trim) return null;
+    const distances = cumulativeDistances(route.coordinates);
+    const total = distances[distances.length - 1] || 1;
+    return [distances[trim[0]] / total, distances[trim[1]] / total];
+  }, [route.coordinates, trim]);
+
+  const nextName = name.trim();
+  const renamed = nextName !== route.name;
+  const recredited = anonymous !== !route.contributor;
+  const canSave = Boolean(nextName) && !busy && (renamed || recredited || trimmed);
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const linked = trimmed ? linkVenues(kept, venues).slice(0, 200) : route.venueSlugs;
+      const { gpxPath } = await editMyRoute(route.slug, {
+        name: renamed ? nextName : undefined,
+        anonymous: recredited ? anonymous : undefined,
+        track: trimmed
+          ? {
+              points: kept,
+              distanceM: keptDistanceM,
+              gainM,
+              lossM,
+              venueSlugs: linked,
+              fingerprint: routeFingerprint(kept),
+              gpxText: toGpx(nextName, kept),
+            }
+          : undefined,
+      });
+      const first = kept[0];
+      const last = kept[kept.length - 1];
+      const updated: Route = {
+        ...route,
+        name: nextName,
+        contributor: anonymous ? undefined : username,
+        coordinates: kept,
+        distanceM: keptDistanceM,
+        gainM,
+        lossM,
+        venueSlugs: linked,
+        loop: trimmed ? Boolean(first && last && Math.hypot(first[0] - last[0], first[1] - last[1]) < 0.001) : route.loop,
+        gpxUrl: gpxPath ? publicUrl('gpx', gpxPath) : route.gpxUrl,
+      };
+      updateMyRoute(route.slug, { name: updated.name, anonymous, distanceM: updated.distanceM, gainM: updated.gainM });
+      onSaved(updated);
+      if (trimmed) {
+        // The card image shows the old line; re-render it like a fresh publish.
+        void import('../map/renderThumb')
+          .then(({ renderRouteThumb }) => renderRouteThumb(updated))
+          .then((thumb) => (thumb ? uploadRouteThumb(updated.slug, thumb.key, thumb.blob) : undefined))
+          .catch(() => undefined);
+      }
+    } catch (caught) {
+      setError(errorText(caught));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="route-edit">
+      <label className="field">
+        <span>Route name</span>
+        <input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} required />
+      </label>
+      <CreditChips username={username} anonymous={anonymous} onChange={setAnonymous} />
+      <ElevationProfile
+        points={route.coordinates}
+        height={96}
+        hoverIndex={hoverIndex}
+        onHoverIndex={onHoverIndex}
+        keepRange={keepRange}
+      />
+      <RouteTrim points={route.coordinates} trim={trim} onChange={onTrimChange} />
+      {trimmed && (
+        <p className="route-meta muted small">
+          The stored GPX is replaced with the kept track — the greyed ends leave the archive for good.
+        </p>
+      )}
+      {error && <p className="gpx-import-error" role="alert">{error}</p>}
+      <div className="route-edit-actions">
+        <button type="button" className="btn btn-light" onClick={onCancel} disabled={busy}>
+          Cancel
+        </button>
+        <button type="button" className="btn btn-accent" disabled={!canSave} onClick={() => void save()}>
+          {busy ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * The selected route, over the map with its profile: a side sheet down the
  * left of a wide map, a sheet along the bottom of a narrow one.
@@ -200,11 +343,23 @@ function useTerrainFill(route: Route): { points: RoutePoint[]; gainM: number; lo
  * Compact by default — title, the three numbers people compare routes by, and
  * a short profile — so the route itself keeps most of the map. "More details"
  * grows it into the full sheet (every stat, places passed, overlaps, photos).
+ *
+ * While the visitor pans or zooms by hand it folds to a slim strip so the
+ * route's outline is in view; the rest stays mounted (and "More details"
+ * keeps its state), only hidden, and comes back on a tap or once the map
+ * rests. Its size changes never re-frame the map: framing reads the panel
+ * only when the app itself moves the camera.
  */
-export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHoverIndex, onClose, spotlightSlug, onShowVenue, onShowRoute, routePhotos, onFocusPhoto, onPhotoAdded }: RoutePanelProps) {
+export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHoverIndex, onClose, folded = false, onUnfold, spotlightSlug, onShowVenue, onShowRoute, routePhotos, onFocusPhoto, onPhotoAdded, editing = false, editTrim = null, onEditTrimChange, onEditStart, onEditEnd }: RoutePanelProps) {
   const [adding, setAdding] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const user = useAuthUser();
+  const { routes: myUploads } = useMyRoutes();
+  // Only the owner may edit a community route; the upload list is the
+  // authority (server-side ownership — contributor text is just the credit).
+  const mine = route.source === 'community' && Boolean(myUploads?.some((upload) => upload.slug === route.slug));
+  const editMode = editing && mine && Boolean(user);
   const moreRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     moreRef.current?.toggleAttribute('inert', !expanded);
@@ -222,9 +377,12 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
   const unavailable = elevation.pending ? 'Measuring…' : 'Unavailable';
 
   return (
-    <section className={`gpx-panel route-panel ${expanded ? 'expanded' : 'compact'}`} aria-label={`Route: ${route.name}`} key={route.slug}>
+    <section className={`gpx-panel route-panel ${expanded ? 'expanded' : 'compact'}${folded ? ' folded' : ''}`} aria-label={`Route: ${route.name}`} key={route.slug}>
       {/* A light runs once round the card's edge when a route opens. */}
       <span className="route-panel-orbit" aria-hidden="true" />
+      {folded && (
+        <button type="button" className="route-panel-unfold" onClick={onUnfold} aria-label={`Show details for ${route.name}`} />
+      )}
       <header className="gpx-panel-head">
         <div className="route-panel-title">
           <h2 title={route.name}>
@@ -242,6 +400,20 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           </InfoTip>
         </div>
         <div className="gpx-panel-actions">
+          {mine && !editMode && (
+            <button
+              type="button"
+              className="gpx-icon-btn"
+              onClick={() => {
+                onUnfold?.();
+                onEditStart?.();
+              }}
+              aria-label={`Edit ${route.name}`}
+              data-tip="Edit route"
+            >
+              <PencilIcon size={15} />
+            </button>
+          )}
           <RouteBookmarkButton route={route} variant="panel" />
           <button type="button" className="gpx-icon-btn" onClick={() => downloadRoute(route)} aria-label="Download GPX" data-tip="Download GPX">
             <DownloadIcon size={15} />
@@ -252,6 +424,20 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
         </div>
       </header>
 
+      {editMode && user ? (
+        <RouteEditForm
+          route={route}
+          venues={[...venuesBySlug.values()]}
+          username={user.username}
+          trim={editTrim}
+          onTrimChange={(next) => onEditTrimChange?.(next)}
+          hoverIndex={hoverIndex}
+          onHoverIndex={onHoverIndex}
+          onSaved={(updated) => onEditEnd?.(updated)}
+          onCancel={() => onEditEnd?.(null)}
+        />
+      ) : (
+        <>
       <div className="gpx-stats">
         {[
           ['Distance', units.distance(route.distanceM)],
@@ -339,6 +525,8 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
         <span>{expanded ? 'Fewer details' : 'More details'}</span>
         <ChevronRightIcon size={13} />
       </button>
+        </>
+      )}
 
       {adding && <RoutePhotoModal route={route} startIndex={hoverIndex ?? Math.floor(route.coordinates.length / 2)} onPreviewIndex={onHoverIndex} onClose={() => setAdding(false)} onAdded={onPhotoAdded} />}
       {reporting && <ReportModal targetType="route" targetSlug={route.slug} targetName={route.name} onClose={() => setReporting(false)} />}

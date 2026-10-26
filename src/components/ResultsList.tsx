@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Venue } from '../types';
-import { HEIGHT_LABEL, nearest, photoSrc, rankingHeight, venueHeight, venuePhotos, venuesInBounds, venueKindLabel } from '../lib/venues';
+import { HEIGHT_LABEL, inBounds, nearest, photoSrc, rankingHeight, venueHeight, venuePhotos, venuesInBounds, venueKindLabel, type Bounds } from '../lib/venues';
 import { haversineM } from '../lib/elevation';
 import { CardPhotoNav, VenueThumb } from './VenueThumb';
 import { HeartIcon, SearchIcon, StarIcon } from './icons';
@@ -108,6 +108,13 @@ interface ResultsListProps {
   onHover?: (slug: string | null) => void;
   favorites: Set<string>;
   onToggleFavorite: (slug: string) => void;
+  /**
+   * The box last searched (a country, a destination), while the map is still
+   * on it: places inside it are listed first. Fitting a short, wide country
+   * pulls its neighbours in at the edges, and Johor's taller summits would
+   * otherwise head a search for Singapore.
+   */
+  searched?: Bounds | null;
   /** Frame a set of places on the map (used by the "closest places" fallback). */
   onShowPlaces?: (venues: Venue[]) => void;
 }
@@ -203,6 +210,7 @@ function ResultsListInner({
   favorites,
   onToggleFavorite,
   onShowPlaces,
+  searched = null,
 }: ResultsListProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [page, setPage] = useState(0);
@@ -215,12 +223,10 @@ function ResultsListInner({
 
   const visible = useMemo(() => {
     const list = bounds ? venuesInBounds(venues, bounds) : venues;
-    return [...list].sort((a, b) => {
-      const aScore = rankingHeight(a) + (a.photo?.file ? 10_000 : 0);
-      const bScore = rankingHeight(b) + (b.photo?.file ? 10_000 : 0);
-      return bScore - aScore;
-    });
-  }, [venues, bounds]);
+    const score = (venue: Venue) =>
+      rankingHeight(venue) + (venue.photo?.file ? 10_000 : 0) + (searched && inBounds(searched, venue.lng, venue.lat) ? 1_000_000 : 0);
+    return [...list].sort((a, b) => score(b) - score(a));
+  }, [venues, bounds, searched]);
   // An empty list over open water or a blank region reads as broken. Show the
   // closest places instead, as the routes list does, with a way to go there.
   const centreLng = bounds ? (bounds.west + bounds.east) / 2 : null;

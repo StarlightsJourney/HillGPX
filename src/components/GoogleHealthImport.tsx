@@ -74,7 +74,6 @@ export function GoogleHealthImport({ elevationModel, venues, existingRoutes, onL
     return () => {
       live = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const connect = async () => {

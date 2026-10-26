@@ -55,3 +55,6 @@ supabase/.temp/
 
 # Wrangler local state
 .wrangler/
+
+bulk_uploads/*
+

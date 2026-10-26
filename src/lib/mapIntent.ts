@@ -6,7 +6,15 @@ import type { Bounds } from './venues';
  * Climbs only when it has the data to look, so the request travels as an
  * intent rather than a finished camera move.
  */
-export type MapIntent = { kind: 'area'; bounds: Bounds } | { kind: 'place'; slug: string } | { kind: 'near-me' };
+export type MapIntent =
+  | { kind: 'area'; bounds: Bounds }
+  | { kind: 'place'; slug: string }
+  /** One place, selected and framed as if its pin had been tapped (the account's Saved list). */
+  | { kind: 'venue'; slug: string }
+  /** One route, opened on the map; `edit` lands in the panel's edit mode (the owner's own upload). */
+  | { kind: 'route'; slug: string; edit?: boolean }
+  | { kind: 'near-me' }
+  | { kind: 'saved'; what: 'routes' | 'places' };
 
 const KEY = 'hillgpx:mapIntent';
 
@@ -42,7 +50,7 @@ export function takeMapIntent(): MapIntent | null {
   if (!raw) return null;
   try {
     const intent = JSON.parse(raw) as MapIntent;
-    return intent.kind === 'area' || intent.kind === 'place' ? intent : null;
+    return intent.kind === 'area' || intent.kind === 'place' || intent.kind === 'route' || intent.kind === 'saved' ? intent : null;
   } catch {
     return null;
   }

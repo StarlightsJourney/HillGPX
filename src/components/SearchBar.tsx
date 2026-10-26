@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Venue } from '../types';
+import type { Route, Venue } from '../types';
 import {
   HEIGHT_LABEL,
   boundsOf,
@@ -14,6 +14,9 @@ import {
   type Bounds,
 } from '../lib/venues';
 import { COUNTRY_ALIASES, DESTINATIONS, geocodePlace } from '../lib/regions';
+import { routesBounds } from '../lib/routes';
+import { fetchCommunityRoutes } from '../lib/api';
+import { detectCountry } from '../lib/country';
 import { openMapWith } from '../lib/mapIntent';
 import { countrySummaries, notablePeakCountry, notablePeaks, peaksInView } from '../lib/worldPeaks';
 import { normaliseQuery } from '../lib/streetTerms';
@@ -26,6 +29,10 @@ interface SearchBarProps {
   /** Every loaded venue, whatever the filters and wherever the map is. */
   venues: Venue[];
   onPick: (slug: string) => void;
+  /** Every route (committed, community, on this device), searched by name. */
+  routes?: Route[];
+  /** Open one route. Without it a route pick opens the map on that route. */
+  onPickRoute?: (slug: string) => void;
   /**
    * Send the camera to a box rather than to a point — a whole country, a town,
    * or every match for a street name.
@@ -41,12 +48,27 @@ interface SearchBarProps {
  * Search on a page without the map: every pick opens the map, which shows
  * the routes there (or the climbs, when there are none).
  */
-export const SEARCH_OPENS_MAP: Pick<SearchBarProps, 'onPick' | 'onFitBounds'> = {
+const openRouteOnMap = (slug: string) => openMapWith({ kind: 'route', slug });
+
+export const SEARCH_OPENS_MAP: Pick<SearchBarProps, 'onPick' | 'onPickRoute' | 'onFitBounds'> = {
   onPick: (slug) => openMapWith({ kind: 'place', slug }),
+  onPickRoute: openRouteOnMap,
   onFitBounds: (bounds) => openMapWith({ kind: 'area', bounds }),
 };
 
 const locateNearMe = () => openMapWith({ kind: 'near-me' });
+
+/** Asks the header search to take the cursor and open its suggestions (the hero's "Search by Region"). */
+export const SEARCH_FOCUS_EVENT = 'hillgpx:search';
+
+/**
+ * Puts the cursor in the header search. The event is dispatched (and the box
+ * focused) synchronously, so calling this from a click handler still counts
+ * as the tap that iOS needs before it opens the keyboard.
+ */
+export function focusSiteSearch(): void {
+  window.dispatchEvent(new Event(SEARCH_FOCUS_EVENT));
+}
 
 /** A country or a curated destination: somewhere to go rather than something to climb. */
 interface Place {
@@ -64,18 +86,51 @@ interface Place {
 const MAX_RESULTS = 8;
 const MAX_AREAS = 3;
 const MAX_PLACES = 3;
+const MAX_ROUTES = 3;
 
 type Lookup = { state: 'idle' } | { state: 'searching'; query: string } | { state: 'missing'; query: string };
 
-/** Countries and curated destinations; destinations win a name clash (their boxes are hand-drawn). */
+interface SgAreaFile {
+  /** kind: 'area' (planning area), 'subzone' or 'alias'; b: [west, south, east, north]. */
+  areas: { name: string; kind: string; in?: string; b: number[] }[];
+}
+
+/**
+ * Singapore's planning areas, subzones and a few everyday names (Buona Vista,
+ * Marina Bay), from URA Master Plan 2019 via scripts/build_sg_areas.py. Photon
+ * answers these with a station or a building, and only on submit; here they
+ * are suggested as you type and framed by their real extent.
+ */
+function neighbourhoodPlaces(file: SgAreaFile): Place[] {
+  return file.areas.map((area) => ({
+    key: `n:${area.name}`,
+    name: area.name,
+    meta: area.kind === 'area' ? 'Planning area · Singapore' : `Neighbourhood · ${area.in ?? 'Singapore'}`,
+    bounds: { west: area.b[0], south: area.b[1], east: area.b[2], north: area.b[3] },
+    peaks: [],
+    // "one north" finds "one-north".
+    aliases: area.name.includes('-') ? [fold(area.name.replace(/-/g, ' '))] : undefined,
+  }));
+}
+
+/**
+ * Countries, curated destinations and Singapore's neighbourhoods. Destinations
+ * win a name clash (their boxes are hand-drawn), then countries.
+ */
 function usePlaces(): Place[] {
   const destinations = useMemo<Place[]>(
     () => DESTINATIONS.map((d) => ({ key: `d:${d.name}`, name: d.name, meta: d.hint, bounds: d.bounds, peaks: [] })),
     [],
   );
   const [countries, setCountries] = useState<Place[]>([]);
+  const [neighbourhoods, setNeighbourhoods] = useState<Place[]>([]);
   useEffect(() => {
     let cancelled = false;
+    void import('../lib/sgAreas.json')
+      .then((module) => {
+        if (!cancelled) setNeighbourhoods(neighbourhoodPlaces(module.default satisfies SgAreaFile));
+      })
+      .catch(() => undefined);
     void countrySummaries().then((summaries) => {
       if (cancelled) return;
       setCountries(
@@ -95,8 +150,10 @@ function usePlaces(): Place[] {
   }, []);
   return useMemo(() => {
     const taken = new Set(destinations.map((d) => d.name.toLowerCase()));
-    return [...destinations, ...countries.filter((c) => !taken.has(c.name.toLowerCase()))];
-  }, [destinations, countries]);
+    const kept = countries.filter((c) => !taken.has(c.name.toLowerCase()));
+    for (const country of kept) taken.add(country.name.toLowerCase());
+    return [...destinations, ...kept, ...neighbourhoods.filter((n) => !taken.has(n.name.toLowerCase()))];
+  }, [destinations, countries, neighbourhoods]);
 }
 
 /**
@@ -150,6 +207,27 @@ function useNotablePeaks(): Venue[] {
   return peaks;
 }
 
+/**
+ * Routes whose name holds every word typed, in any order: exact name first,
+ * then names starting with the query, then the rest. Routes have no place in
+ * the geocoder, so a route's own title ("utown night walk") must be found here
+ * or it is sent to Photon and lands on a street of the same name abroad.
+ */
+function matchRoutes(routes: Route[], q: string): { exact: Route | null; hits: Route[] } {
+  if (q.length < 2) return { exact: null, hits: [] };
+  const words = q.split(' ');
+  let exact: Route | null = null;
+  const prefix: Route[] = [];
+  const rest: Route[] = [];
+  for (const route of routes) {
+    const name = fold(route.name).replace(/\s+/g, ' ').trim();
+    if (name === q) exact ??= route;
+    else if (name.startsWith(q)) prefix.push(route);
+    else if (words.every((word) => name.includes(word))) rest.push(route);
+  }
+  return { exact, hits: [...(exact ? [exact] : []), ...prefix, ...rest] };
+}
+
 /** Exact name first, then names starting with the query, then anywhere in the name. */
 function matchPlaces(places: Place[], q: string): { exact: Place | null; prefix: Place[]; inner: Place[] } {
   if (q.length < 2) return { exact: null, prefix: [], inner: [] };
@@ -174,7 +252,7 @@ function matchPlaces(places: Place[], q: string): { exact: Place | null; prefix:
  * where it was. At ~18k venues a lowercase substring scan is a few
  * milliseconds, so there is no index and no debounce.
  */
-export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit, onLocate = locateNearMe }: SearchBarProps) {
+export function SearchBar({ venues, routes = [], onPick, onPickRoute = openRouteOnMap, onFitBounds, onEmptySubmit, onLocate = locateNearMe }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [lookup, setLookup] = useState<Lookup>({ state: 'idle' });
@@ -217,12 +295,34 @@ export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit, onLocate
   }, [normalised, haystack, pool]);
 
   const results = useMemo(() => matches.slice(0, MAX_RESULTS), [matches]);
-  const areaHits = useMemo(() => matchAreas(areas, normalised, MAX_AREAS), [areas, normalised]);
+  // A town of blocks named like a place ("Queenstown") gives way to it: the
+  // place has the real boundary, the town only the box round its blocks.
+  const placeNames = useMemo(() => new Set(places.map((place) => fold(place.name))), [places]);
+  const areaHits = useMemo(
+    () => matchAreas(areas.filter((area) => !placeNames.has(fold(area.name))), normalised, MAX_AREAS),
+    [areas, placeNames, normalised],
+  );
   const placeHits = useMemo(() => matchPlaces(places, plain), [places, plain]);
+  const routeHits = useMemo(() => matchRoutes(routes, plain), [routes, plain]);
+  const routeRows = useMemo(() => routeHits.hits.slice(0, MAX_ROUTES), [routeHits]);
   const placeRows = useMemo(
     () => [...(placeHits.exact ? [placeHits.exact] : []), ...placeHits.prefix, ...placeHits.inner].slice(0, MAX_PLACES),
     [placeHits],
   );
+
+  // Places offered before anything is typed.
+  const suggestions = useMemo(() => places.filter((place) => place.key.startsWith('d:')), [places]);
+
+  // focusSiteSearch(): the page has already scrolled (or is scrolling) to the
+  // header, so focusing must not jump it again.
+  useEffect(() => {
+    const onRequest = () => {
+      inputRef.current?.focus({ preventScroll: true });
+      setOpen(true);
+    };
+    window.addEventListener(SEARCH_FOCUS_EVENT, onRequest);
+    return () => window.removeEventListener(SEARCH_FOCUS_EVENT, onRequest);
+  }, []);
 
   // Close the dropdown when clicking anywhere else.
   useEffect(() => {
@@ -250,6 +350,20 @@ export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit, onLocate
     reset();
   };
 
+  const pickRoute = (slug: string) => {
+    onPickRoute(slug);
+    reset();
+  };
+
+  /** One route opens; several are framed together. */
+  const pickRoutes = (found: Route[]) => {
+    const bounds = found.length > 1 ? routesBounds(found) : null;
+    if (bounds) {
+      onFitBounds(bounds);
+      reset();
+    } else pickRoute(found[0].slug);
+  };
+
   const pickArea = (area: Area) => {
     onFitBounds(area.bounds);
     reset();
@@ -263,7 +377,9 @@ export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit, onLocate
     const id = ++lookupIdRef.current;
     setLookup({ state: 'searching', query: text });
     setOpen(true);
-    void geocodePlace(text)
+    void detectCountry()
+      .catch(() => null)
+      .then((country) => geocodePlace(text, undefined, country))
       .catch(() => null)
       // A town with no climbs inside its box (Perth's centre) is widened to
       // take in the nearest ones, so the search lands somewhere useful.
@@ -294,8 +410,9 @@ export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit, onLocate
   /**
    * Enter, from a search box, means "take me there" — the habit every map
    * application has trained. In order: a place whose name is exactly what was
-   * typed ("japan"), a town, a place whose name starts with it, then the venues
-   * (one is picked, several are framed together), then a place merely
+   * typed ("japan"), a route with exactly that name, a town, a place whose
+   * name starts with it, a single venue, the routes whose names match (one is
+   * opened, several framed), the venues (framed together), then a place merely
    * containing it, and finally the geocoder for anything else ("kyoto").
    */
   const submit = () => {
@@ -306,9 +423,11 @@ export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit, onLocate
     }
     track('search', query.trim());
     if (placeHits.exact) return pickPlace(placeHits.exact);
+    if (routeHits.exact) return pickRoute(routeHits.exact.slug);
     if (areaHits.length > 0) return pickArea(areaHits[0]);
     if (placeHits.prefix.length > 0) return pickPlace(placeHits.prefix[0]);
     if (matches.length === 1) return pick(matches[0].slug);
+    if (routeHits.hits.length > 0) return pickRoutes(routeHits.hits);
     const bounds = boundsOf(matches);
     if (bounds) {
       onFitBounds(bounds);
@@ -319,7 +438,8 @@ export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit, onLocate
     geocode(query.trim());
   };
 
-  const hasLocal = areaHits.length > 0 || results.length > 0 || placeRows.length > 0;
+  const hasLocal = routeRows.length > 0 || areaHits.length > 0 || results.length > 0 || placeRows.length > 0;
+  const suggesting = query.trim() === '' && lookup.state === 'idle' && suggestions.length > 0;
   const status =
     lookup.state === 'searching' ? (
       <p className="small muted results-head" role="status">Looking up “{lookup.query}”…</p>
@@ -353,7 +473,7 @@ export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit, onLocate
             ref={inputRef}
             type="search"
             value={query}
-            aria-label="Search countries, hills, blocks and streets"
+            aria-label="Search countries, hills, routes, blocks and streets"
             autoComplete="off"
             onFocus={() => setOpen(true)}
             onChange={(e) => {
@@ -372,13 +492,30 @@ export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit, onLocate
           <SearchIcon size={16} />
           <span>Search</span>
         </button>
-        {open && (status !== null || hasLocal) && (
+        {open && (status !== null || hasLocal || suggesting) && (
           <div className="searchbar-results">
             {status}
+            {suggesting && <p className="small muted results-head">Popular regions</p>}
+            {suggesting &&
+              suggestions.map((place) => (
+                <button type="button" key={place.key} className="result-row area-row" onClick={() => pickPlace(place)}>
+                  <span className="result-name">{place.name}</span>
+                  <span className="result-meta small muted">{place.meta}</span>
+                </button>
+              ))}
             {placeRows.map((place) => (
               <button type="button" key={place.key} className="result-row area-row" onClick={() => pickPlace(place)}>
                 <span className="result-name">{place.name}</span>
                 <span className="result-meta small muted">{place.meta}</span>
+              </button>
+            ))}
+            {routeRows.map((route) => (
+              <button type="button" key={`r:${route.slug}`} className="result-row" onClick={() => pickRoute(route.slug)}>
+                <span className="result-name">{route.name}</span>
+                <span className="result-meta small muted">
+                  Route · {units.distance(route.distanceM)}
+                  {route.elevationAvailable !== false && ` · ${units.height(route.gainM)} ${HEIGHT_LABEL.gain}`}
+                </span>
               </button>
             ))}
             {areaHits.map((area) => (
@@ -415,11 +552,19 @@ export function SearchBar({ venues, onPick, onFitBounds, onEmptySubmit, onLocate
  */
 export function SiteSearch() {
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [routes, setRoutes] = useState<Route[]>([]);
   useEffect(() => {
     let cancelled = false;
     loadDataset()
       .then((dataset) => {
-        if (!cancelled) setVenues(dataset.venues);
+        if (cancelled) return;
+        setVenues(dataset.venues);
+        setRoutes((current) => [...dataset.routes, ...current]);
+      })
+      .catch(() => undefined);
+    fetchCommunityRoutes()
+      .then((community) => {
+        if (!cancelled) setRoutes((current) => [...current, ...community]);
       })
       .catch(() => undefined);
     return () => {
@@ -427,6 +572,6 @@ export function SiteSearch() {
     };
   }, []);
   return (
-    <SearchBar venues={venues} {...SEARCH_OPENS_MAP} onEmptySubmit={() => (window.location.hash = '#map')} />
+    <SearchBar venues={venues} routes={routes} {...SEARCH_OPENS_MAP} onEmptySubmit={() => (window.location.hash = '#map')} />
   );
 }

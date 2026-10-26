@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<title>Confirm your new email — hillGPX</title>
+<!-- Web fonts load in Apple Mail and friends; other clients take the system stack. -->
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700&family=Nunito:wght@700&display=swap');
+</style>
+</head>
+<body style="margin:0;padding:0;word-spacing:normal;background-color:#f7f7f7;">
+<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">Confirm this address to finish updating your hillGPX account.</div>
+<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f7f7f7;">
+  <tr>
+    <td align="center" style="padding:40px 16px 48px;">
+      <!--[if mso]><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="520" align="center"><tr><td><![endif]-->
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:520px;">
+
+        <!-- Card -->
+        <tr>
+          <td style="background-color:#ffffff;border:1px solid #ebebeb;border-radius:12px;">
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+
+              <!-- Header band: mark + wordmark on ink, tagline right -->
+              <tr>
+                <td style="background-color:#222222;background-image:linear-gradient(90deg,#272727 0%,#1a1a1a 100%);border-radius:11px 11px 0 0;padding:18px 28px;">
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td valign="middle">
+                        <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td valign="middle"><img src="{{ .SiteURL }}/icons/icon-192.png" width="30" height="30" alt="" style="display:block;width:30px;height:30px;border-radius:7px;"></td>
+                            <td valign="middle" style="padding-left:9px;font-family:'Nunito','Figtree',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:18px;line-height:1;font-weight:700;letter-spacing:-0.2px;color:#ffffff;">hillGPX</td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td align="right" valign="middle" style="font-family:'Figtree',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:12px;line-height:1.4;color:#9a9a9a;">every hill worth climbing</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Topographic strip: decorative, real contours around Bukit Timah -->
+              <tr>
+                <td><img src="{{ .SiteURL }}/email/topo-strip.png" width="518" height="72" alt="" style="display:block;width:100%;max-width:518px;height:auto;"></td>
+              </tr>
+
+              <!-- Body -->
+              <tr>
+                <td style="padding:30px 40px 36px;">
+                  <p style="margin:0 0 10px;font-family:'Figtree',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:11px;line-height:1;font-weight:700;letter-spacing:1.8px;color:#c1502e;">ACCOUNT SECURITY</p>
+                  <h1 style="margin:0 0 12px;font-family:'Figtree',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:22px;line-height:1.3;font-weight:700;color:#222222;">Confirm your new email</h1>
+                  <p style="margin:0 0 28px;font-family:'Figtree',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:15px;line-height:1.6;color:#484848;">
+                    Hi{{ if .Data.username }} {{ .Data.username }}{{ else }} there{{ end }}, you asked to move your hillGPX account from {{ .Email }} to this address. Confirm it here to finish the change.
+                  </p>
+
+                  <!-- Button: solid accent for old clients, the site gradient everywhere else -->
+                  <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                    <tr>
+                      <td align="center" bgcolor="#c1502e" style="border-radius:8px;mso-padding-alt:15px 36px;">
+                        <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:15px 36px;font-family:'Figtree',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:16px;line-height:1;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;background-color:#c1502e;background-image:linear-gradient(90deg,#d9633d 0%,#c1502e 55%,#a9401f 100%);">Confirm new email</a>
+                      </td>
+                    </tr>
+                  </table>
+
+                  <p style="margin:28px 0 0;font-family:'Figtree',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:13px;line-height:1.6;color:#717171;">
+                    Button not working? Paste this link into your browser:<br>
+                    <a href="{{ .ConfirmationURL }}" style="color:#c1502e;word-break:break-all;">{{ .ConfirmationURL }}</a>
+                  </p>
+
+                  <hr style="border:none;border-top:1px solid #ebebeb;margin:28px 0 20px;">
+                  <p style="margin:0;font-family:'Figtree',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:13px;line-height:1.6;color:#717171;">
+                    Didn't ask for this change? Ignore this email and sign in to check your account — your sign-in email stays {{ .Email }} until you confirm.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td align="center" style="padding:24px 16px 0;font-family:'Figtree',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:12px;line-height:1.7;color:#a8a8a8;">
+            This email was sent to the new address on your hillGPX account<br>
+            hillGPX · every hill worth climbing · <a href="{{ .SiteURL }}" style="color:#a8a8a8;text-decoration:underline;">hillgpx.com</a>
+          </td>
+        </tr>
+
+      </table>
+      <!--[if mso]></td></tr></table><![endif]-->
+    </td>
+  </tr>
+</table>
+</body>
+</html>

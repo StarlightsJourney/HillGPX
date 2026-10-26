@@ -1,10 +1,9 @@
 import { useCallback, useRef, useState } from 'react';
-import type { Route, RouteActivity, RoutePoint, Venue } from '../types';
-import { GpxParseError, parseGpx, simplify } from '../lib/gpx';
-import { ElevationModel, computeGain, totalDistanceM } from '../lib/elevation';
-import { linkVenues } from '../lib/routes';
-import { hasRealElevation, terrainElevations } from '../lib/terrain';
-import { classifyActivity, isSameRoute, routeFingerprint } from '../lib/routeAnalysis';
+import type { Route, Venue } from '../types';
+import { GpxParseError, parseGpx } from '../lib/gpx';
+import type { ElevationModel } from '../lib/elevation';
+import { buildLoadedRoute, type LoadedRoute } from '../lib/loadRoute';
+import { GoogleHealthImport } from './GoogleHealthImport';
 import { UploadIcon } from './icons';
 
 interface GpxDropzoneProps {
@@ -12,50 +11,24 @@ interface GpxDropzoneProps {
   venues: Venue[];
   /** Everything already on the map, to stop the same track being added twice. */
   existingRoutes: Route[];
-  onLoaded: (loaded: LoadedGpx) => void;
+  onLoaded: (loaded: LoadedRoute) => void;
   onShowExisting: (slug: string) => void;
 }
 
-export interface LoadedGpx {
-  name: string;
-  points: RoutePoint[];
-  distanceM: number;
-  gainM: number;
-  lossM: number;
-  /** Where EG/EL came from: the device, Singapore's terrain model, or worldwide terrain tiles. */
-  elevationSource: 'gps' | 'dem' | 'terrain';
-  /** Kept for the old panel badge: true when heights were replaced by terrain. */
-  resampled: boolean;
-  venueSlugs: string[];
-  recordedAt: string | null;
-  activity: RouteActivity;
-  fingerprint: string;
-  /** The file exactly as uploaded, stored alongside the simplified track. */
-  originalGpx: string;
-}
+export type { LoadedRoute };
+/** The pre-rename name; the panel and App still import it from here. */
+export type LoadedGpx = LoadedRoute;
 
 /** 200 km ultras and multi-day treks export at 50 MB+; the original is gzipped before upload. */
 const MAX_FILE_BYTES = 60_000_000;
-/** Enough detail for the map and profile, small enough to store and draw quickly. */
-const POINT_BUDGET = 4000;
-
-/** Douglas–Peucker with a tolerance that grows until the track fits the point budget. */
-function simplifyToBudget(points: RoutePoint[]): RoutePoint[] {
-  let tolerance = 1e-5;
-  let out = simplify(points, tolerance);
-  while (out.length > POINT_BUDGET && tolerance < 1e-3) {
-    tolerance *= 1.6;
-    out = simplify(points, tolerance);
-  }
-  return out;
-}
 
 type Stage = { kind: 'idle' } | { kind: 'working'; message: string } | { kind: 'error'; message: string } | { kind: 'duplicate'; route: Route };
 
 /**
- * Upload GPX: drop or pick a file, and the route opens on the map with its
- * profile. Elevation comes from the file when it has any; otherwise from
- * terrain data, so planned routes and OSM traces still get honest EG and EL.
+ * Add a route: drop or pick a GPX file — or pull a Google Health workout —
+ * and it opens on the map with its profile. Elevation comes from the track
+ * when it has any; otherwise from terrain data, so planned routes and OSM
+ * traces still get honest EG and EL.
  */
 export function GpxDropzone({ elevationModel, venues, existingRoutes, onLoaded, onShowExisting }: GpxDropzoneProps) {
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
@@ -71,52 +44,17 @@ export function GpxDropzone({ elevationModel, venues, existingRoutes, onLoaded, 
       setStage({ kind: 'working', message: file.size > 5e6 ? `Reading a ${Math.round(file.size / 1e6)} MB GPX — long routes take a few seconds…` : 'Reading your GPX…' });
       try {
         const originalGpx = await file.text();
-        const parsed = parseGpx(originalGpx);
-        let points = simplifyToBudget(parsed.points);
-        const fingerprint = routeFingerprint(points);
-        const duplicate = existingRoutes.find((route) => isSameRoute(points, route));
-        if (duplicate) {
-          setStage({ kind: 'duplicate', route: duplicate });
+        const result = await buildLoadedRoute(parseGpx(originalGpx), originalGpx, file.name.replace(/\.gpx$/i, ''), {
+          elevationModel,
+          venues,
+          existingRoutes,
+          onStatus: (message) => setStage({ kind: 'working', message }),
+        });
+        if (result.kind === 'duplicate') {
+          setStage({ kind: 'duplicate', route: result.route });
           return;
         }
-
-        // The file's own elevation wins: it is what the runner's device measured.
-        // Only a file with none falls back to Singapore's terrain model, then
-        // to worldwide terrain tiles.
-        let elevationSource: LoadedGpx['elevationSource'] = 'gps';
-        if (!hasRealElevation(points)) {
-          const coveredBySg = elevationModel
-            ? points.filter(([lng, lat]) => elevationModel.covers(lng, lat)).length / points.length >= 0.5
-            : false;
-          if (elevationModel && coveredBySg) {
-            points = elevationModel.resampleElevation(points);
-            elevationSource = 'dem';
-          } else {
-            setStage({ kind: 'working', message: 'No elevation in this file — measuring it from terrain data…' });
-            const filled = await terrainElevations(points);
-            if (filled) {
-              points = filled;
-              elevationSource = 'terrain';
-            }
-          }
-        }
-
-        const { gainM, lossM } = computeGain(points);
-        onLoaded({
-          name: parsed.name?.trim() || file.name.replace(/\.gpx$/i, ''),
-          points,
-          distanceM: totalDistanceM(points),
-          gainM,
-          lossM,
-          elevationSource,
-          resampled: elevationSource !== 'gps',
-          venueSlugs: linkVenues(points, venues),
-          recordedAt: parsed.startedAt,
-          // Speed needs the raw points (aligned with their timestamps); climbing needs the final elevation.
-          activity: classifyActivity(parsed.points, gainM, parsed.times),
-          fingerprint,
-          originalGpx,
-        });
+        onLoaded(result.loaded);
         setStage({ kind: 'idle' });
       } catch (caught) {
         setStage({
@@ -187,6 +125,14 @@ export function GpxDropzone({ elevationModel, venues, existingRoutes, onLoaded, 
           </button>
         </div>
       )}
+
+      <GoogleHealthImport
+        elevationModel={elevationModel}
+        venues={venues}
+        existingRoutes={existingRoutes}
+        onLoaded={onLoaded}
+        onShowExisting={onShowExisting}
+      />
 
       <ul className="gpx-import-notes">
         <li>Works with exports from Strava, Garmin, Coros, Suunto, Komoot and most watches.</li>

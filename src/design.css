@@ -2380,6 +2380,101 @@
   height: 40px;
 }
 
+/* Google Health import — the "or pull it from Google" half of the dialog. */
+.ghealth {
+  margin-top: 20px;
+}
+.ghealth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.ghealth-divider::before,
+.ghealth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.ghealth-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+}
+.ghealth-row p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ghealth-row .btn {
+  flex-shrink: 0;
+}
+.ghealth-disclosure {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.ghealth-note {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.ghealth-note.error {
+  color: var(--danger);
+}
+.ghealth-list {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.ghealth-workout {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  color: var(--ink);
+}
+.ghealth-workout + .ghealth-workout {
+  border-top: 1px solid var(--border);
+}
+.ghealth-workout-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ghealth-workout-main strong {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ghealth-workout-main .muted {
+  font-size: 12.5px;
+}
+.ghealth-workout svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.ghealth-unlink {
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-decoration: underline;
+  cursor: pointer;
+}
 .route-meta-lines {
   margin-top: 6px;
 }

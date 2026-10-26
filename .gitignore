@@ -51,4 +51,10 @@ test-results/
 playwright-report/
 
 dummy_gpx/
+supabase/.temp/
+
+# Wrangler local state
+.wrangler/
+
 bulk_uploads/*
+

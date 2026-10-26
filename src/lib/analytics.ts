@@ -82,7 +82,9 @@ export type TrackedEvent =
   | 'run_needs_submit'
   | 'ranked_route_open'
   | 'route_bookmarked'
-  | 'route_edit';
+  | 'route_edit'
+  | 'ghealth_connect'
+  | 'ghealth_import';
 
 /** Record one product action (and an optional short label, e.g. the route). */
 export function track(event: TrackedEvent, label?: string): void {

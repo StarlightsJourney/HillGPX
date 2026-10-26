@@ -1,6 +1,12 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { errorText } from '../lib/api';
 import { changePassword, logOut, type AuthUser } from '../lib/auth';
+import {
+  connectGoogleHealth,
+  disconnectGoogleHealth,
+  googleHealthStatus,
+  type GoogleHealthStatus,
+} from '../lib/googleHealth';
 import { CheckIcon, ExternalLinkIcon } from './icons';
 
 /** Settings › Account: how you sign in, and deleting the account. */
@@ -47,6 +53,8 @@ export function SettingsAccount({ user, onDelete }: { user: AuthUser; onDelete: 
         </button>
       </section>
 
+      <GoogleHealthCard />
+
       <section className="ac-card" aria-labelledby="ac-delete-title">
         <h3 id="ac-delete-title">Delete account</h3>
         <div className="ac-delete-grid">
@@ -73,6 +81,89 @@ export function SettingsAccount({ user, onDelete }: { user: AuthUser; onDelete: 
         </button>
       </section>
     </>
+  );
+}
+
+/** The Google Health link behind "pull a workout" in the import dialog. */
+function GoogleHealthCard() {
+  const [status, setStatus] = useState<GoogleHealthStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    googleHealthStatus()
+      .then((next) => live && setStatus(next))
+      .catch((caught) => live && setError(errorText(caught)));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const unlink = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await disconnectGoogleHealth();
+      setStatus({ connected: false, connectedAt: null, hasLocation: false });
+    } catch (caught) {
+      setError(errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const link = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await connectGoogleHealth();
+      // Re-read the granted scopes — a partial consent shows the warning.
+      setStatus(await googleHealthStatus());
+    } catch (caught) {
+      setError(errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="ac-card" aria-labelledby="ac-apps-title">
+      <h3 id="ac-apps-title">Connected apps</h3>
+      <dl className="ac-kv">
+        <div>
+          <dt>Google Health</dt>
+          <dd>
+            {status?.connected && (
+              <span className="ac-badge ok">
+                <CheckIcon size={12} /> Linked
+              </span>
+            )}
+            <small>
+              {status?.connected
+                ? `Pull workouts from Fitbit, Pixel Watch and synced watches in the Add a GPX dialog.${
+                    status.hasLocation ? '' : ' Location access was refused, so GPS tracks cannot be exported; relink and allow it.'
+                  }`
+                : 'Link it to pull GPS workouts from Fitbit, Pixel Watch and synced watches into the Add a GPX dialog.'}
+            </small>
+          </dd>
+        </div>
+      </dl>
+      {status?.connected ? (
+        <button type="button" className="ac-btn soft" disabled={busy} onClick={() => void unlink()}>
+          {busy ? 'Unlinking…' : 'Unlink Google Health'}
+        </button>
+      ) : (
+        <button type="button" className="ac-btn ink" disabled={status === null || busy} onClick={() => void link()}>
+          {busy ? 'Linking…' : 'Link Google Health'}
+        </button>
+      )}
+      {error && (
+        <p className="ac-field-error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }
 

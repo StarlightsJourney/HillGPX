@@ -85,7 +85,7 @@ figcaption{margin-top:6px;color:var(--muted);font-size:12px}
 ul.list{padding-left:20px}ul.list li{margin:4px 0}ul.list a{color:var(--ink)}
 footer{max-width:880px;margin:0 auto;padding:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}footer a{color:var(--muted)}
 `;
-const MARK = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#c1502e"/><path d="M9.75 7.5h2A1.25 1.25 0 0 1 13 8.75V15l3-3.25 3 3.25V8.75a1.25 1.25 0 0 1 1.25-1.25h2a1.25 1.25 0 0 1 1.25 1.25v14.5a1.25 1.25 0 0 1-1.25 1.25h-2A1.25 1.25 0 0 1 19 23.25V19H13v4.25a1.25 1.25 0 0 1-1.25 1.25h-2A1.25 1.25 0 0 1 8.5 23.25V8.75A1.25 1.25 0 0 1 9.75 7.5z" fill="#fff"/></svg>';
+const MARK = '<svg viewBox="0 0 120 120" aria-hidden="true"><rect width="120" height="120" rx="26.25" fill="#c1502e"/><g fill="none" stroke="#fff" stroke-width="8.5" stroke-linecap="round"><path d="M23 86A37 37 0 0 1 97 86"/><path d="M38 86A22 22 0 0 1 82 86"/><path d="M52.5 86A7.5 7.5 0 0 1 67.5 86"/></g><circle cx="60" cy="33" r="6.5" fill="#fff"/></svg>';
 
 const pages = [];
 

@@ -7,16 +7,14 @@ import { useId, type ReactNode } from 'react';
  */
 
 /**
- * The product mark: an app-icon-style rounded tile with a white "H" whose
- * crossbar peaks like a summit. Matches public/favicon.svg and the PNGs in
+ * The product mark: an app-icon-style rounded tile with three white contour
+ * lines rising to a summit dot. Matches public/favicon.svg and the PNGs in
  * public/icons/ — change them together.
- *
- * Solid shapes, no strokes or filters, so it stays crisp at 16 px.
  */
 export function Mark({ size = 22 }: { size?: number }) {
   const gradient = `mark${useId().replace(/:/g, '')}`;
   return (
-    <svg className="mark" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+    <svg className="mark" width={size} height={size} viewBox="0 0 120 120" aria-hidden="true" focusable="false">
       <defs>
         <linearGradient id={gradient} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#e06c44" />
@@ -24,11 +22,13 @@ export function Mark({ size = 22 }: { size?: number }) {
           <stop offset="1" stopColor="#9c3a1d" />
         </linearGradient>
       </defs>
-      <rect width="32" height="32" rx="7" fill={`url(#${gradient})`} />
-      <path
-        d="M9.75 7.5h2A1.25 1.25 0 0 1 13 8.75V15l3-3.25 3 3.25V8.75a1.25 1.25 0 0 1 1.25-1.25h2a1.25 1.25 0 0 1 1.25 1.25v14.5a1.25 1.25 0 0 1-1.25 1.25h-2A1.25 1.25 0 0 1 19 23.25V19H13v4.25a1.25 1.25 0 0 1-1.25 1.25h-2A1.25 1.25 0 0 1 8.5 23.25V8.75A1.25 1.25 0 0 1 9.75 7.5z"
-        fill="#ffffff"
-      />
+      <rect width="120" height="120" rx="26.25" fill={`url(#${gradient})`} />
+      <g fill="none" stroke="#ffffff" strokeWidth="8.5" strokeLinecap="round">
+        <path d="M23 86A37 37 0 0 1 97 86" />
+        <path d="M38 86A22 22 0 0 1 82 86" />
+        <path d="M52.5 86A7.5 7.5 0 0 1 67.5 86" />
+      </g>
+      <circle cx="60" cy="33" r="6.5" fill="#ffffff" />
     </svg>
   );
 }

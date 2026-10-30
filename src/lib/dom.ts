@@ -77,3 +77,20 @@ export function lockPageScroll(): () => void {
 export function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
+
+/**
+ * Save a file the visitor asked for. iOS Safari ignores a click on a link that
+ * is not in the document, and reads the blob after the click returns, so
+ * revoking the URL straight away cancelled every download on iPhones.
+ */
+export function saveFile(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.hidden = true;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}

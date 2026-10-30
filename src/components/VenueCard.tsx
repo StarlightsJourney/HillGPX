@@ -7,19 +7,14 @@ import { useUnits } from './UnitsContext';
 import { RatingLabel } from './ResultsList';
 import { CloseIcon, HeartIcon } from './icons';
 import { toGpx } from '../lib/gpx';
+import { saveFile } from '../lib/dom';
 
 export function downloadRoute(route: Route) {
   track('gpx_download', route.slug);
   // Every download counts publicly; device-saved routes are not in the archive.
   if (route.source !== 'local') recordRouteDownload(route.slug);
   const gpx = toGpx(route.name, route.coordinates, [], route.elevationAvailable !== false);
-  const blob = new Blob([gpx], { type: 'application/gpx+xml' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${route.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.gpx`;
-  a.click();
-  URL.revokeObjectURL(url);
+  saveFile(new Blob([gpx], { type: 'application/gpx+xml' }), `${route.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.gpx`);
 }
 
 interface VenueCardProps {

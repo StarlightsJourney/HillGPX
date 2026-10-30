@@ -263,12 +263,15 @@ const toRouteReview = (row: RouteReviewRow): RouteReview => ({
   editedAt: row.edited_at,
 });
 
-/** A deploy that lands before the migration says so; a refused permission or an expired session is not that. */
+/** Missing table (42P01, PGRST205) or function (42883, PGRST202). */
+const ROUTE_REVIEWS_MISSING = new Set(['42P01', 'PGRST205', '42883', 'PGRST202']);
+
+/** A deploy that lands before the migration says so; an outage, a refused permission or an expired session is not that. */
 async function routeReviewCall<T>(call: () => Promise<T>): Promise<T> {
   try {
     return await call();
   } catch (error) {
-    if (error instanceof ApiError && isSchemaError(error) && error.code !== '42501' && !error.code?.startsWith('PGRST3')) {
+    if (error instanceof ApiError && error.code && ROUTE_REVIEWS_MISSING.has(error.code)) {
       throw new ApiError('Route reviews are not available yet.', 503, error.code);
     }
     throw error;

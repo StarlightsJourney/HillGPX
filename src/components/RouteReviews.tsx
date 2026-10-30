@@ -116,6 +116,8 @@ export function RouteReviews({ routeSlug, state }: { routeSlug: string; state: R
   const [showAll, setShowAll] = useState(false);
   const { reviews, error, mine, mineKnown, retry, onSaved, onDeleted } = state;
   const others = (reviews ?? []).filter((review) => review.id !== mine?.id);
+  // The visitor's own review, hidden or not, is one of the cards shown.
+  const othersShown = others.slice(0, mine ? REVIEWS_SHOWN - 1 : REVIEWS_SHOWN);
 
   return (
     <div className="route-reviews">
@@ -131,8 +133,8 @@ export function RouteReviews({ routeSlug, state }: { routeSlug: string; state: R
           {mine && user && (editing
             ? <RouteReviewForm routeSlug={routeSlug} user={user} editing={mine} onSaved={(review) => { onSaved(review); setEditing(false); }} onCancel={() => setEditing(false)} />
             : <MyReview key={mine.id} review={mine} onEdit={() => setEditing(true)} onDeleted={onDeleted} />)}
-          {others.slice(0, REVIEWS_SHOWN).map((review) => <ReviewCard key={review.id} review={review} onReport={() => reportReview(review)} />)}
-          {others.length > REVIEWS_SHOWN && (
+          {othersShown.map((review) => <ReviewCard key={review.id} review={review} onReport={() => reportReview(review)} />)}
+          {others.length > othersShown.length && (
             <button type="button" className="reviews-all" onClick={() => setShowAll(true)}>Show all {reviews.length} reviews</button>
           )}
           {reviews.length === 0 && !mine && <p className="route-reviews-empty">No reviews yet.</p>}

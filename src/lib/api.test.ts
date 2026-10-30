@@ -184,6 +184,20 @@ describe('route reviews', () => {
     }
   });
 
+  it('shows a missing RPC as not available yet', async () => {
+    for (const code of ['PGRST202', '42883']) {
+      stubFetch(() => json({ code, message: 'Could not find the function' }, 404));
+      await expect(myRouteReview('x-route')).rejects.toThrow(/not available yet/);
+    }
+  });
+
+  it('shows an unreachable database as the ordinary failure, not as a feature still to come', async () => {
+    for (const code of ['PGRST000', 'PGRST001', 'PGRST002', 'PGRST003']) {
+      stubFetch(() => json({ code, message: 'Database connection error' }, 503));
+      await expect(fetchRouteReviews('x-route')).rejects.toThrow('Something went wrong (HTTP 503).');
+    }
+  });
+
   it('does not call a refused permission a missing table', async () => {
     stubFetch(() => json({ code: '42501', message: 'permission denied for table route_reviews' }, 401));
     await expect(submitRouteReview({ routeSlug: 'x-route', rating: 3, comment: 'x', author: '' })).rejects.toThrow('Something went wrong (HTTP 401).');

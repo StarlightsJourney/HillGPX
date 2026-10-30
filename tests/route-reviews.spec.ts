@@ -45,10 +45,11 @@ interface Setup {
   reviews?: Row[];
   mine?: Row | null;
   failRead?: boolean;
+  communityRoutes?: object[];
 }
 
 /** The fake server. Returns what it was sent, to check the client's requests. */
-async function stub(page: Page, { signedIn = false, reviews = [], mine = null, failRead = false }: Setup) {
+async function stub(page: Page, { signedIn = false, reviews = [], mine = null, failRead = false, communityRoutes = [] }: Setup) {
   const state = { reviews: [...reviews], mine, posted: [] as Record<string, unknown>[], reports: [] as Record<string, unknown>[] };
   await page.addInitScript(
     ([key, value, signed]) => {
@@ -86,6 +87,7 @@ async function stub(page: Page, { signedIn = false, reviews = [], mine = null, f
       state.mine = null;
       return route.fulfill({ status: 204, body: '' });
     }
+    if (url.pathname.endsWith('/rest/v1/routes')) return route.fulfill({ json: communityRoutes });
     if (url.pathname.endsWith('/rest/v1/reports')) {
       state.reports.push(body());
       return route.fulfill({ status: 201, body: '' });
@@ -237,6 +239,71 @@ test('Show all opens every review; the panel keeps the 3 newest', async ({ page 
   await expect(section.locator('.review-card')).toHaveCount(3);
   await section.getByRole('button', { name: 'Show all 5 reviews' }).click();
   await expect(page.getByRole('dialog').locator('.review-card')).toHaveCount(5);
+});
+
+test('your own review is one of the 3 in the panel, and Show all counts the rest', async ({ page }) => {
+  const own = row('mine', 3, 'My note', 'ridge_runner', 25);
+  await stub(page, { signedIn: true, reviews: [own, ...[1, 2, 3].map((n) => row(`r${n}`, 4, `Review number ${n}`, 'hill_goat', 20 - n))], mine: own });
+  await openRoute(page);
+  await moreDetails(page);
+  const section = panel(page).locator('.route-reviews');
+  await expect(section.locator('.review-card')).toHaveCount(3);
+  await expect(section.locator('.review-card').first()).toContainText('Your review');
+  await section.getByRole('button', { name: 'Show all 4 reviews' }).click();
+  await expect(page.getByRole('dialog').locator('.review-card')).toHaveCount(4);
+});
+
+test('with your review and 2 others everything is showing, so there is no Show all', async ({ page }) => {
+  const own = row('mine', 3, 'My note', 'ridge_runner', 25);
+  await stub(page, { signedIn: true, reviews: [own, row('a', 4, 'One', 'hill_goat', 20), row('b', 4, 'Two', 'hill_goat', 19)], mine: own });
+  await openRoute(page);
+  await moreDetails(page);
+  const section = panel(page).locator('.route-reviews');
+  await expect(section.locator('.review-card')).toHaveCount(3);
+  await expect(section.getByRole('button', { name: /Show all/ })).toHaveCount(0);
+});
+
+test('a hidden review takes a place in the panel, and Show all counts only the public ones', async ({ page }) => {
+  const own: Row = { ...row('mine', 1, 'Something rude', 'ridge_runner', 25), status: 'rejected' };
+  await stub(page, { signedIn: true, reviews: [own, ...[1, 2, 3].map((n) => row(`r${n}`, 4, `Review number ${n}`, 'hill_goat', 20 - n))], mine: own });
+  await openRoute(page);
+  await moreDetails(page);
+  const section = panel(page).locator('.route-reviews');
+  await expect(section.locator('.review-card')).toHaveCount(3);
+  await section.getByRole('button', { name: 'Show all 3 reviews' }).click();
+  await expect(page.getByRole('dialog').locator('.review-card')).toHaveCount(3);
+});
+
+test.describe('community routes', () => {
+  const community = (status: string) => ({
+    slug: 'bay-flat-loop', name: 'Bay Flat Loop', activity: 'run', recorded_at: null, distance_m: 21_100, gain_m: 80, loss_m: 80,
+    elevation_source: 'gps', venue_slugs: [], points: [[103.855, 1.28, 5], [103.902, 1.28, 6], [103.902, 1.327, 9], [103.855, 1.28, 5]],
+    gpx_path: 'bay-flat-loop.gpx', contributor: 'ridge_runner', licence: 'CC-BY-4.0', downloads: 0, status, created_at: '2026-10-01T00:00:00Z',
+  });
+
+  async function openCommunityRoute(page: Page) {
+    await page.goto('/#routes');
+    await page.locator('.route-item .result-card', { hasText: 'Bay Flat Loop' }).click({ timeout: 20_000 });
+    const sheet = page.locator('.route-panel');
+    await sheet.getByRole('button', { name: 'Show more route details' }).click();
+    await expect(sheet).toHaveClass(/expanded/);
+    return sheet;
+  }
+
+  test('an approved route takes reviews', async ({ page }) => {
+    await stub(page, { signedIn: true, communityRoutes: [community('approved')] });
+    const sheet = await openCommunityRoute(page);
+    await expect(sheet.locator('.route-reviews').getByRole('button', { name: 'Post review' })).toBeVisible();
+  });
+
+  for (const status of ['pending', 'rejected']) {
+    test(`the owner of a ${status} route gets no reviews section and no rating`, async ({ page }) => {
+      await stub(page, { signedIn: true, communityRoutes: [community(status)] });
+      const sheet = await openCommunityRoute(page);
+      await expect(sheet.locator('.route-reviews')).toHaveCount(0);
+      await expect(sheet.locator('.route-rating')).toHaveCount(0);
+    });
+  }
 });
 
 test('long reviews are clamped behind Show more', async ({ page }) => {

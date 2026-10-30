@@ -21,7 +21,7 @@ export interface RouteReviewsState {
  * One route's reviews and the visitor's own, loaded once each time a route
  * opens: the compact panel needs the average, so this runs even when the
  * reviews section is folded away. Pass `enabled: false` for routes that take
- * no reviews (held, on this device); nothing is requested.
+ * no reviews (held, rejected, on this device); nothing is requested.
  */
 export function useRouteReviews(routeSlug: string, enabled: boolean, userId: string | null): RouteReviewsState {
   const [list, setList] = useState<{ slug: string; reviews: RouteReview[] | null; error: string | null } | null>(null);

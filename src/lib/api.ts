@@ -442,6 +442,7 @@ function toRoute(row: RouteRow): Route {
     downloads: row.downloads ?? 0,
     // Only the uploader's own session can read a held row, so this is never someone else's.
     held: row.status === 'pending' ? true : undefined,
+    rejected: row.status === 'rejected' ? true : undefined,
   };
 }
 

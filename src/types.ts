@@ -108,6 +108,8 @@ export interface Route {
   elevationAvailable?: boolean;
   /** Community routes only: failed the quality checks, so only its uploader can see it. */
   held?: boolean;
+  /** Community routes only: turned down by a moderator, so only its uploader can see it. */
+  rejected?: boolean;
   loop: boolean;
 
   surface?: RouteSurface;

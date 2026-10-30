@@ -390,8 +390,8 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
   useEffect(() => {
     moreRef.current?.toggleAttribute('inert', !expanded);
   }, [expanded]);
-  // Held and on-device routes take no reviews: nobody else can see them.
-  const reviewable = route.source !== 'local' && !route.held;
+  // Only approved routes take reviews: nobody else can see a held, rejected or on-device one.
+  const reviewable = route.source !== 'local' && !route.held && !route.rejected;
   const reviews = useRouteReviews(route.slug, reviewable, user?.id ?? null);
   const units = useUnits();
   const elevation = useTerrainFill(route);

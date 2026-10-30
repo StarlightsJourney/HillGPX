@@ -50,6 +50,27 @@ as the project owner.
 To make hiding stricter or looser, change how many reports it takes:
 `update private.limits set per_day = 2 where kind = 'hide_after_reports';`
 
+### Routes held by the quality checks
+
+Every GPX is checked in the uploader's browser (`src/lib/routeQuality.ts`) for
+GPS jumps, impossible speeds, very short tracks and implausible altitude. A
+route that fails any of those is stored **held** (`status = 'pending'`): only
+the account that uploaded it can see it, with the reasons. Guests cannot hold a
+route: a failing upload from a signed-out visitor is refused with the reasons.
+A missing elevation only adds a note; it does not hold the route.
+
+1. Table Editor → `routes` → filter `status` equals `pending`.
+2. `quality_flags` lists what failed, with the measured value and the limit.
+3. Set `status` to `approved` to release it (for a false positive) or
+   `rejected` to close it. The uploader can also fix it themselves: trimming the
+   bad stretch re-runs the checks and releases it when it passes. A rejected
+   route stays rejected after an edit.
+
+The flags come from the browser, so a hand-made request could leave them out;
+reports and this queue are the backstop. Limits are the constants in
+`QUALITY_LIMITS` (`src/lib/routeQuality.ts`); move a flag out of `KEY` there to
+make it advisory.
+
 ### Removing a review, route or photo
 
 Set its `status` to `rejected`: it disappears from the site, and you keep a

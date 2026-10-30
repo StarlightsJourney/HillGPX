@@ -106,6 +106,8 @@ export interface Route {
   gainM: number;
   lossM: number;
   elevationAvailable?: boolean;
+  /** Community routes only: failed the quality checks, so only its uploader can see it. */
+  held?: boolean;
   loop: boolean;
 
   surface?: RouteSurface;

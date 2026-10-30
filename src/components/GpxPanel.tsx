@@ -2,12 +2,15 @@ import { useMemo, useState } from 'react';
 import type { Route, RouteActivity, Venue } from '../types';
 import { computeGain, cumulativeDistances, totalDistanceM } from '../lib/elevation';
 import { routeFromPoints } from '../lib/routes';
+import { assessLoaded } from '../lib/loadRoute';
+import { keyFlags } from '../lib/routeQuality';
 import { HEIGHT_LABEL, venueHeight } from '../lib/venues';
 import { ACTIVITY_LABEL, findOverlaps, routeFingerprint } from '../lib/routeAnalysis';
 import { ApiError, DuplicateRouteError, publishRoute, uploadRouteThumb } from '../lib/api';
 import { useAuthUser } from '../lib/auth';
 import { addMyRoute } from '../lib/myRoutes';
 import { CreditChips } from './CreditChips';
+import { QualityNotice } from './QualityNotice';
 import type { LoadedGpx } from './GpxDropzone';
 import { ElevationProfile } from './ElevationProfile';
 import { RouteTrim } from './RouteTrim';
@@ -81,11 +84,17 @@ export function GpxPanel({
     return [distances[trim[0]] / total, distances[trim[1]] / total];
   }, [loaded.points, trim]);
   const overlaps = useMemo(() => findOverlaps(loaded.points, allRoutes), [loaded.points, allRoutes]);
+  // Checked on the raw track for the part being kept, so trimming out a bad stretch clears its flag.
+  const quality = useMemo(() => assessLoaded(loaded, activity, keepRange), [loaded, activity, keepRange]);
+  const failed = keyFlags(quality);
+  // A guest cannot read a held route back, so a guest cannot publish one.
+  const blocked = failed.length > 0 && !user;
   const linkedVenues = venueSlugs
     .map((slug) => venuesBySlug.get(slug))
     .filter((venue): venue is Venue => Boolean(venue));
 
   const publish = async () => {
+    if (blocked) return;
     setBusy(true);
     setError(null);
     try {
@@ -101,6 +110,7 @@ export function GpxPanel({
         contributor: user ? user.username : '',
         licence: 'CC BY 4.0',
         anonymous: !user || anonymous,
+        qualityFlags: quality.flags,
       });
       onPublished(stored);
       // The new upload joins "Your routes" now, so the edit/delete controls
@@ -116,6 +126,8 @@ export function GpxPanel({
           anonymous,
           createdAt: new Date().toISOString(),
           gpxUrl: stored.gpxUrl ?? '',
+          status: stored.held ? 'pending' : 'approved',
+          qualityFlags: quality.flags,
         });
       }
       // The card image is a nicety: render it after publishing, never block on it.
@@ -207,9 +219,21 @@ export function GpxPanel({
       {!published && <RouteTrim points={loaded.points} trim={trim} onChange={onTrimChange} />}
 
       {published ? (
-        <p className="gpx-published" role="status">
-          <CheckIcon size={14} /> Published to the community archive. Thank you — anyone can now find and download it.
-        </p>
+        published.held ? (
+          <>
+            <p className="gpx-published" role="status">
+              <CheckIcon size={14} /> Saved to your account. Only you can see it until it passes the checks or a maintainer reviews it.
+            </p>
+            <QualityNotice flags={quality.flags} heading="Why it is held" />
+          </>
+        ) : (
+          <>
+            <p className="gpx-published" role="status">
+              <CheckIcon size={14} /> Published to the community archive. Thank you — anyone can now find and download it.
+            </p>
+            <QualityNotice flags={quality.flags} />
+          </>
+        )
       ) : (
         <form
           className="gpx-publish"
@@ -252,9 +276,19 @@ export function GpxPanel({
               <span className="route-meta muted">Heart rate, cadence, power and other device data are removed from the file before it is stored.</span>
             </InfoTip>
           </p>
+          <QualityNotice
+            flags={quality.flags}
+            heading={
+              failed.length === 0
+                ? undefined
+                : user
+                  ? 'This route will be saved, but only you can see it until it is fixed:'
+                  : 'This route cannot be published yet. Trim the problem out, or sign in to save it for review:'
+            }
+          />
           {error && <p className="gpx-import-error" role="alert">{error}</p>}
-          <button type="submit" className="btn btn-accent" disabled={busy}>
-            {busy ? 'Publishing…' : 'Publish route'}
+          <button type="submit" className="btn btn-accent" disabled={busy || blocked}>
+            {busy ? 'Publishing…' : blocked ? 'Fix the track to publish' : failed.length > 0 ? 'Save privately' : 'Publish route'}
           </button>
         </form>
       )}

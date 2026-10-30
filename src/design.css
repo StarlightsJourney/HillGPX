@@ -8685,3 +8685,51 @@ html:has(.ac) {
     animation: none;
   }
 }
+
+/* ─── Route quality checks: why a route is held, and the owner-only tag ─── */
+.quality-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line, #e3e3e3);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink, #222);
+  font-size: 14px;
+}
+.quality-notice.held {
+  border-color: #e7c27a;
+  background: #fff8e8;
+}
+.quality-notice ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.quality-notice li + li {
+  margin-top: 4px;
+}
+.held-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #fff1d1;
+  color: #6b4a00;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.route-held {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 16px 0;
+}
+.route-held .quality-notice {
+  margin: 0;
+  align-self: stretch;
+}

@@ -291,6 +291,7 @@ describe('auth', () => {
         venueSlugs: ['bukit-timah'],
         fingerprint: 'abc12345',
         gpxText: '<gpx/>',
+        qualityFlags: [],
       },
     });
     expect(result.gpxPath).toMatch(/^mine-e[0-9a-f]{8}\.gpx(\.gz)?$/);
@@ -302,6 +303,7 @@ describe('auth', () => {
     expect(body).toMatchObject({
       p_slug: 'mine',
       p_gpx_path: result.gpxPath,
+      p_quality_flags: [],
       p_distance_m: 1000,
       p_gain_m: 20,
       p_loss_m: 5,
@@ -332,6 +334,7 @@ describe('auth', () => {
           venueSlugs: [],
           fingerprint: 'abc12345',
           gpxText: '<gpx/>',
+          qualityFlags: [],
         },
       }),
     ).rejects.toThrow('That trimmed track is already in the community archive.');

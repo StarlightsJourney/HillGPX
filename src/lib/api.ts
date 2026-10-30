@@ -16,6 +16,7 @@ import { createClient } from '@supabase/supabase-js';
 import { track } from './analytics';
 import type { Route, RouteActivity, RoutePoint } from '../types';
 import { toGpx } from './gpx';
+import type { QualityFlag } from './routeQuality';
 
 export const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || 'https://dzpgnebkyubeptitzjlj.supabase.co';
 const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_KEY as string | undefined) || 'sb_publishable_invDmVPb4d4aKqTMTRp72w_hpFBZ0AI';
@@ -303,10 +304,11 @@ interface RouteRow {
   contributor: string | null;
   licence: string;
   downloads?: number;
+  status?: 'pending' | 'approved' | 'rejected';
   created_at: string;
 }
 
-const ROUTE_FIELDS = 'slug,name,activity,recorded_at,distance_m,gain_m,loss_m,elevation_source,venue_slugs,points,gpx_path,contributor,licence,downloads,created_at';
+const ROUTE_FIELDS = 'slug,name,activity,recorded_at,distance_m,gain_m,loss_m,elevation_source,venue_slugs,points,gpx_path,contributor,licence,downloads,status,created_at';
 
 function toRoute(row: RouteRow): Route {
   const first = row.points[0];
@@ -329,6 +331,8 @@ function toRoute(row: RouteRow): Route {
     elevationSource: row.elevation_source,
     gpxUrl: publicUrl('gpx', row.gpx_path),
     downloads: row.downloads ?? 0,
+    // Only the uploader's own session can read a held row, so this is never someone else's.
+    held: row.status === 'pending' ? true : undefined,
   };
 }
 
@@ -360,6 +364,8 @@ export interface PublishRouteInput {
   licence: string;
   /** Signed-in uploaders may opt out of the public credit; ownership stays. */
   anonymous?: boolean;
+  /** The quality checks' result. A key flag makes the database store the route held. */
+  qualityFlags: QualityFlag[];
 }
 
 /** Store the GPX file and its row. The database rejects a second copy of the same track. */
@@ -392,6 +398,7 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
     // A trigger stamps user_id from the session token and nulls the credit
     // when this flag is set (see stamp_route_owner()).
     anonymous: Boolean(input.anonymous),
+    quality_flags: input.qualityFlags,
   };
   // Heart rate, cadence, power and other device extensions are personal data
   // and most of a watch file's size: the archive keeps the track, not the body.
@@ -416,8 +423,13 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
     // Before the accounts migration runs, routes has no anonymous column —
     // publish without it rather than failing.
     if (!isSchemaError(error)) throw error;
+    // Never publish a track that failed the checks just because the column that holds it is missing.
+    if (input.qualityFlags.some((f) => f.severity === 'key')) {
+      throw new ApiError('Saving a route that needs review is not available yet — the latest database change is still being applied.', 503, error.code);
+    }
     const fallback = { ...row } as Record<string, unknown>;
     delete fallback.anonymous;
+    delete fallback.quality_flags;
     try {
       await insert(fallback);
     } catch (retryError) {
@@ -427,8 +439,9 @@ export async function publishRoute(input: PublishRouteInput): Promise<Route> {
       throw retryError;
     }
   }
+  const held = input.qualityFlags.some((f) => f.severity === 'key');
   track('gpx_upload', row.slug);
-  return toRoute({ ...row, created_at: new Date().toISOString(), contributor: row.contributor, recorded_at: row.recorded_at });
+  return toRoute({ ...row, status: held ? 'pending' : 'approved', created_at: new Date().toISOString(), contributor: row.contributor, recorded_at: row.recorded_at });
 }
 
 /* ─── Download counts ──────────────────────────────────────────────────── */

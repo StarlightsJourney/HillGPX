@@ -41,27 +41,21 @@ async function openRoutes(page: Page) {
 
 const firstCard = (page: Page) => page.locator('.route-item').first();
 
-test('choosing a need ranks routes straight away at Mount Faber, and re-ranks on edit', async ({ browser }) => {
+test('tapping Where ranks routes straight away near Mount Faber', async ({ browser }) => {
   const context = await browser.newContext({ geolocation: { latitude: 1.2741, longitude: 103.8196 }, permissions: ['geolocation'] });
   const page = await context.newPage();
   await openRoutes(page);
 
-  // 45 min is the default: picking Rolling alone ranks, with no button to press.
+  // One tap on Where ranks: there is nothing else to pick.
   const planner = page.getByRole('region', { name: 'Plan a run' });
-  await expect(planner.getByRole('button', { name: 'Rank routes' })).toHaveCount(0);
-  await planner.getByLabel('What kind').selectOption({ label: 'Rolling' });
+  await planner.getByRole('button', { name: 'Where: near me' }).click();
 
   // Only what is within 10 km: Southern Ridges, UTSG and the stubbed loop.
-  await expect(page.locator('.results-head h2')).toHaveText('3 routes for 45 min, rolling, near you');
+  await expect(page.locator('.results-head h2')).toHaveText('3 routes near you');
   await expect(firstCard(page).locator('.result-card-name')).toHaveText('Southern Ridges Walk');
   // Ranked cards look like any other: no match label or reasons line.
   await expect(firstCard(page).locator('.result-badge')).toHaveText(/^(Easy|Moderate|Hard|Brutal)$/);
   await expect(firstCard(page).locator('.result-card-gain')).toContainText('EG');
-
-  // A flat half marathon: the loop now fits best.
-  await planner.getByLabel('How long').selectOption({ label: 'Half marathon' });
-  await planner.getByLabel('What kind').selectOption({ label: 'Flat' });
-  await expect(firstCard(page).locator('.result-card-name')).toHaveText('Bay Flat Loop');
 
   // Clearing goes back to plain browsing.
   await planner.getByRole('button', { name: 'Clear' }).click();

@@ -6,13 +6,15 @@ import type { Route, RoutePoint, Venue } from '../types';
 import { computeGain, cumulativeDistances, totalDistanceM } from '../lib/elevation';
 import { linkVenues, routeHasElevation } from '../lib/routes';
 import { regionOf } from '../lib/regions';
-import { terrainElevations } from '../lib/terrain';
+import { hasRealElevation, terrainElevations } from '../lib/terrain';
+import { assessRoute } from '../lib/routeQuality';
 import { toGpx } from '../lib/gpx';
 import { ACTIVITY_LABEL, findOverlaps, routeActivity, routeFingerprint, type RouteOverlap } from '../lib/routeAnalysis';
 import { errorText, publicUrl, uploadRouteThumb } from '../lib/api';
 import { editMyRoute, useAuthUser } from '../lib/auth';
 import { updateMyRoute, useMyRoutes } from '../lib/myRoutes';
 import { CreditChips } from './CreditChips';
+import { HeldBadge, QualityNotice } from './QualityNotice';
 import { RouteTrim } from './RouteTrim';
 import { ElevationProfile } from './ElevationProfile';
 import { TypeGlyph } from './TypeGlyph';
@@ -241,6 +243,17 @@ function RouteEditForm({ route, venues, username, trim, onTrimChange, hoverIndex
     [route.coordinates, trim],
   );
   const { gainM, lossM } = useMemo(() => computeGain(kept), [kept]);
+  // Stored points are already simplified and carry no timestamps, so only the checks that survive that run.
+  const keptQuality = useMemo(
+    () => assessRoute({
+      points: kept,
+      activity: route.activity ?? 'run',
+      hasElevation: hasRealElevation(kept),
+      deviceElevation: route.elevationSource === 'gps',
+      spacing: 'simplified',
+    }),
+    [kept, route.activity, route.elevationSource],
+  );
   const keptDistanceM = useMemo(() => Math.round(totalDistanceM(kept)), [kept]);
   const keepRange = useMemo<[number, number] | null>(() => {
     if (!trim) return null;
@@ -271,6 +284,7 @@ function RouteEditForm({ route, venues, username, trim, onTrimChange, hoverIndex
               venueSlugs: linked,
               fingerprint: routeFingerprint(kept),
               gpxText: toGpx(nextName, kept),
+              qualityFlags: keptQuality.flags,
             }
           : undefined,
       });
@@ -287,8 +301,16 @@ function RouteEditForm({ route, venues, username, trim, onTrimChange, hoverIndex
         venueSlugs: linked,
         loop: trimmed ? Boolean(first && last && Math.hypot(first[0] - last[0], first[1] - last[1]) < 0.001) : route.loop,
         gpxUrl: gpxPath ? publicUrl('gpx', gpxPath) : route.gpxUrl,
+        // The database re-decides from the flags: a pass releases a held route, a fail holds a published one.
+        held: trimmed ? keptQuality.verdict === 'held' || undefined : route.held,
       };
-      updateMyRoute(route.slug, { name: updated.name, anonymous, distanceM: updated.distanceM, gainM: updated.gainM });
+      updateMyRoute(route.slug, {
+        name: updated.name,
+        anonymous,
+        distanceM: updated.distanceM,
+        gainM: updated.gainM,
+        ...(trimmed ? { status: keptQuality.verdict === 'held' ? 'pending' as const : 'approved' as const, qualityFlags: keptQuality.flags } : {}),
+      });
       onSaved(updated);
       if (trimmed) {
         // The card image shows the old line; re-render it like a fresh publish.
@@ -318,6 +340,7 @@ function RouteEditForm({ route, venues, username, trim, onTrimChange, hoverIndex
         keepRange={keepRange}
       />
       <RouteTrim points={route.coordinates} trim={trim} onChange={onTrimChange} />
+      {trimmed && <QualityNotice flags={keptQuality.flags} heading={keptQuality.verdict === 'held' ? 'Only you will see this route until it is fixed:' : undefined} />}
       {trimmed && (
         <p className="route-meta muted small">
           The stored GPX is replaced with the kept track — the greyed ends leave the archive for good.
@@ -423,6 +446,15 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           </button>
         </div>
       </header>
+      {mine && route.held && (
+        <div className="route-held">
+          <HeldBadge />
+          <QualityNotice
+            flags={(myUploads?.find((upload) => upload.slug === route.slug)?.qualityFlags ?? []).filter((f) => f.severity === 'key')}
+            heading="Held until it is fixed. Trim the problem out, or ask a maintainer to review it."
+          />
+        </div>
+      )}
 
       {editMode && user ? (
         <RouteEditForm

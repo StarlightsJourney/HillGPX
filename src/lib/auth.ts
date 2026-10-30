@@ -14,6 +14,7 @@ import { ApiError, apiErrorMessage, isSchemaError, publicUrl, supabase } from '.
 import { track } from './analytics';
 import { syncSavedForUser } from './saved';
 import type { RoutePoint } from '../types';
+import type { QualityFlag } from './routeQuality';
 
 export interface AuthUser {
   id: string;
@@ -397,6 +398,10 @@ export interface MyUpload {
   anonymous: boolean;
   createdAt: string;
   gpxUrl: string;
+  /** `pending` means held by the quality checks: only you can see it. */
+  status: 'pending' | 'approved' | 'rejected';
+  /** Why it is held (or any advisory notes), as the checks recorded them. */
+  qualityFlags: QualityFlag[];
 }
 
 interface MyUploadRow {
@@ -409,12 +414,14 @@ interface MyUploadRow {
   anonymous?: boolean;
   created_at: string;
   gpx_path: string;
+  status?: MyUpload['status'];
+  quality_flags?: QualityFlag[];
 }
 
 /** Community routes the signed-in user published (stamped with their id). */
 export async function fetchMyRoutes(): Promise<MyUpload[]> {
   const current = requireUser();
-  const fields = 'slug,name,activity,distance_m,gain_m,downloads,anonymous,created_at,gpx_path';
+  const fields = 'slug,name,activity,distance_m,gain_m,downloads,anonymous,created_at,gpx_path,status,quality_flags';
   const query = (columns: string) =>
     supabase
       .from('routes')
@@ -426,7 +433,7 @@ export async function fetchMyRoutes(): Promise<MyUpload[]> {
   // Before the accounts migration adds routes.downloads/anonymous — fetch
   // without them (user_id itself must exist; without it there are no owners).
   if (error && isSchemaError(error)) {
-    ({ data, error } = await query(fields.replace(',downloads', '').replace(',anonymous', '')));
+    ({ data, error } = await query(fields.replace(',downloads', '').replace(',anonymous', '').replace(',quality_flags', '')));
   }
   if (error) throw dbError(error);
   // The column list is a variable (the fallback drops downloads), so the
@@ -441,6 +448,8 @@ export async function fetchMyRoutes(): Promise<MyUpload[]> {
     anonymous: row.anonymous ?? false,
     createdAt: row.created_at,
     gpxUrl: publicUrl('gpx', row.gpx_path),
+    status: row.status ?? 'approved',
+    qualityFlags: row.quality_flags ?? [],
   }));
 }
 
@@ -490,6 +499,8 @@ export interface RouteTrackEdit {
   fingerprint: string;
   /** Serialised GPX for the kept slice — the stored file is replaced with it. */
   gpxText: string;
+  /** The quality checks on the kept slice: the database re-decides held or published from them. */
+  qualityFlags: QualityFlag[];
 }
 
 /**
@@ -527,6 +538,7 @@ export async function editMyRoute(
     p_geom_hash: edit.track?.fingerprint ?? null,
     p_venue_slugs: edit.track?.venueSlugs ?? null,
     p_gpx_path: gpxPath,
+    p_quality_flags: edit.track?.qualityFlags ?? null,
   };
   const call = () => supabase.rpc('edit_community_route', params);
   let { error } = await call();

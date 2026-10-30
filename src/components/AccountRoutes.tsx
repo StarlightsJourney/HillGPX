@@ -114,6 +114,7 @@ export function AccountRoutes({ user, routes, error, onRetry }: Props) {
                   {route.anonymous ? ' · anonymous' : ''}
                 </small>
               </span>
+              {route.status === 'pending' && <span className="held-badge">Only you can see this</span>}
               <span className="ac-chip tint">+{units.height(route.gainM)} gain</span>
               <span className="ac-chip">{pluralise(route.downloads, 'download', 'downloads')}</span>
               <ChevronRightIcon size={16} />

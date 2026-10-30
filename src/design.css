@@ -6731,7 +6731,8 @@
 }
 .route-more .gpx-touches,
 .route-more .route-overlaps,
-.route-more .route-photos {
+.route-more .route-photos,
+.route-more .route-reviews {
   margin-top: 16px;
   padding-top: 14px;
   border-top: 1px solid var(--hairline);
@@ -6973,11 +6974,83 @@
   }
 }
 
+/* The rating line keeps its height while reviews load, so the panel does not jump. */
+.route-rating {
+  min-height: 18px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+.route-reviews {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 4px;
+}
+.route-reviews > strong {
+  font-size: 13px;
+}
+.route-reviews-empty,
+.route-reviews .review-error {
+  margin: 0;
+  font-size: 13px;
+}
+.route-reviews-empty {
+  color: var(--muted);
+}
+.route-reviews .review-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.route-reviews .reviews-all {
+  align-self: stretch;
+  margin: 0;
+}
+.route-reviews .review-form.inline {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+}
+.route-reviews .review-form.inline h3 {
+  grid-column: 1 / -1;
+  font-size: 14px;
+}
+.route-reviews .review-form.inline .rate-stars {
+  grid-column: 1 / -1;
+}
+.route-reviews .review-form-row {
+  display: flex;
+  gap: 8px;
+}
+.review-count {
+  grid-column: 1 / -1;
+  margin: -6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 14px;
+}
+.review-load-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
 /* Folded while the map is moved by hand (usePanelFold): a slim strip with
    the name and Distance / EG / EL, so the route's outline shows. Everything
    else stays mounted, only hidden, so "More details" is as it was when the
    panel opens again. One button over the whole strip opens it. The map is
    never re-framed for the change of size. */
+.route-panel.folded > .route-rating,
 .route-panel.folded > .profile,
 .route-panel.folded > .route-elevation-unavailable,
 .route-panel.folded > .route-more,

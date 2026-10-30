@@ -20,7 +20,7 @@ export const CONTACT_EMAIL = '';
 /** Opens the report form for something drawn outside React (map popups); App listens. */
 export const REPORT_EVENT = 'hillgpx:report';
 export interface ReportRequest {
-  targetType: 'photo' | 'route_photo' | 'review';
+  targetType: 'photo' | 'route_photo' | 'review' | 'route_review';
   targetSlug: string;
   targetName: string;
 }

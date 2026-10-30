@@ -73,6 +73,7 @@ export type TrackedEvent =
   | 'gpx_upload'
   | 'photo_upload'
   | 'review_post'
+  | 'route_review_post'
   | 'report_sent'
   | 'sign_up'
   | 'log_in'

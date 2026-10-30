@@ -24,8 +24,8 @@ export interface RouteReviewsState {
  * no reviews (held, rejected, on this device); nothing is requested.
  */
 export function useRouteReviews(routeSlug: string, enabled: boolean, userId: string | null): RouteReviewsState {
-  const [list, setList] = useState<{ slug: string; reviews: RouteReview[] | null; error: string | null } | null>(null);
-  const [own, setOwn] = useState<{ key: string; review: MyRouteReview | null } | null>(null);
+  const [reviewList, setReviewList] = useState<{ slug: string; reviews: RouteReview[] | null; error: string | null } | null>(null);
+  const [ownReview, setOwnReview] = useState<{ key: string; review: MyRouteReview | null } | null>(null);
   const [attempt, setAttempt] = useState(0);
   const ownKey = `${routeSlug}:${userId}`;
 
@@ -34,10 +34,10 @@ export function useRouteReviews(routeSlug: string, enabled: boolean, userId: str
     let cancelled = false;
     fetchRouteReviews(routeSlug)
       .then((reviews) => {
-        if (!cancelled) setList({ slug: routeSlug, reviews, error: null });
+        if (!cancelled) setReviewList({ slug: routeSlug, reviews, error: null });
       })
       .catch((error: unknown) => {
-        if (!cancelled) setList({ slug: routeSlug, reviews: null, error: errorText(error) });
+        if (!cancelled) setReviewList({ slug: routeSlug, reviews: null, error: errorText(error) });
       });
     return () => {
       cancelled = true;
@@ -51,35 +51,35 @@ export function useRouteReviews(routeSlug: string, enabled: boolean, userId: str
       // A failed lookup falls back to the form; the unique index refuses a second post.
       .catch(() => null)
       .then((review) => {
-        if (!cancelled) setOwn({ key: ownKey, review });
+        if (!cancelled) setOwnReview({ key: ownKey, review });
       });
     return () => {
       cancelled = true;
     };
   }, [routeSlug, enabled, userId, ownKey, attempt]);
 
-  const current = list?.slug === routeSlug ? list : null;
-  const reviews = current?.reviews ?? null;
-  const ownNow = userId && own?.key === ownKey ? own : null;
+  const listForRoute = reviewList?.slug === routeSlug ? reviewList : null;
+  const reviews = listForRoute?.reviews ?? null;
+  const ownForRoute = userId && ownReview?.key === ownKey ? ownReview : null;
 
   const onSaved = useCallback((review: RouteReview) => {
-    setList((state) => state && state.reviews
+    setReviewList((state) => state && state.reviews
       ? { ...state, reviews: state.reviews.some((r) => r.id === review.id) ? state.reviews.map((r) => (r.id === review.id ? review : r)) : [review, ...state.reviews] }
       : state);
-    setOwn((state) => state && { ...state, review: { ...review, hidden: false } });
+    setOwnReview((state) => state && { ...state, review: { ...review, hidden: false } });
   }, []);
 
   const onDeleted = useCallback((id: string) => {
-    setList((state) => state && state.reviews ? { ...state, reviews: state.reviews.filter((r) => r.id !== id) } : state);
-    setOwn((state) => state && { ...state, review: null });
+    setReviewList((state) => state && state.reviews ? { ...state, reviews: state.reviews.filter((r) => r.id !== id) } : state);
+    setOwnReview((state) => state && { ...state, review: null });
   }, []);
 
   const retry = useCallback(() => {
-    setList(null);
+    setReviewList(null);
     setAttempt((value) => value + 1);
   }, []);
 
   const rating = useMemo(() => (reviews ? combinedRating(undefined, reviews) : undefined), [reviews]);
 
-  return { reviews, error: current?.error ?? null, mine: ownNow?.review ?? null, mineKnown: Boolean(ownNow), rating, retry, onSaved, onDeleted };
+  return { reviews, error: listForRoute?.error ?? null, mine: ownForRoute?.review ?? null, mineKnown: Boolean(ownForRoute), rating, retry, onSaved, onDeleted };
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { deleteRouteReview, editRouteReview, errorText, submitRouteReview, type MyRouteReview, type RouteReview } from '../lib/api';
 import { useAuthUser, type AuthUser } from '../lib/auth';
-import { requestReport } from '../lib/contribute';
+import { requestReviewReport } from '../lib/contribute';
 import type { RouteReviewsState } from '../lib/useRouteReviews';
 import { AuthModal } from './AuthModal';
 import { CreditChips } from './CreditChips';
@@ -10,9 +10,6 @@ import { ReviewCard, StarPicker } from './ReviewCard';
 
 const REVIEWS_SHOWN = 3;
 const MAX_COMMENT = 1000;
-
-const reportReview = (review: RouteReview) =>
-  requestReport({ targetType: 'route_review', targetSlug: review.id, targetName: `${review.author}'s review` });
 
 /** Writing a new review, or changing yours (`editing`, filled in, with Cancel). */
 function RouteReviewForm({ routeSlug, user, editing, onSaved, onCancel }: {
@@ -133,7 +130,7 @@ export function RouteReviews({ routeSlug, state }: { routeSlug: string; state: R
           {mine && user && (editing
             ? <RouteReviewForm routeSlug={routeSlug} user={user} editing={mine} onSaved={(review) => { onSaved(review); setEditing(false); }} onCancel={() => setEditing(false)} />
             : <MyReview key={mine.id} review={mine} onEdit={() => setEditing(true)} onDeleted={onDeleted} />)}
-          {othersShown.map((review) => <ReviewCard key={review.id} review={review} onReport={() => reportReview(review)} />)}
+          {othersShown.map((review) => <ReviewCard key={review.id} review={review} onReport={() => requestReviewReport('route_review', review)} />)}
           {others.length > othersShown.length && (
             <button type="button" className="reviews-all" onClick={() => setShowAll(true)}>Show all {reviews.length} reviews</button>
           )}
@@ -148,7 +145,7 @@ export function RouteReviews({ routeSlug, state }: { routeSlug: string; state: R
         <Modal title={`${reviews.length} reviews`} onClose={() => setShowAll(false)} wide>
           <div className="review-grid single">
             {reviews.map((review) => (
-              <ReviewCard key={review.id} review={review} mark={review.id === mine?.id ? 'Your review' : undefined} onReport={review.id === mine?.id ? undefined : () => reportReview(review)} />
+              <ReviewCard key={review.id} review={review} mark={review.id === mine?.id ? 'Your review' : undefined} onReport={review.id === mine?.id ? undefined : () => requestReviewReport('route_review', review)} />
             ))}
           </div>
         </Modal>

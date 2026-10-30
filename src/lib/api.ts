@@ -278,6 +278,11 @@ async function routeReviewCall<T>(call: () => Promise<T>): Promise<T> {
   }
 }
 
+const reviewText = (input: { comment: string; author: string }) => ({
+  comment: input.comment.trim().slice(0, 1000),
+  author: input.author.trim().slice(0, 60),
+});
+
 /** Newest first. The columns are named because user_id is closed to the API: `select=*` is refused. */
 export function fetchRouteReviews(routeSlug: string): Promise<RouteReview[]> {
   return routeReviewCall(async () => {
@@ -289,12 +294,12 @@ export function fetchRouteReviews(routeSlug: string): Promise<RouteReview[]> {
 }
 
 export function submitRouteReview(input: { routeSlug: string; rating: number; comment: string; author: string }): Promise<RouteReview> {
-  const author = input.author.trim().slice(0, 60);
+  const { comment, author } = reviewText(input);
   const review: RouteReview = {
     id: id(),
     routeSlug: input.routeSlug,
     rating: input.rating,
-    comment: input.comment.trim().slice(0, 1000),
+    comment,
     author: author || 'Anonymous',
     createdAt: new Date().toISOString(),
     editedAt: null,
@@ -310,11 +315,12 @@ export function submitRouteReview(input: { routeSlug: string; rating: number; co
   });
 }
 
-export function editRouteReview(id: string, input: { rating: number; comment: string; author: string }): Promise<RouteReview> {
+export function editRouteReview(reviewId: string, input: { rating: number; comment: string; author: string }): Promise<RouteReview> {
+  const { comment, author } = reviewText(input);
   return routeReviewCall(async () => {
     const [row] = await rest<RouteReviewRow[]>('/rest/v1/rpc/edit_route_review', {
       method: 'POST',
-      body: JSON.stringify({ p_id: id, p_rating: input.rating, p_comment: input.comment.trim().slice(0, 1000), p_author: input.author.trim().slice(0, 60) || null }),
+      body: JSON.stringify({ p_id: reviewId, p_rating: input.rating, p_comment: comment, p_author: author || null }),
     });
     return toRouteReview(row);
   });
@@ -331,10 +337,10 @@ export function myRouteReview(routeSlug: string): Promise<MyRouteReview | null> 
   });
 }
 
-export function deleteRouteReview(id: string): Promise<void> {
+export function deleteRouteReview(reviewId: string): Promise<void> {
   return routeReviewCall(() => rest<void>('/rest/v1/rpc/delete_route_review', {
     method: 'POST',
-    body: JSON.stringify({ p_id: id }),
+    body: JSON.stringify({ p_id: reviewId }),
   }));
 }
 

@@ -30,7 +30,7 @@ import { RouteThumb } from './RouteThumb';
 import { Modal } from './Modal';
 import { FadeImage } from './FadeImage';
 import { OpenSourceBadge } from './OpenSourceNotice';
-import { openImportHere, requestReport } from '../lib/contribute';
+import { openImportHere, requestReport, requestReviewReport } from '../lib/contribute';
 import {
   type CommunityPhoto,
   type Review,
@@ -51,7 +51,6 @@ import { isWorldPeakSlug, loadPeakPhotos } from '../lib/worldPeaks';
 import { commonsPhotos, generatedDescription, wikiSummary, type GeneratedDescription, type WikiSummary } from '../lib/wiki';
 
 const MiniMap = lazy(() => import('./MiniMap').then((module) => ({ default: module.MiniMap })));
-
 
 /** Airbnb's grid: one large photo and up to four small ones. */
 const GRID_SIZE = 5;
@@ -383,9 +382,6 @@ function Lightbox({ photos, index, onIndex, onClose }: { photos: GalleryPhoto[];
   );
 }
 
-const openReviewReport = (review: Review) =>
-  requestReport({ targetType: 'review', targetSlug: review.id, targetName: `${review.author}'s review` });
-
 function ReviewForm({ venue, initialRating, first, onPosted }: { venue: Venue; initialRating: number; first: boolean; onPosted: (review: Review) => void }) {
   const user = useAuthUser();
   const [mine, setMine] = useState(initialRating);
@@ -441,7 +437,7 @@ function ReviewsSection({ venue, reviews, rating, initialRating, onPosted, secti
       </div>
       {reviews.length > 0 && (
         <div className="review-grid">
-          {reviews.slice(0, REVIEWS_SHOWN).map((review) => <ReviewCard key={review.id} review={review} onReport={() => openReviewReport(review)} />)}
+          {reviews.slice(0, REVIEWS_SHOWN).map((review) => <ReviewCard key={review.id} review={review} onReport={() => requestReviewReport('review', review)} />)}
         </div>
       )}
       {reviews.length > REVIEWS_SHOWN && (
@@ -450,7 +446,7 @@ function ReviewsSection({ venue, reviews, rating, initialRating, onPosted, secti
       <ReviewForm key={initialRating} venue={venue} initialRating={initialRating} first={reviews.length === 0} onPosted={onPosted} />
       {showAll && (
         <Modal title={`${reviews.length} reviews`} onClose={() => setShowAll(false)} wide>
-          <div className="review-grid single">{reviews.map((review) => <ReviewCard key={review.id} review={review} onReport={() => openReviewReport(review)} />)}</div>
+          <div className="review-grid single">{reviews.map((review) => <ReviewCard key={review.id} review={review} onReport={() => requestReviewReport('review', review)} />)}</div>
         </Modal>
       )}
     </section>

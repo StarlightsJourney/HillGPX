@@ -392,7 +392,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
   }, [expanded]);
   // Only approved routes take reviews: nobody else can see a held, rejected or on-device one.
   const reviewable = route.source !== 'local' && !route.held && !route.rejected;
-  const reviews = useRouteReviews(route.slug, reviewable, user?.id ?? null);
+  const reviewsState = useRouteReviews(route.slug, reviewable, user?.id ?? null);
   const units = useUnits();
   const elevation = useTerrainFill(route);
   const hasElevation = routeHasElevation(route) || elevation.fromTerrain;
@@ -476,8 +476,8 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
         />
       ) : (
         <>
-      {reviewable && !reviews.error && (
-        <p className="route-rating">{reviews.reviews && <RatingLabel rating={reviews.rating} />}</p>
+      {reviewable && !reviewsState.error && (
+        <p className="route-rating">{reviewsState.reviews && <RatingLabel rating={reviewsState.rating} />}</p>
       )}
       <div className="gpx-stats">
         {[
@@ -553,7 +553,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
             </button>
           </div>
 
-          {reviewable && <RouteReviews key={route.slug} routeSlug={route.slug} state={reviews} />}
+          {reviewable && <RouteReviews key={route.slug} routeSlug={route.slug} state={reviewsState} />}
         </div>
       </div>
 

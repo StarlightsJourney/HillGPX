@@ -6,6 +6,7 @@
  * links to the GitHub issue forms in .github/ISSUE_TEMPLATE, prefilled with
  * whatever the page already knows, so contributing is one click and one submit.
  */
+import type { ReportTarget } from './api';
 
 export const REPO_URL = 'https://github.com/StarlightsJourney/HillGPX';
 
@@ -20,12 +21,16 @@ export const CONTACT_EMAIL = '';
 /** Opens the report form for something drawn outside React (map popups); App listens. */
 export const REPORT_EVENT = 'hillgpx:report';
 export interface ReportRequest {
-  targetType: 'photo' | 'route_photo' | 'review' | 'route_review';
+  targetType: Exclude<ReportTarget, 'venue' | 'route'>;
   targetSlug: string;
   targetName: string;
 }
 export function requestReport(detail: ReportRequest): void {
   window.dispatchEvent(new CustomEvent<ReportRequest>(REPORT_EVENT, { detail }));
+}
+
+export function requestReviewReport(targetType: 'review' | 'route_review', review: { id: string; author: string }): void {
+  requestReport({ targetType, targetSlug: review.id, targetName: `${review.author}'s review` });
 }
 
 /** Asks the map page (which also hosts venue pages) to open the "Upload GPX" dialog where you are. */

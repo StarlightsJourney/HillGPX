@@ -51,7 +51,7 @@ const ROUTE_HINTS: Partial<Record<ReportKind, string>> = {
 
 /** One small form for everything a visitor might want a maintainer to look at. */
 export function ReportModal({ targetType, targetSlug, targetName, onClose }: { targetType: ReportTarget; targetSlug: string; targetName: string; onClose: () => void }) {
-  const content = targetType === 'photo' || targetType === 'route_photo' || targetType === 'review';
+  const content = targetType === 'photo' || targetType === 'route_photo' || targetType === 'review' || targetType === 'route_review';
   const kinds = content ? CONTENT_KINDS : KINDS;
   const [kind, setKind] = useState<ReportKind>(kinds[0].value);
   const [message, setMessage] = useState('');

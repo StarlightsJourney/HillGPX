@@ -77,6 +77,7 @@ export function apiErrorMessage(body: string, status: number): string {
   }
   if (/row-level security/i.test(message)) return 'Uploads are paused for a little while because of heavy traffic. Please try again later.';
   if (code === 'P0001') return message;
+  if (code === '23505' && message.includes('route_reviews')) return 'You have already reviewed this route.';
   return `Something went wrong (HTTP ${status}).`;
 }
 
@@ -217,13 +218,130 @@ export async function submitReview(input: { venueSlug: string; rating: number; c
 /** Published ratings from the build plus live community reviews, as one figure. */
 export function combinedRating(
   published: { average: number; count: number } | undefined,
-  reviews: Review[],
+  reviews: { rating: number }[],
 ): { average: number; count: number } | undefined {
   const publishedCount = published?.count ?? 0;
   const count = publishedCount + reviews.length;
   if (count === 0) return undefined;
   const sum = (published?.average ?? 0) * publishedCount + reviews.reduce((acc, r) => acc + r.rating, 0);
   return { average: Math.round((sum / count) * 100) / 100, count };
+}
+
+/* ─── Route reviews ────────────────────────────────────────────────────── */
+
+export interface RouteReview {
+  id: string;
+  routeSlug: string;
+  rating: number;
+  comment: string;
+  author: string;
+  createdAt: string;
+  editedAt: string | null;
+}
+
+export interface MyRouteReview extends RouteReview {
+  hidden: boolean;
+}
+
+interface RouteReviewRow {
+  id: string;
+  route_slug: string;
+  rating: number;
+  comment: string;
+  author: string | null;
+  created_at: string;
+  edited_at: string | null;
+}
+
+const toRouteReview = (row: RouteReviewRow): RouteReview => ({
+  id: row.id,
+  routeSlug: row.route_slug,
+  rating: row.rating,
+  comment: row.comment,
+  author: row.author || 'Anonymous',
+  createdAt: row.created_at,
+  editedAt: row.edited_at,
+});
+
+/** Missing table (42P01, PGRST205) or function (42883, PGRST202). */
+const ROUTE_REVIEWS_MISSING = new Set(['42P01', 'PGRST205', '42883', 'PGRST202']);
+
+/** A deploy that lands before the migration says so; an outage, a refused permission or an expired session is not that. */
+async function routeReviewCall<T>(call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (error) {
+    if (error instanceof ApiError && error.code && ROUTE_REVIEWS_MISSING.has(error.code)) {
+      throw new ApiError('Route reviews are not available yet.', 503, error.code);
+    }
+    throw error;
+  }
+}
+
+const reviewText = (input: { comment: string; author: string }) => ({
+  comment: input.comment.trim().slice(0, 1000),
+  author: input.author.trim().slice(0, 60),
+});
+
+/** Newest first. The columns are named because user_id is closed to the API: `select=*` is refused. */
+export function fetchRouteReviews(routeSlug: string): Promise<RouteReview[]> {
+  return routeReviewCall(async () => {
+    const rows = await rest<RouteReviewRow[]>(
+      `/rest/v1/route_reviews?route_slug=eq.${enc(routeSlug)}&select=id,route_slug,rating,comment,author,created_at,edited_at&order=created_at.desc&limit=200`,
+    );
+    return rows.map(toRouteReview);
+  });
+}
+
+export function submitRouteReview(input: { routeSlug: string; rating: number; comment: string; author: string }): Promise<RouteReview> {
+  const { comment, author } = reviewText(input);
+  const review: RouteReview = {
+    id: id(),
+    routeSlug: input.routeSlug,
+    rating: input.rating,
+    comment,
+    author: author || 'Anonymous',
+    createdAt: new Date().toISOString(),
+    editedAt: null,
+  };
+  return routeReviewCall(async () => {
+    await rest('/rest/v1/route_reviews', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ id: review.id, route_slug: review.routeSlug, rating: review.rating, comment: review.comment, author: author || null }),
+    });
+    track('route_review_post', review.routeSlug);
+    return review;
+  });
+}
+
+export function editRouteReview(reviewId: string, input: { rating: number; comment: string; author: string }): Promise<RouteReview> {
+  const { comment, author } = reviewText(input);
+  return routeReviewCall(async () => {
+    const [row] = await rest<RouteReviewRow[]>('/rest/v1/rpc/edit_route_review', {
+      method: 'POST',
+      body: JSON.stringify({ p_id: reviewId, p_rating: input.rating, p_comment: comment, p_author: author || null }),
+    });
+    return toRouteReview(row);
+  });
+}
+
+/** The caller's own review of a route, including one hidden from the public read. */
+export function myRouteReview(routeSlug: string): Promise<MyRouteReview | null> {
+  return routeReviewCall(async () => {
+    const [row] = await rest<(RouteReviewRow & { status: string })[]>('/rest/v1/rpc/my_route_review', {
+      method: 'POST',
+      body: JSON.stringify({ p_route_slug: routeSlug }),
+    });
+    return row ? { ...toRouteReview(row), hidden: row.status !== 'approved' } : null;
+  });
+}
+
+export function deleteRouteReview(reviewId: string): Promise<void> {
+  return routeReviewCall(() => rest<void>('/rest/v1/rpc/delete_route_review', {
+    method: 'POST',
+    body: JSON.stringify({ p_id: reviewId }),
+  }));
 }
 
 /* ─── Photos ───────────────────────────────────────────────────────────── */
@@ -333,6 +451,7 @@ function toRoute(row: RouteRow): Route {
     downloads: row.downloads ?? 0,
     // Only the uploader's own session can read a held row, so this is never someone else's.
     held: row.status === 'pending' ? true : undefined,
+    rejected: row.status === 'rejected' ? true : undefined,
   };
 }
 
@@ -504,8 +623,8 @@ export function communityStats(): Promise<CommunityStats | null> {
 /* ─── Reports ──────────────────────────────────────────────────────────── */
 
 export type ReportKind = 'wrong_details' | 'hazard' | 'closed' | 'photo' | 'abuse' | 'other';
-/** What a report is about: a place or route (by slug), or one photo, route photo or review (by id). */
-export type ReportTarget = 'venue' | 'route' | 'photo' | 'route_photo' | 'review';
+/** What a report is about: a place or route (by slug), or one photo, route photo, review or route review (by id). */
+export type ReportTarget = 'venue' | 'route' | 'photo' | 'route_photo' | 'review' | 'route_review';
 
 /** File a report for a maintainer to review (wrong details, hazards, closures, a bad photo). */
 export async function submitReport(input: { targetType: ReportTarget; targetSlug: string; kind: ReportKind; message: string; author: string }): Promise<void> {

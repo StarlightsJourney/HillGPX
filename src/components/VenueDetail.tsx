@@ -23,13 +23,14 @@ import { useReveal } from './useReveal';
 import { SiteFooter, SiteHeader } from './SiteChrome';
 import { SEARCH_OPENS_MAP, SearchBar } from './SearchBar';
 import { RatingLabel } from './ResultsList';
+import { ReviewCard, StarPicker } from './ReviewCard';
 import { directionsUrl, venueConditions, type Conditions } from '../lib/conditions';
 import { downloadRoute } from './VenueCard';
 import { RouteThumb } from './RouteThumb';
 import { Modal } from './Modal';
 import { FadeImage } from './FadeImage';
 import { OpenSourceBadge } from './OpenSourceNotice';
-import { openImportHere, requestReport } from '../lib/contribute';
+import { openImportHere, requestReport, requestReviewReport } from '../lib/contribute';
 import {
   type CommunityPhoto,
   type Review,
@@ -51,17 +52,11 @@ import { commonsPhotos, generatedDescription, wikiSummary, type GeneratedDescrip
 
 const MiniMap = lazy(() => import('./MiniMap').then((module) => ({ default: module.MiniMap })));
 
-const RATING_WORDS = ['', 'Not worth it', 'Meh', 'Solid', 'Great session', 'Must do'];
-
 /** Airbnb's grid: one large photo and up to four small ones. */
 const GRID_SIZE = 5;
 
 /** Built climbs: a Commons photo "within 1 km" of a block is a photo of somewhere else. */
 const BUILT_TYPES: ReadonlySet<Venue['type']> = new Set(['hdb_block', 'stairs', 'carpark']);
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
-}
 
 /** One photo in the gallery, from whichever source it came. */
 interface GalleryPhoto {
@@ -387,46 +382,14 @@ function Lightbox({ photos, index, onIndex, onClose }: { photos: GalleryPhoto[];
   );
 }
 
-function Stars({ value, size = 10 }: { value: number; size?: number }) {
-  return (
-    <span className="stars" aria-label={`${value} out of 5 stars`}>
-      {[1, 2, 3, 4, 5].map((i) => <StarIcon key={i} size={size} filled={i <= Math.round(value)} />)}
-    </span>
-  );
-}
-
-function ReviewCard({ review }: { review: Review }) {
-  const [expanded, setExpanded] = useState(false);
-  const long = review.comment.length > 180;
-  return (
-    <article className="review-card">
-      <header>
-        <span className="review-avatar" aria-hidden="true">{review.author.slice(0, 1).toUpperCase()}</span>
-        <div>
-          <strong>{review.author}</strong>
-          <span>hillGPX contributor</span>
-        </div>
-      </header>
-      <p className="review-meta"><Stars value={review.rating} /> · {formatDate(review.createdAt)}</p>
-      {review.comment && <p className={`review-text${long && !expanded ? ' clamped' : ''}`}>{review.comment}</p>}
-      {long && <button type="button" className="review-more" onClick={() => setExpanded((v) => !v)}>{expanded ? 'Show less' : 'Show more'}</button>}
-      <button type="button" className="review-report" onClick={() => requestReport({ targetType: 'review', targetSlug: review.id, targetName: `${review.author}'s review` })}>
-        Report
-      </button>
-    </article>
-  );
-}
-
 function ReviewForm({ venue, initialRating, first, onPosted }: { venue: Venue; initialRating: number; first: boolean; onPosted: (review: Review) => void }) {
   const user = useAuthUser();
-  const [hover, setHover] = useState(0);
   const [mine, setMine] = useState(initialRating);
   const [comment, setComment] = useState('');
   const [anonymous, setAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const shown = hover || mine;
 
   const post = async () => {
     setSubmitting(true);
@@ -445,23 +408,7 @@ function ReviewForm({ venue, initialRating, first, onPosted }: { venue: Venue; i
   return (
     <div className="review-form inline">
       <h3>{first ? 'Be the first to review it' : 'Your review'}</h3>
-      <div className="rate-stars" role="radiogroup" aria-label="Your rating" onMouseLeave={() => setHover(0)}>
-        {[1, 2, 3, 4, 5].map((value) => (
-          <button
-            key={value}
-            type="button"
-            role="radio"
-            aria-checked={mine === value}
-            aria-label={`${value} star${value === 1 ? '' : 's'}`}
-            className={`rate-star${value <= shown ? ' on' : ''}`}
-            onMouseEnter={() => setHover(value)}
-            onClick={() => setMine(value)}
-          >
-            <StarIcon size={26} filled={value <= shown} />
-          </button>
-        ))}
-        <span className="rate-word">{RATING_WORDS[shown]}</span>
-      </div>
+      <StarPicker value={mine} onChange={setMine} />
       <textarea className="review-comment" placeholder="How was it? Access, shade, water, best time to go (optional)" rows={2} value={comment} maxLength={1000} onChange={(event) => setComment(event.target.value)} />
       {user ? (
         <CreditChips username={user.username} anonymous={anonymous} onChange={setAnonymous} />
@@ -490,7 +437,7 @@ function ReviewsSection({ venue, reviews, rating, initialRating, onPosted, secti
       </div>
       {reviews.length > 0 && (
         <div className="review-grid">
-          {reviews.slice(0, REVIEWS_SHOWN).map((review) => <ReviewCard key={review.id} review={review} />)}
+          {reviews.slice(0, REVIEWS_SHOWN).map((review) => <ReviewCard key={review.id} review={review} onReport={() => requestReviewReport('review', review)} />)}
         </div>
       )}
       {reviews.length > REVIEWS_SHOWN && (
@@ -499,7 +446,7 @@ function ReviewsSection({ venue, reviews, rating, initialRating, onPosted, secti
       <ReviewForm key={initialRating} venue={venue} initialRating={initialRating} first={reviews.length === 0} onPosted={onPosted} />
       {showAll && (
         <Modal title={`${reviews.length} reviews`} onClose={() => setShowAll(false)} wide>
-          <div className="review-grid single">{reviews.map((review) => <ReviewCard key={review.id} review={review} />)}</div>
+          <div className="review-grid single">{reviews.map((review) => <ReviewCard key={review.id} review={review} onReport={() => requestReviewReport('review', review)} />)}</div>
         </Modal>
       )}
     </section>

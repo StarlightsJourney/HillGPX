@@ -48,7 +48,7 @@ function Privacy() {
       <ul>
         <li><strong>GPX routes:</strong> the track and its elevation. Heart rate, cadence, power and other device data are removed before upload.</li>
         <li><strong>Photos:</strong> re-encoded in your browser before upload, which removes location and camera data.</li>
-        <li><strong>Reviews, ratings and reports:</strong> what you write, and the name you give, if any.</li>
+        <li><strong>Reviews, ratings and reports:</strong> what you write, and the name you give, if any. A route review needs an account. If you post one as anonymous, your name is not shown, but it stays linked to your account privately so you can edit or delete it.</li>
         <li><strong>Spam protection:</strong> a one-way, salted fingerprint of your network address, used only to limit how often one connection can post. It cannot be turned back into your address and is deleted after a day.</li>
       </ul>
       <p>Contributions are stored with <a href="https://supabase.com" target="_blank" rel="noreferrer">Supabase</a> and are public once published.</p>

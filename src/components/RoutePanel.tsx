@@ -13,6 +13,7 @@ import { ACTIVITY_LABEL, findOverlaps, routeActivity, routeFingerprint, type Rou
 import { errorText, publicUrl, uploadRouteThumb } from '../lib/api';
 import { editMyRoute, useAuthUser } from '../lib/auth';
 import { updateMyRoute, useMyRoutes } from '../lib/myRoutes';
+import { useRouteReviews } from '../lib/useRouteReviews';
 import { CreditChips } from './CreditChips';
 import { HeldBadge, QualityNotice } from './QualityNotice';
 import { RouteTrim } from './RouteTrim';
@@ -24,6 +25,8 @@ import { ChevronRightIcon, CloseIcon, DownloadIcon, PencilIcon } from './icons';
 import type { RoutePhoto } from '../lib/api';
 import { RoutePhotoModal } from './RoutePhotoModal';
 import { FlagIcon, ReportModal } from './ReportModal';
+import { RatingLabel } from './ResultsList';
+import { RouteReviews } from './RouteReviews';
 
 interface RoutePanelProps {
   route: Route;
@@ -387,6 +390,9 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
   useEffect(() => {
     moreRef.current?.toggleAttribute('inert', !expanded);
   }, [expanded]);
+  // Only approved routes take reviews: nobody else can see a held, rejected or on-device one.
+  const reviewable = route.source !== 'local' && !route.held && !route.rejected;
+  const reviewsState = useRouteReviews(route.slug, reviewable, user?.id ?? null);
   const units = useUnits();
   const elevation = useTerrainFill(route);
   const hasElevation = routeHasElevation(route) || elevation.fromTerrain;
@@ -470,6 +476,9 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
         />
       ) : (
         <>
+      {reviewable && !reviewsState.error && (
+        <p className="route-rating">{reviewsState.reviews && <RatingLabel rating={reviewsState.rating} />}</p>
+      )}
       <div className="gpx-stats">
         {[
           ['Distance', units.distance(route.distanceM)],
@@ -543,6 +552,8 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
               Photo or hazard
             </button>
           </div>
+
+          {reviewable && <RouteReviews key={route.slug} routeSlug={route.slug} state={reviewsState} />}
         </div>
       </div>
 

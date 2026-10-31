@@ -201,7 +201,7 @@ MapLibre 6 looks for its web worker next to its own module and Vite does not cop
 - `public/data/peaks/`: worldwide GeoNames summits as 5° tiles plus `index.json` (country boxes, landing rows, zoomed-out highlights) and `photos.json` (Commons links)
 - `public/data/descriptions.json`: generated "About this place" text
 - `public/route-thumbs/*.jpg`: generated route card images
-- Supabase tables `routes`, `photos`, `route_photos`, `reviews`, `reports` and their buckets: community contributions (`supabase/migrations/`)
+- Supabase tables `routes`, `photos`, `route_photos`, `reviews`, `route_reviews`, `reports` and their buckets: community contributions (`supabase/migrations/`)
 
 ## Data jobs
 

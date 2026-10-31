@@ -7,11 +7,15 @@ async function dismissNotice(page: Page) {
 }
 
 /**
- * Routes near me from Ayer Hitam, Johor: nothing within 10 km, so the map
- * shows the closest within 50 km with an informational note (no retry).
+ * Routes near me from Ayer Hitam, Johor: nothing within 5 km, so the map
+ * falls back on the country with an informational note (no retry).
  */
 async function openWidenedNote(browser: Browser) {
-  const context = await browser.newContext({ geolocation: { latitude: 1.9216, longitude: 103.1806 }, permissions: ['geolocation'] });
+  const context = await browser.newContext({
+    geolocation: { latitude: 1.9216, longitude: 103.1806 },
+    permissions: ['geolocation'],
+    timezoneId: 'Asia/Kuala_Lumpur',
+  });
   const page = await context.newPage();
   await page.clock.install();
   await page.route('**/rest/v1/routes?**', (route) => route.fulfill({ json: [] }));
@@ -20,7 +24,7 @@ async function openWidenedNote(browser: Browser) {
   await page.waitForSelector('.result-card', { timeout: 15_000 });
   await page.getByRole('button', { name: 'Show routes near me' }).click();
   const note = page.locator('.locate-hint');
-  await expect(note).toContainText('No routes within 10 km');
+  await expect(note).toContainText('No routes within 5 km');
   return { context, page, note };
 }
 

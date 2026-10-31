@@ -98,10 +98,10 @@ export function routesBounds(routes: Route[]): Bounds | null {
 }
 
 /**
- * How far "near me" looks around a point, a step at a time until it finds
- * routes: Routes near me (App.tsx) and the run planner (routeMatch.ts).
+ * How far "near me" looks around a point before giving up: Routes near me
+ * (App.tsx) and the run planner (routeMatch.ts) both stop at 5 km.
  */
-export const NEAR_ME_RADII_M = [10_000, 50_000];
+export const NEAR_ME_RADII_M = [5_000];
 
 /** Further than this from a route, a runner is not on it. */
 export const ON_ROUTE_MAX_M = 200;
@@ -158,15 +158,23 @@ export function distanceToRouteM(route: Route, lng: number, lat: number): number
 }
 
 /**
+ * The box `radiusM` around a point in every direction — what "near me"
+ * searches and what the map frames after it finds you.
+ * A degree of latitude is ~111 km; longitude shrinks towards the poles.
+ */
+export function radiusBounds(lng: number, lat: number, radiusM: number): Bounds {
+  const padLat = radiusM / 111_000;
+  const padLng = padLat / Math.max(Math.cos((lat * Math.PI) / 180), 0.01);
+  return { west: lng - padLng, south: lat - padLat, east: lng + padLng, north: lat + padLat };
+}
+
+/**
  * Routes passing within `radiusM` of a point, closest first. A route counts
  * by its nearest point, not its start, so a long loop through town is near
  * the town. Routes whose box is clearly out of reach are skipped unmeasured.
  */
 export function routesNear(routes: Route[], lng: number, lat: number, radiusM: number, limit: number): Route[] {
-  // A degree of latitude is ~111 km; longitude shrinks towards the poles.
-  const padLat = radiusM / 111_000;
-  const padLng = padLat / Math.max(Math.cos((lat * Math.PI) / 180), 0.01);
-  const reach: Bounds = { west: lng - padLng, south: lat - padLat, east: lng + padLng, north: lat + padLat };
+  const reach = radiusBounds(lng, lat, radiusM);
   return routes
     .filter((route) => routeIntersects(route, reach))
     .map((route) => ({ route, d: distanceToRouteM(route, lng, lat) }))

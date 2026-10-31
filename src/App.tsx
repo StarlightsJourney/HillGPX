@@ -13,8 +13,8 @@ import { useRouteBookmarks } from './lib/useRouteBookmarks';
 import { toggleSavedPlace, useSavedPlaces } from './lib/saved';
 import { useRunPlanner } from './lib/useRunPlanner';
 import { usePanelFold } from './lib/usePanelFold';
-import { askAgain, locate, locationProblemText, type LocateHint } from './lib/geolocation';
-import { NEAR_ME_RADII_M, NO_ROUTE_FILTERS, filterRoutes, linkVenues, routesBounds, routesNear, routesWithin, routeIntersects, type RouteFilters } from './lib/routes';
+import { askAgain, locate, locationProblemText, NEAR_ME_OPTIONS, type LocateHint } from './lib/geolocation';
+import { NEAR_ME_RADII_M, NO_ROUTE_FILTERS, filterRoutes, linkVenues, radiusBounds, routesBounds, routesNear, routesWithin, routeIntersects, type RouteFilters } from './lib/routes';
 import { boundsFromHash } from './lib/regions';
 import { ElevationModel } from './lib/elevation';
 import {
@@ -172,8 +172,8 @@ function boundsChangedMeaningfully(
 }
 
 /**
- * "Routes near me" looks NEAR_ME_RADII_M far, widening a step at a time until
- * it finds routes (then the country, see handleLocate), and shows at most this many.
+ * "Routes near me" looks NEAR_ME_RADII_M (5 km) around you before it falls
+ * back on your country (see handleLocate), and shows at most this many.
  */
 const NEARBY_ROUTES = 8;
 /** A summit picked in search opens on the routes passing this close to it. */
@@ -735,14 +735,23 @@ function MapApp() {
   );
 
   /**
-   * "Routes near me". With your location: the routes within 10 km, else
-   * within 50 km, else in your country, else the climbs around you. Without
-   * it (denied, unsupported, timed out): your country's routes, or its
-   * climbs. A note on the map says which of these you are looking at.
+   * "Routes near me". With your location: the routes within 5 km, else in
+   * your country, else the climbs around you. Without it (denied,
+   * unsupported, timed out): your country's routes, or its climbs. A note on
+   * the map says which of these you are looking at.
    */
+  // A near-me tap before the data has loaded waits for it rather than dying.
+  const [queuedLocate, setQueuedLocate] = useState(0);
+
   const handleLocate = useCallback(() => {
     // Nothing to measure "nearest" against until the data has loaded.
-    if (allVenues.length === 0) return;
+    if (allVenues.length === 0) {
+      setLocateHint({ title: 'Finding you…', text: 'The map data is still loading.', retry: null });
+      setQueuedLocate(Date.now());
+      return;
+    }
+    // A fix can take a moment; say something is happening from the first tap.
+    setLocateHint({ title: 'Finding you…', text: 'Asking your browser for your position.', retry: null });
     const fallBack = (problem: string) => {
       void showCountry((country, kind) =>
         kind === 'routes'
@@ -753,16 +762,14 @@ function MapApp() {
       });
     };
     locate(
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+      NEAR_ME_OPTIONS,
       (here) => {
-        const [first, widest] = [NEAR_ME_RADII_M[0], NEAR_ME_RADII_M[NEAR_ME_RADII_M.length - 1]];
+        const widest = NEAR_ME_RADII_M[NEAR_ME_RADII_M.length - 1];
         const hit = routesWithin(filteredRoutes, here.lng, here.lat, NEAR_ME_RADII_M, NEARBY_ROUTES);
         if (hit) {
-          const box = routesBounds(hit.routes);
-          const widened = hit.radiusM > first
-            ? { title: 'Routes near you', text: `No routes within ${formatRadius(first, units.units)}, so these are the closest within ${formatRadius(hit.radiusM, units.units)}.`, retry: null }
-            : null;
-          if (box) showNearbyRoutes(withPoint(box, here), here, widened);
+          // The view is the radius that was searched: every route in the
+          // list is inside it, and you sit at its centre.
+          showNearbyRoutes(radiusBounds(here.lng, here.lat, widest), here, null);
           return;
         }
         void showCountry(
@@ -775,6 +782,14 @@ function MapApp() {
       (problem) => fallBack(locationProblemText(problem, 'Allow location to see routes near you.')),
     );
   }, [allVenues, filteredRoutes, units.units, showCountry, showNearbyRoutes, showNearbyClimbs]);
+
+  // The tap landed while the data was still loading: run it now.
+  useEffect(() => {
+    if (queuedLocate && allVenues.length > 0) {
+      setQueuedLocate(0);
+      handleLocate();
+    }
+  }, [queuedLocate, allVenues, handleLocate]);
 
   const frameBounds = useCallback((bounds: Bounds) => setFocusBounds({ bounds, nonce: Date.now() }), []);
   const openRoutesMode = useCallback(() => {
@@ -932,12 +947,8 @@ function MapApp() {
           {dataset && mode === 'routes' && (
             <>
             <RunNeedsBar
-              length={planner.length}
-              terrain={planner.terrain}
               whereLabel={planner.whereLabel}
               busy={planner.busy}
-              onLength={planner.setLength}
-              onTerrain={planner.setTerrain}
               onPlan={planner.plan}
               onClear={planner.clear}
             />

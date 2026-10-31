@@ -41,27 +41,23 @@ async function openRoutes(page: Page) {
 
 const firstCard = (page: Page) => page.locator('.route-item').first();
 
-test('choosing a need ranks routes straight away at Mount Faber, and re-ranks on edit', async ({ browser }) => {
+test('Near me ranks the routes within 5 km of Mount Faber, closest first', async ({ browser }) => {
   const context = await browser.newContext({ geolocation: { latitude: 1.2741, longitude: 103.8196 }, permissions: ['geolocation'] });
   const page = await context.newPage();
   await openRoutes(page);
 
-  // 45 min is the default: picking Rolling alone ranks, with no button to press.
-  const planner = page.getByRole('region', { name: 'Plan a run' });
-  await expect(planner.getByRole('button', { name: 'Rank routes' })).toHaveCount(0);
-  await planner.getByLabel('What kind').selectOption({ label: 'Rolling' });
+  // Nothing locates until the chip is tapped: no ranking, no Clear.
+  const planner = page.getByRole('region', { name: 'Routes near me' });
+  await expect(planner.getByRole('button', { name: 'Clear' })).toHaveCount(0);
+  await planner.getByRole('button', { name: 'Where: near me' }).click();
 
-  // Only what is within 10 km: Southern Ridges, UTSG and the stubbed loop.
-  await expect(page.locator('.results-head h2')).toHaveText('3 routes for 45 min, rolling, near you');
+  // Only what is within 5 km: the Kluang run (~70 km away) is left out.
+  await expect(page.locator('.results-head h2')).toContainText('routes near you');
   await expect(firstCard(page).locator('.result-card-name')).toHaveText('Southern Ridges Walk');
+  await expect(page.locator('.result-card-name', { hasText: 'Kluang' })).toHaveCount(0);
   // Ranked cards look like any other: no match label or reasons line.
   await expect(firstCard(page).locator('.result-badge')).toHaveText(/^(Easy|Moderate|Hard|Brutal)$/);
   await expect(firstCard(page).locator('.result-card-gain')).toContainText('EG');
-
-  // A flat half marathon: the loop now fits best.
-  await planner.getByLabel('How long').selectOption({ label: 'Half marathon' });
-  await planner.getByLabel('What kind').selectOption({ label: 'Flat' });
-  await expect(firstCard(page).locator('.result-card-name')).toHaveText('Bay Flat Loop');
 
   // Clearing goes back to plain browsing.
   await planner.getByRole('button', { name: 'Clear' }).click();
@@ -70,11 +66,11 @@ test('choosing a need ranks routes straight away at Mount Faber, and re-ranks on
   await context.close();
 });
 
-test('without location the run planner ranks the country from the time zone, and says so', async ({ browser }) => {
+test('without location Near me ranks the country from the time zone, and says so', async ({ browser }) => {
   const context = await browser.newContext({ timezoneId: 'Asia/Singapore' });
   const page = await context.newPage();
   await openRoutes(page);
-  await page.getByRole('region', { name: 'Plan a run' }).getByRole('button', { name: 'Where: near me' }).click();
+  await page.getByRole('region', { name: 'Routes near me' }).getByRole('button', { name: 'Where: near me' }).click();
   await expect(page.locator('.locate-hint')).toContainText('Ranking routes in Singapore instead.');
   await expect(page.locator('.results-head h2')).toContainText('in Singapore');
   await context.close();

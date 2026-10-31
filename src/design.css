@@ -7331,9 +7331,7 @@
 
 /* ─── Run planner (RunNeedsBar) ───────────────────────────────────────── */
 
-/* Where · How long · What kind, as chips over the route list. The selects sit
-   inside the chip so they read as one pill and keep native keyboard and
-   screen-reader behaviour. */
+/* Near me, as a chip over the route list. */
 /* It sits above .results, outside its padding, so it carries the same side
    gutters at each width; the list's own top padding spaces it from the heading.
    One row: on a phone it scrolls sideways instead of wrapping. */
@@ -7357,21 +7355,9 @@
 @media (max-width: 743px) {
   .run-needs .run-need {
     height: 36px;
+    padding: 0 12px;
     font-size: 13px;
   }
-  .run-needs .run-need:not(.run-need-select) {
-    padding: 0 12px;
-  }
-  .run-needs .run-need-select select {
-    padding: 0 28px 0 12px;
-  }
-  .run-needs .run-need-select::after {
-    right: 12px;
-  }
-}
-/* Size each select to its chosen option, not its longest one, where supported. */
-.run-need-select select {
-  field-sizing: content;
 }
 .run-need svg {
   flex: none;
@@ -7379,38 +7365,6 @@
 .run-need:disabled {
   cursor: progress;
   opacity: 0.7;
-}
-.run-need-select {
-  position: relative;
-  padding: 0;
-}
-.run-need-select select {
-  height: 100%;
-  padding: 0 34px 0 16px;
-  border: 0;
-  border-radius: inherit;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  appearance: none;
-}
-/* A small chevron, drawn with borders so it needs no icon. */
-.run-need-select::after {
-  content: '';
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  width: 6px;
-  height: 6px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: translateY(-70%) rotate(45deg);
-  pointer-events: none;
-}
-.run-need-select:focus-within {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
 }
 .run-needs-clear {
   flex: none;

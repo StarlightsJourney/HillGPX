@@ -13,13 +13,6 @@ export interface RunNeeds {
   paceSPerKm: number;
 }
 
-/** The runner's needs when nothing has been chosen: one tap gives results. */
-export const DEFAULT_RUN_LENGTH: RunLength = { kind: 'time', minutes: 45 };
-export const DEFAULT_TERRAIN: Terrain = 'any';
-
-/** A half marathon, in metres: offered as a distance in either unit setting. */
-export const HALF_MARATHON_M = 21_097;
-
 /** 6:30 per km on flat ground. */
 export const DEFAULT_PACE_S_PER_KM = 390;
 
@@ -122,7 +115,7 @@ function awayM(route: Route, where: RunWhere): number {
   return routeIntersects(route, where.bounds) ? 0 : Infinity;
 }
 
-/** An area is its own reach; a point widens as Routes near me does (10 km, then 50 km). */
+/** An area is its own reach; a point reaches as far as Routes near me does (5 km). */
 const AREA_REACH_M = [0];
 
 /** 1 on the doorstep, a half at 5 km, a sixth at 25 km. */

@@ -2,7 +2,7 @@ import kluangGpx from '../../data/routes/kluang-district-trail-run.gpx?raw';
 import ridgesGpx from '../../data/routes/southern-ridges-walk.gpx?raw';
 import { describe, expect, it } from 'vitest';
 import { parseGpx } from './gpx';
-import { NO_ROUTE_FILTERS, filterRoutes, mixByDifficulty, nearestPointOnRoute, routeFromPoints, routesBounds, routesNear, routesWithin } from './routes';
+import { NO_ROUTE_FILTERS, filterRoutes, mixByDifficulty, nearestPointOnRoute, routeFromPoints, routeLink, routeSlugFromHash, routesBounds, routesNear, routesWithin } from './routes';
 
 const kluang = routeFromPoints('Kluang', parseGpx(kluangGpx).points, []);
 const ridges = routeFromPoints('Southern Ridges', parseGpx(ridgesGpx).points, []);
@@ -177,5 +177,25 @@ describe('mixByDifficulty', () => {
     expect(mixed).toHaveLength(pool.length);
     expect(new Set(mixed)).toEqual(new Set(slugs(pool)));
     expect(mixByDifficulty([])).toEqual([]);
+  });
+});
+
+
+describe('route links', () => {
+  it('builds a link that opens the route, with nothing else in it', () => {
+    const link = routeLink('singapore-round-island-200km-s81t9m');
+    expect(link).toBe(`${window.location.origin}/#route/singapore-round-island-200km-s81t9m`);
+    expect(link).not.toMatch(/utm_|\?/);
+  });
+
+  it('reads the slug back, and only accepts something shaped like a slug', () => {
+    expect(routeSlugFromHash('#route/hk-trail-1s9p8ny')).toBe('hk-trail-1s9p8ny');
+    expect(routeSlugFromHash(new URL(routeLink('kluang-district-trail-run')).hash)).toBe('kluang-district-trail-run');
+    expect(routeSlugFromHash('#routes')).toBeNull();
+    expect(routeSlugFromHash('#venue/bukit-timah')).toBeNull();
+    expect(routeSlugFromHash('#route/')).toBeNull();
+    expect(routeSlugFromHash('#route/Has Spaces')).toBeNull();
+    expect(routeSlugFromHash('#route/%E0%A4%A')).toBeNull();
+    expect(routeSlugFromHash('#route/<script>')).toBeNull();
   });
 });

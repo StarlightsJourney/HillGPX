@@ -14,7 +14,7 @@ import { toggleSavedPlace, useSavedPlaces } from './lib/saved';
 import { useRunPlanner } from './lib/useRunPlanner';
 import { usePanelFold } from './lib/usePanelFold';
 import { askAgain, locate, locationProblemText, type LocateHint } from './lib/geolocation';
-import { NEAR_ME_RADII_M, NO_ROUTE_FILTERS, filterRoutes, linkVenues, routesBounds, routesNear, routesWithin, routeIntersects, type RouteFilters } from './lib/routes';
+import { NEAR_ME_RADII_M, NO_ROUTE_FILTERS, filterRoutes, linkVenues, routesBounds, routesNear, routesWithin, routeIntersects, type RouteFilters, routeSlugFromHash } from './lib/routes';
 import { boundsFromHash } from './lib/regions';
 import { ElevationModel } from './lib/elevation';
 import {
@@ -75,7 +75,7 @@ const INFO_PAGES: ReadonlySet<string> = new Set<InfoPageId>(['privacy', 'terms',
 
 function viewFromHash(): View {
   const hash = window.location.hash;
-  if (hash === '#map' || hash === '#routes' || hash === '#import' || hash.startsWith('#map/') || hash.startsWith('#venue/')) return 'map';
+  if (hash === '#map' || hash === '#routes' || hash === '#import' || hash.startsWith('#map/') || hash.startsWith('#venue/') || hash.startsWith('#route/')) return 'map';
   if (hash === '#training') return 'training';
   const account = parseAccountHash(hash);
   if (account) return account.page;
@@ -222,7 +222,7 @@ function MapApp() {
   const [linkedPeak, setLinkedPeak] = useState<Venue | null>(null);
   const [filters, setFilters] = useState<VenueFilters>(NO_FILTERS);
   const [mode, setMode] = useState<BrowseMode>(() =>
-    window.location.hash === '#routes' || sessionStorage.getItem('hillgpx:mode') === 'routes' ? 'routes' : 'climbs',
+    window.location.hash === '#routes' || routeSlugFromHash(window.location.hash) || sessionStorage.getItem('hillgpx:mode') === 'routes' ? 'routes' : 'climbs',
   );
   const [routeFilters, setRouteFilters] = useState<RouteFilters>(NO_ROUTE_FILTERS);
   const [selectedRouteSlug, setSelectedRouteSlug] = useState<string | null>(null);
@@ -480,6 +480,29 @@ function MapApp() {
     sessionStorage.removeItem('hillgpx:pendingRoute');
     if (allRoutes.some((route) => route.slug === pending)) selectRoute(pending);
   }, [dataset, allRoutes, selectRoute]);
+
+  // A shared link (#route/<slug>) opens on that route, once the routes have loaded.
+  const [linkedRoute, setLinkedRoute] = useState<string | null>(() => routeSlugFromHash(window.location.hash));
+  useEffect(() => {
+    const onHash = () => {
+      const slug = routeSlugFromHash(window.location.hash);
+      if (slug) setLinkedRoute(slug);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  useEffect(() => {
+    if (!linkedRoute || !dataset || !routesReady) return;
+    setLinkedRoute(null);
+    // Back to an ordinary map address, so the bar never names a route that is no longer open.
+    history.replaceState(null, '', '#routes');
+    setMode('routes');
+    if (allRoutes.some((route) => route.slug === linkedRoute)) {
+      selectRoute(linkedRoute);
+    } else {
+      setLocateHint({ title: "That route isn't available", text: 'It may have been removed. Here are the routes on the map.', retry: null });
+    }
+  }, [linkedRoute, dataset, routesReady, allRoutes, selectRoute]);
 
   const routeHoverPoint: [number, number] | null =
     selectedRoute && routeHoverIndex != null && selectedRoute.coordinates[routeHoverIndex]

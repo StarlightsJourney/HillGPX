@@ -131,7 +131,8 @@ export function addAllRouteLayers(map: MlMap, data: FeatureCollection): void {
     // Where routes share a path, the one with more climbing is drawn on top.
     layout: { 'line-cap': 'round', 'line-join': 'round', 'line-sort-key': ['get', 'gain'] },
     paint: {
-      'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#c1502e', hot, '#222222', '#3f3f3f'],
+      // The brand orange, a deeper shade under the pointer, so every route reads as HillGPX's own.
+      'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#c1502e', hot, '#a9401f', '#c1502e'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 6, ['case', hot, 3, 1.6], 12, ['case', hot, 4.5, 2.6], 16, ['case', hot, 6, 3.5]],
       'line-opacity': zoomedOutHidden(['case', hot, 1, 0.7]),
     },

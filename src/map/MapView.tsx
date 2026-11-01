@@ -13,7 +13,6 @@ import {
   type GeolocateErrorEvent,
   type LngLatLike,
   type Map as MlMap,
-  type MapLayerMouseEvent,
   type MapMouseEvent,
   type MapMovementEvent,
   type Offset,
@@ -33,7 +32,6 @@ import {
   animateActiveRoute,
   routesToGeoJson,
   setOverlapRoutes,
-  setRouteEmphasis,
   setRouteFeatureState,
   setRouteHover,
   venuesToGeoJson,
@@ -661,28 +659,10 @@ export function MapView({
       refreshMarkersRef.current(true);
       setReady(true);
 
-      map.on('click', (event: MapMouseEvent) => {
-        const hit = map.queryRenderedFeatures(event.point, { layers: ['routes-hit'] })[0];
-        const slug = hit?.properties?.slug as string | undefined;
-        if (slug) {
-          onSelectRouteRef.current(slug);
-          return;
-        }
+      // Route lines are drawn only for a hovered or open route (its pin or its row in the
+      // list), so there is nothing on the map to hover or tap: a click is on empty ground.
+      map.on('click', () => {
         onSelectRef.current(null);
-      });
-      let hoveredRoute: string | null = null;
-      map.on('mousemove', 'routes-hit', (event: MapLayerMouseEvent) => {
-        const slug = (event.features?.[0]?.properties?.slug as string | undefined) ?? null;
-        map.getCanvas().style.cursor = slug ? 'pointer' : '';
-        if (slug !== hoveredRoute) {
-          hoveredRoute = slug;
-          onHoverRouteRef.current(slug);
-        }
-      });
-      map.on('mouseleave', 'routes-hit', (_event: MapLayerMouseEvent) => {
-        map.getCanvas().style.cursor = '';
-        hoveredRoute = null;
-        onHoverRouteRef.current(null);
       });
       map.on('mousemove', (event: MapMouseEvent) => {
         cancelAnimationFrame(routeHoverFrame);
@@ -948,12 +928,6 @@ export function MapView({
     prevHoveredRouteRef.current = null;
     routeMarkersRef.current?.setRoutes(mode === 'routes' ? allRoutes : [], units);
   }, [allRoutes, mode, units, ready]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ready) return;
-    setRouteEmphasis(map, mode === 'routes');
-  }, [mode, ready]);
 
   useEffect(() => {
     const map = mapRef.current;

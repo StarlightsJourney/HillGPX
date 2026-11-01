@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Marquee } from './Marquee';
 import { RouteBookmarkButton } from './RouteBookmarkButton';
 import type { Route, RoutePoint, Venue } from '../types';
 import { computeGain, cumulativeDistances, totalDistanceM } from '../lib/elevation';
@@ -28,6 +27,42 @@ import { RoutePhotoModal } from './RoutePhotoModal';
 import { FlagIcon, ReportModal } from './ReportModal';
 import { RatingLabel } from './ResultsList';
 import { RouteReviews } from './RouteReviews';
+
+/**
+ * The route's name: it wraps onto up to two lines and never moves. If it is still too long it
+ * ends in "…", and then it is a button that opens the whole name (and closes it again). Short
+ * names are plain text. Everyone, screen readers included, always has the full name.
+ */
+function RouteTitle({ name }: { name: string }) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const [cut, setCut] = useState(false);
+  const [open, setOpen] = useState(false);
+  useLayoutEffect(() => {
+    const heading = headingRef.current;
+    if (!heading) return;
+    // Measured on the heading, which stays put when the text swaps between plain and button.
+    const measure = () => {
+      const text = heading.querySelector<HTMLElement>('.route-name');
+      if (text && !open) setCut(text.scrollHeight > text.clientHeight + 1);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(heading);
+    return () => observer.disconnect();
+  }, [name, open]);
+  const text = <span className={`route-name${open ? ' open' : ''}`}>{name}</span>;
+  return (
+    <h2 ref={headingRef} title={name}>
+      {cut || open ? (
+        <button type="button" className="route-name-toggle" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+          {text}
+        </button>
+      ) : (
+        text
+      )}
+    </h2>
+  );
+}
 
 interface RoutePanelProps {
   route: Route;
@@ -418,9 +453,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
       )}
       <header className="gpx-panel-head">
         <div className="route-panel-title">
-          <h2 title={route.name}>
-            <Marquee>{route.name}</Marquee>
-          </h2>
+          <RouteTitle name={route.name} />
           <InfoTip>
             <RecordedLine recordedAt={route.recordedAt} />
             {hasElevation && <ElevationSourceLine source={elevation.fromTerrain ? 'terrain' : route.elevationSource ?? 'gps'} />}
@@ -528,7 +561,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           {touches.length > 0 && (
             <div className="gpx-touches route-passes">
               <strong>Passes</strong>
-              <Marquee className="route-passes-line" speed={30}>
+              <div className="route-passes-line">
                 {touches.map((venue) => (
                   <button
                     type="button"
@@ -542,7 +575,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
                     {venue.name}
                   </button>
                 ))}
-              </Marquee>
+              </div>
             </div>
           )}
 

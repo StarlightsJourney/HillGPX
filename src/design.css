@@ -8760,3 +8760,78 @@ html:has(.ac) {
   margin: 0;
   align-self: stretch;
 }
+
+/* Share this route (ShareRouteDialog): the route, then one row per way to pass it on. */
+.share-route {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--hairline);
+}
+.share-route-name {
+  margin: 0;
+  font-size: var(--t3);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.share-route-stats {
+  margin: 4px 0 0;
+  font-size: var(--t2);
+  color: var(--muted);
+}
+.share-rows {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.share-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t2);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.share-row:hover {
+  background: var(--bg-raised);
+}
+.share-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.share-row-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--bg-raised);
+}
+.share-manual {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: var(--t1);
+  color: var(--muted);
+}
+.share-manual input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font: inherit;
+  font-size: var(--t2);
+  color: var(--ink);
+}

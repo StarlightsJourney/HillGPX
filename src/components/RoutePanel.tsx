@@ -4,7 +4,7 @@ import { Marquee } from './Marquee';
 import { RouteBookmarkButton } from './RouteBookmarkButton';
 import type { Route, RoutePoint, Venue } from '../types';
 import { computeGain, cumulativeDistances, totalDistanceM } from '../lib/elevation';
-import { linkVenues, routeHasElevation, routeLink } from '../lib/routes';
+import { linkVenues, routeHasElevation } from '../lib/routes';
 import { regionOf } from '../lib/regions';
 import { hasRealElevation, terrainElevations } from '../lib/terrain';
 import { assessRoute } from '../lib/routeQuality';
@@ -21,7 +21,8 @@ import { ElevationProfile } from './ElevationProfile';
 import { TypeGlyph } from './TypeGlyph';
 import { useUnits } from './UnitsContext';
 import { downloadRoute } from './VenueCard';
-import { CheckIcon, ChevronRightIcon, CloseIcon, DownloadIcon, PencilIcon, ShareIcon } from './icons';
+import { ChevronRightIcon, CloseIcon, DownloadIcon, PencilIcon, ShareIcon } from './icons';
+import { ShareRouteDialog } from './ShareRouteDialog';
 import type { RoutePhoto } from '../lib/api';
 import { RoutePhotoModal } from './RoutePhotoModal';
 import { FlagIcon, ReportModal } from './ReportModal';
@@ -396,31 +397,9 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
   const units = useUnits();
   // Only a route anyone can open has a link worth sharing: not one held, rejected or kept on this device.
   const shareable = reviewable;
-  const [copied, setCopied] = useState(false);
-  const copyTimer = useRef<number | null>(null);
-  useEffect(() => () => {
-    if (copyTimer.current != null) window.clearTimeout(copyTimer.current);
-  }, []);
+  const [sharing, setSharing] = useState(false);
   const elevation = useTerrainFill(route);
   const hasElevation = routeHasElevation(route) || elevation.fromTerrain;
-  const share = async () => {
-    const url = routeLink(route.slug);
-    const text = `${route.name}: ${units.distance(route.distanceM)}${hasElevation ? `, ${units.height(elevation.gainM)} elevation gain` : ''} on HillGPX`;
-    // The phone's share sheet when there is one; cancelling it is not an error.
-    if (navigator.share) {
-      await navigator.share({ title: route.name, text, url }).catch(() => undefined);
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      if (copyTimer.current != null) window.clearTimeout(copyTimer.current);
-      copyTimer.current = window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Copying can be blocked: hand the link over to copy by hand.
-      window.prompt('Copy this link to share the route', url);
-    }
-  };
   const { minM, maxM } = useMemo(() => computeGain(elevation.points), [elevation.points]);
   const overlaps = useMemo(() => findOverlaps(route.coordinates, allRoutes, route.slug), [route, allRoutes]);
   const region = route.country ?? regionOf(route.coordinates[0][0], route.coordinates[0][1]);
@@ -470,14 +449,8 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           )}
           <RouteBookmarkButton route={route} variant="panel" />
           {shareable && (
-            <button
-              type="button"
-              className="gpx-icon-btn"
-              onClick={() => void share()}
-              aria-label={copied ? 'Link copied' : 'Share this route'}
-              data-tip={copied ? 'Link copied' : 'Share'}
-            >
-              {copied ? <CheckIcon size={15} /> : <ShareIcon size={15} />}
+            <button type="button" className="gpx-icon-btn" onClick={() => setSharing(true)} aria-label="Share this route" aria-haspopup="dialog" data-tip="Share">
+              <ShareIcon size={15} />
             </button>
           )}
           <button type="button" className="gpx-icon-btn" onClick={() => downloadRoute(route)} aria-label="Download GPX" data-tip="Download GPX">
@@ -488,7 +461,6 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           </button>
         </div>
       </header>
-      <span className="visually-hidden" role="status">{copied ? 'Link copied' : ''}</span>
       {mine && route.held && (
         <div className="route-held">
           <HeldBadge />
@@ -609,6 +581,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
       )}
 
       {adding && <RoutePhotoModal route={route} startIndex={hoverIndex ?? Math.floor(route.coordinates.length / 2)} onPreviewIndex={onHoverIndex} onClose={() => setAdding(false)} onAdded={onPhotoAdded} />}
+      {sharing && <ShareRouteDialog route={route} gainM={hasElevation ? elevation.gainM : null} onClose={() => setSharing(false)} />}
       {reporting && <ReportModal targetType="route" targetSlug={route.slug} targetName={route.name} onClose={() => setReporting(false)} />}
     </section>
   );

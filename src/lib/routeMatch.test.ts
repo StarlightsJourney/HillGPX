@@ -112,9 +112,9 @@ describe('matchRoutes', () => {
       expect((ranked[1].reasons[0] as { metres: number }).metres).toBeGreaterThan(90_000);
     });
 
-    it('leaves out routes beyond the reach, widening 10 km then 50 km', () => {
+    it('leaves out routes beyond the 5 km reach', () => {
       const fromFaber = matchRoutes(all, needs({ where: FABER }));
-      expect(fromFaber.reachM).toBe(10_000);
+      expect(fromFaber.reachM).toBe(5_000);
       expect(fromFaber.matches.map((m) => m.route.name)).not.toContain('Kluang');
       expect(fromFaber.matches.map((m) => m.route.name)).not.toContain('Hong Kong Trail 2');
       expect(fromFaber.matches.map((m) => m.route.name)).toContain('Southern Ridges');
@@ -190,7 +190,8 @@ describe('matchRoutes', () => {
         coordinates: ridges.coordinates.map(([lng, lat, ele]) => [lng, lat + 0.018, ele] as [number, number, number]),
       };
       const below = { kind: 'point', lng: 103.8196, lat: 1.2 } as const;
-      expect(order(needs({ where: below }), [farLoop, nearLine])).toEqual(['Near line', 'Far loop']);
+      const ranked = matchRoutes([farLoop, nearLine], needs({ where: below }), { reachM: [10_000] }).matches;
+      expect(ranked.map((m) => m.route.name)).toEqual(['Near line', 'Far loop']);
     });
 
     it('breaks ties with the loop', () => {

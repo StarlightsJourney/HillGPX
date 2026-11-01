@@ -10,6 +10,17 @@ export interface Located {
   lat: number;
 }
 
+/**
+ * How "near me" asks for a fix. High accuracy waits on GPS — seconds, up to
+ * the timeout — while the coarse network fix a 5 km radius needs arrives in
+ * about a second. A fix up to five minutes old answers instantly.
+ */
+export const NEAR_ME_OPTIONS: PositionOptions = {
+  enableHighAccuracy: false,
+  timeout: 10_000,
+  maximumAge: 300_000,
+};
+
 /** Asks once for the position; `onProblem` runs straight away when the browser cannot share it. */
 export function locate(options: PositionOptions, onFix: (here: Located) => void, onProblem: (problem: LocationProblem) => void): void {
   if (!navigator.geolocation) {

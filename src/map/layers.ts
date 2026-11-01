@@ -75,23 +75,13 @@ const HOT: ExpressionSpecification = [
 ];
 
 /**
- * Below this zoom every route is a start pin (clustered) rather than a line:
- * a country's worth of traces is a tangle nobody can read. Zoom 10 is about a
- * city on screen, where a route is long enough to read as a shape and few
- * enough overlap. The hovered and open route stay drawn at every zoom.
+ * Below this zoom the route pins are clustered: a country's worth of pins is a
+ * tangle nobody can read. Zoom 10 is about a city on screen, where each route
+ * stands alone. (Route lines are never drawn at rest; see addAllRouteLayers.)
  */
 export const ROUTE_LINE_MIN_ZOOM = 10;
-/** Pins cluster up to here, so from ROUTE_LINE_MIN_ZOOM on every route stands alone. */
+/** Pins cluster up to here, so from ROUTE_LINE_MIN_ZOOM on every route's pin stands alone. */
 const ROUTE_CLUSTER_MAX_ZOOM = ROUTE_LINE_MIN_ZOOM - 1;
-
-/**
- * Resting lines are hidden below ROUTE_LINE_MIN_ZOOM and fade in over the next
- * half level; hover and selection show at every zoom. Fading in above the
- * threshold, not below it, keeps a whole-Singapore view (about 9.7) clean.
- */
-function zoomedOutHidden(resting: ExpressionSpecification | number): ExpressionSpecification {
-  return ['interpolate', ['linear'], ['zoom'], ROUTE_LINE_MIN_ZOOM, ['case', HOT, 1, 0], ROUTE_LINE_MIN_ZOOM + 0.5, resting];
-}
 
 export function routesToGeoJson(routes: Route[]): FeatureCollection {
   return {
@@ -107,8 +97,10 @@ export function routesToGeoJson(routes: Route[]): FeatureCollection {
 }
 
 /**
- * Every committed and saved route, always on the map. Hover and selection are
- * feature-state so moving the pointer never re-uploads geometry.
+ * Every committed and saved route is in the map's data, but a line is drawn
+ * only for the route that is hovered (its pin, or its row in the list) or
+ * open: otherwise the map is just a map. Hover and selection are
+ * feature-state, so moving the pointer never re-uploads geometry.
  */
 export function addAllRouteLayers(map: MlMap, data: FeatureCollection): void {
   map.addSource('routes', { type: 'geojson', data, promoteId: 'slug' });
@@ -121,7 +113,7 @@ export function addAllRouteLayers(map: MlMap, data: FeatureCollection): void {
     paint: {
       'line-color': '#ffffff',
       'line-width': ['interpolate', ['linear'], ['zoom'], 6, 3, 12, 6, 16, 9],
-      'line-opacity': zoomedOutHidden(['case', hot, 1, 0.85]),
+      'line-opacity': ['case', hot, 1, 0],
     },
   });
   map.addLayer({
@@ -131,9 +123,10 @@ export function addAllRouteLayers(map: MlMap, data: FeatureCollection): void {
     // Where routes share a path, the one with more climbing is drawn on top.
     layout: { 'line-cap': 'round', 'line-join': 'round', 'line-sort-key': ['get', 'gain'] },
     paint: {
-      'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#c1502e', hot, '#222222', '#3f3f3f'],
+      // The brand orange, a deeper shade under the pointer, so every route reads as HillGPX's own.
+      'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#c1502e', hot, '#a9401f', '#c1502e'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 6, ['case', hot, 3, 1.6], 12, ['case', hot, 4.5, 2.6], 16, ['case', hot, 6, 3.5]],
-      'line-opacity': zoomedOutHidden(['case', hot, 1, 0.7]),
+      'line-opacity': ['case', hot, 1, 0],
     },
   });
   // Routes that share ground with the one being viewed: dashed, so the open
@@ -151,15 +144,6 @@ export function addAllRouteLayers(map: MlMap, data: FeatureCollection): void {
       'line-offset': 4,
     },
   });
-  // A fat invisible line under the visible one, so a 2 px trace is still easy
-  // to hover and click. Only where the lines show: below that the pins take taps.
-  map.addLayer({
-    id: 'routes-hit',
-    type: 'line',
-    source: 'routes',
-    minzoom: ROUTE_LINE_MIN_ZOOM,
-    paint: { 'line-color': '#000000', 'line-width': 16, 'line-opacity': 0 },
-  });
 }
 
 export function setRouteFeatureState(map: MlMap, slug: string | null, key: 'hover' | 'selected', previous: string | null): void {
@@ -171,12 +155,6 @@ export function setRouteFeatureState(map: MlMap, slug: string | null, key: 'hove
 export function setOverlapRoutes(map: MlMap, slugs: string[]): void {
   if (!map.getLayer('routes-overlap')) return;
   map.setFilter('routes-overlap', ['in', ['get', 'slug'], ['literal', slugs]]);
-}
-
-/** How strongly routes read against the venue pills in each mode. */
-export function setRouteEmphasis(map: MlMap, strong: boolean): void {
-  if (!map.getLayer('routes-line')) return;
-  map.setPaintProperty('routes-line', 'line-opacity', zoomedOutHidden(['case', HOT, 1, strong ? 0.85 : 0.45]));
 }
 
 /** Where each route starts, for the start pins. */

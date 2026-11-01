@@ -1863,6 +1863,35 @@ button {
 }
 .maplibregl-ctrl-zoom-in::after { content: '+'; }
 .maplibregl-ctrl-zoom-out::after { content: '−'; }
+/* At the zoom limit MapLibre sets aria-disabled and keeps the button focusable. */
+.maplibregl-ctrl-zoom-in[aria-disabled='true'],
+.maplibregl-ctrl-zoom-out[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: default;
+}
+.maplibregl-ctrl-zoom-in:active:not([aria-disabled='true']),
+.maplibregl-ctrl-zoom-out:active:not([aria-disabled='true']) {
+  transform: scale(0.95);
+}
+/* Bottom right: 16 px in from the edges (12 px on a phone). MapView sets
+   --ctrl-lift to carry the stack above a route panel docked along the bottom. */
+.maplibregl-map .maplibregl-ctrl-bottom-right {
+  bottom: var(--ctrl-lift, 0px);
+  transition: bottom 0.25s var(--ease-out);
+}
+.maplibregl-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group {
+  margin: 0 16px 16px 0;
+}
+@media (max-width: 719px) {
+  .maplibregl-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group {
+    margin: 0 12px 12px 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .maplibregl-map .maplibregl-ctrl-bottom-right {
+    transition: none;
+  }
+}
 .maplibregl-ctrl-zoom-in > .maplibregl-ctrl-icon,
 .maplibregl-ctrl-zoom-out > .maplibregl-ctrl-icon {
   background-image: none !important;

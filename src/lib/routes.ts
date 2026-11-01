@@ -306,3 +306,26 @@ export function routeFromPoints(name: string, points: RoutePoint[], venueSlugs: 
     source: 'local',
   };
 }
+
+/** The hash a shared route link carries: `#route/<slug>`, beside `#venue/<slug>`. */
+const ROUTE_HASH = '#route/';
+
+/**
+ * The address people share for a route: this site, opening on that route. No
+ * tracking parameters, just the route's own slug.
+ */
+export function routeLink(slug: string): string {
+  return `${window.location.origin}${import.meta.env.BASE_URL}${ROUTE_HASH}${encodeURIComponent(slug)}`;
+}
+
+/** The route slug in a `#route/<slug>` hash, or null. Anything not shaped like a slug is refused. */
+export function routeSlugFromHash(hash: string): string | null {
+  if (!hash.startsWith(ROUTE_HASH)) return null;
+  let slug: string;
+  try {
+    slug = decodeURIComponent(hash.slice(ROUTE_HASH.length));
+  } catch {
+    return null;
+  }
+  return /^[a-z0-9-]{1,160}$/.test(slug) ? slug : null;
+}

@@ -7,12 +7,12 @@ import {
   Popup,
   GeolocateControl,
   LngLatBounds,
+  NavigationControl,
   type ErrorEvent,
   type GeoJSONSource,
   type GeolocateErrorEvent,
   type LngLatLike,
   type Map as MlMap,
-  type MapLayerMouseEvent,
   type MapMouseEvent,
   type MapMovementEvent,
   type Offset,
@@ -32,7 +32,6 @@ import {
   animateActiveRoute,
   routesToGeoJson,
   setOverlapRoutes,
-  setRouteEmphasis,
   setRouteFeatureState,
   setRouteHover,
   venuesToGeoJson,
@@ -405,6 +404,41 @@ function panelClearance(map: MlMap, base: Padding): Padding {
   return { ...base, bottom: Math.max(base.bottom, Math.min(clear, height * 0.6)) };
 }
 
+/**
+ * Keeps the bottom-right controls (zoom, attribution) clear of a route panel
+ * docked along the bottom of a narrow map: they ride on top of its edge, and
+ * drop back when the panel closes or sits at the side. Writes `--ctrl-lift`
+ * on the map, which the stylesheet applies. Returns a function that stops it.
+ */
+function keepControlsAbovePanel(map: MlMap): () => void {
+  const container = map.getContainer();
+  const wrap = container.parentElement;
+  if (!wrap) return () => {};
+  let watched: HTMLElement | null = null;
+  const resize = new ResizeObserver(() => lift());
+  function lift() {
+    const panel = wrap?.querySelector<HTMLElement>('.gpx-panel') ?? null;
+    if (panel !== watched) {
+      if (watched) resize.unobserve(watched);
+      if (panel) resize.observe(panel);
+      watched = panel;
+    }
+    const docked = panel !== null && panel.offsetWidth >= container.clientWidth * 0.6;
+    const top = panel ? panel.offsetTop - container.offsetTop : 0;
+    container.style.setProperty('--ctrl-lift', docked ? `${Math.max(0, container.clientHeight - top)}px` : '0px');
+  }
+  // The panel is added, removed and swapped as routes open and close.
+  const mutations = new MutationObserver(lift);
+  mutations.observe(wrap, { childList: true });
+  resize.observe(container);
+  lift();
+  return () => {
+    resize.disconnect();
+    mutations.disconnect();
+    container.style.removeProperty('--ctrl-lift');
+  };
+}
+
 export function MapView({
   venues,
   selectedSlug,
@@ -558,7 +592,6 @@ export function MapView({
       onToggleExpandRef.current(),
     );
     map.addControl(expandControlRef.current, 'top-right');
-    // Pinch, scroll and drag already zoom and rotate; +/- and a compass only duplicated them.
     map.addControl(new TerrainControl(), 'top-right');
 
     const geolocate = new GeolocateControl({
@@ -585,6 +618,17 @@ export function MapView({
       );
     });
     map.addControl(geolocate, 'top-right');
+    // + and − at the bottom right, so zooming never needs a pinch (zooming out by hand
+    // takes two fingers). No compass: the map is not rotated by default.
+    map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right');
+    // At a zoom limit MapLibre disables the button outright, which drops keyboard focus
+    // with it. Keep it focusable: aria-disabled (set by MapLibre) and the dimming say it.
+    map.on('move', () => {
+      for (const button of map.getContainer().querySelectorAll<HTMLButtonElement>('.maplibregl-ctrl-zoom-in, .maplibregl-ctrl-zoom-out')) {
+        button.disabled = false;
+      }
+    });
+    const stopLift = keepControlsAbovePanel(map);
 
     map.on('load', () => {
       if (mapRef.current !== map) return;
@@ -615,28 +659,10 @@ export function MapView({
       refreshMarkersRef.current(true);
       setReady(true);
 
-      map.on('click', (event: MapMouseEvent) => {
-        const hit = map.queryRenderedFeatures(event.point, { layers: ['routes-hit'] })[0];
-        const slug = hit?.properties?.slug as string | undefined;
-        if (slug) {
-          onSelectRouteRef.current(slug);
-          return;
-        }
+      // Route lines are drawn only for a hovered or open route (its pin or its row in the
+      // list), so there is nothing on the map to hover or tap: a click is on empty ground.
+      map.on('click', () => {
         onSelectRef.current(null);
-      });
-      let hoveredRoute: string | null = null;
-      map.on('mousemove', 'routes-hit', (event: MapLayerMouseEvent) => {
-        const slug = (event.features?.[0]?.properties?.slug as string | undefined) ?? null;
-        map.getCanvas().style.cursor = slug ? 'pointer' : '';
-        if (slug !== hoveredRoute) {
-          hoveredRoute = slug;
-          onHoverRouteRef.current(slug);
-        }
-      });
-      map.on('mouseleave', 'routes-hit', (_event: MapLayerMouseEvent) => {
-        map.getCanvas().style.cursor = '';
-        hoveredRoute = null;
-        onHoverRouteRef.current(null);
       });
       map.on('mousemove', (event: MapMouseEvent) => {
         cancelAnimationFrame(routeHoverFrame);
@@ -824,6 +850,7 @@ export function MapView({
     });
 
     return () => {
+      stopLift();
       clearTimeout(settle);
       clearTimeout(refitTimer);
       cancelAnimationFrame(routeHoverFrame);
@@ -901,12 +928,6 @@ export function MapView({
     prevHoveredRouteRef.current = null;
     routeMarkersRef.current?.setRoutes(mode === 'routes' ? allRoutes : [], units);
   }, [allRoutes, mode, units, ready]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ready) return;
-    setRouteEmphasis(map, mode === 'routes');
-  }, [mode, ready]);
 
   useEffect(() => {
     const map = mapRef.current;

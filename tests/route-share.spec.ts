@@ -24,24 +24,47 @@ async function openRoute(page: Page) {
   await expect(page.getByRole('region', { name: /Route: Hong Kong Trail Section 2/ })).toBeVisible();
 }
 
-test('Share copies a link that opens the route, and says so', async ({ page, context }) => {
+const dialog = (page: Page) => page.getByRole('dialog', { name: 'Share this route' });
+
+test('Share opens a dialog with the route and a Copy link row that copies a link opening it', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await openRoute(page);
   const share = page.getByRole('button', { name: 'Share this route' });
   await expect(share).toBeVisible();
-  const box = await share.boundingBox();
-  expect(box!.width).toBeGreaterThanOrEqual(28);
   await share.click();
-  await expect(page.getByRole('button', { name: 'Link copied' })).toBeVisible();
+
+  await expect(dialog(page)).toBeVisible();
+  await expect(dialog(page)).toContainText('Hong Kong Trail Section 2');
+  await expect(dialog(page)).toContainText('4.3 km');
+  // No share sheet in this browser: copy and email are the ways to pass it on.
+  await expect(dialog(page).getByRole('button', { name: 'More options' })).toHaveCount(0);
+
+  await dialog(page).getByRole('button', { name: 'Copy link' }).click();
+  await expect(dialog(page).getByRole('button', { name: 'Link copied' })).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Link copied' })).toHaveCount(1);
   const link = await page.evaluate(() => navigator.clipboard.readText());
   expect(link).toBe(`${new URL(page.url()).origin}/#route/${SLUG}`);
   expect(link).not.toMatch(/utm_|\?/);
-  // The tick goes back to the share icon by itself.
-  await expect(page.getByRole('button', { name: 'Share this route' })).toBeVisible({ timeout: 5_000 });
+  // The tick goes back to the copy icon by itself.
+  await expect(dialog(page).getByRole('button', { name: 'Copy link' })).toBeVisible({ timeout: 6_000 });
+
+  await page.keyboard.press('Escape');
+  await expect(dialog(page)).toHaveCount(0);
+  // Back on the route, with focus returned to the Share button.
+  await expect(page.getByRole('region', { name: /Route: Hong Kong Trail Section 2/ })).toBeVisible();
+  await expect(share).toBeFocused();
 });
 
-test('with a share sheet, Share hands it the name, numbers and link; cancelling it says nothing', async ({ page }) => {
+test('Email opens a message with the route and its link', async ({ page }) => {
+  await openRoute(page);
+  await page.getByRole('button', { name: 'Share this route' }).click();
+  const href = await dialog(page).getByRole('link', { name: 'Email' }).getAttribute('href');
+  expect(href).toMatch(/^mailto:\?subject=Hong%20Kong%20Trail%20Section%202&body=/);
+  expect(decodeURIComponent(href!)).toContain(`/#route/${SLUG}`);
+  expect(decodeURIComponent(href!)).toContain('4.3 km');
+});
+
+test('with a share sheet, More options hands it the name, numbers and link; cancelling says nothing', async ({ page }) => {
   await page.addInitScript(() => {
     const w = window as unknown as { __shared: unknown[]; __cancel: boolean };
     w.__shared = [];
@@ -55,17 +78,35 @@ test('with a share sheet, Share hands it the name, numbers and link; cancelling 
   page.on('pageerror', (error) => errors.push(error.message));
   await openRoute(page);
   await page.getByRole('button', { name: 'Share this route' }).click();
-  const shared = (await page.evaluate(() => (window as unknown as { __shared: { title: string; text: string; url: string }[] }).__shared))[0];
+
+  // Cancelled first: the dialog stays, with no message and no error.
+  await page.evaluate(() => ((window as unknown as { __cancel: boolean }).__cancel = true));
+  await dialog(page).getByRole('button', { name: 'More options' }).click();
+  await expect(dialog(page)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Link copied' })).toHaveCount(0);
+
+  await page.evaluate(() => ((window as unknown as { __cancel: boolean }).__cancel = false));
+  await dialog(page).getByRole('button', { name: 'More options' }).click();
+  const shared = (await page.evaluate(() => (window as unknown as { __shared: { title: string; text: string; url: string }[] }).__shared)).at(-1)!;
   expect(shared.title).toBe('Hong Kong Trail Section 2');
   expect(shared.text).toContain('4.3 km');
   expect(shared.text).toContain('on HillGPX');
   expect(shared.url).toBe(`${new URL(page.url()).origin}/#route/${SLUG}`);
-  await expect(page.getByRole('button', { name: 'Link copied' })).toHaveCount(0);
-
-  await page.evaluate(() => ((window as unknown as { __cancel: boolean }).__cancel = true));
-  await page.getByRole('button', { name: 'Share this route' }).click();
-  await expect(page.getByRole('button', { name: 'Link copied' })).toHaveCount(0);
+  // Shared: the dialog has done its job.
+  await expect(dialog(page)).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test('when copying is blocked the link is shown to copy by hand', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: () => Promise.reject(new Error('blocked')) }, configurable: true });
+  });
+  await openRoute(page);
+  await page.getByRole('button', { name: 'Share this route' }).click();
+  await dialog(page).getByRole('button', { name: 'Copy link' }).click();
+  const field = dialog(page).getByRole('textbox', { name: 'Copy this link' });
+  await expect(field).toHaveValue(`${new URL(page.url()).origin}/#route/${SLUG}`);
+  await expect(dialog(page).getByRole('button', { name: 'Link copied' })).toHaveCount(0);
 });
 
 test('opening a shared link shows the map with that route open, then keeps an ordinary address', async ({ page }) => {

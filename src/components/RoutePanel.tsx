@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Marquee } from './Marquee';
 import { endpointIconMarkup } from '../map/endpoints';
 import { RouteBookmarkButton } from './RouteBookmarkButton';
 import type { Route, RoutePoint, Venue } from '../types';
 import { computeGain, cumulativeDistances, totalDistanceM } from '../lib/elevation';
-import { linkVenues, routeEndpoints, routeHasElevation, routeLink } from '../lib/routes';
+import { linkVenues, routeEndpoints, routeHasElevation } from '../lib/routes';
 import { regionOf } from '../lib/regions';
 import { hasRealElevation, terrainElevations } from '../lib/terrain';
 import { assessRoute } from '../lib/routeQuality';
@@ -22,12 +21,49 @@ import { ElevationProfile } from './ElevationProfile';
 import { TypeGlyph } from './TypeGlyph';
 import { useUnits } from './UnitsContext';
 import { downloadRoute } from './VenueCard';
-import { CheckIcon, ChevronRightIcon, CloseIcon, DownloadIcon, PencilIcon, ShareIcon } from './icons';
+import { ChevronRightIcon, CloseIcon, DownloadIcon, PencilIcon, ShareIcon } from './icons';
+import { ShareRouteDialog } from './ShareRouteDialog';
 import type { RoutePhoto } from '../lib/api';
 import { RoutePhotoModal } from './RoutePhotoModal';
 import { FlagIcon, ReportModal } from './ReportModal';
 import { RatingLabel } from './ResultsList';
 import { RouteReviews } from './RouteReviews';
+
+/**
+ * The route's name: it wraps onto up to two lines and never moves. If it is still too long it
+ * ends in "…", and then it is a button that opens the whole name (and closes it again). Short
+ * names are plain text. Everyone, screen readers included, always has the full name.
+ */
+function RouteTitle({ name }: { name: string }) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const [cut, setCut] = useState(false);
+  const [open, setOpen] = useState(false);
+  useLayoutEffect(() => {
+    const heading = headingRef.current;
+    if (!heading) return;
+    // Measured on the heading, which stays put when the text swaps between plain and button.
+    const measure = () => {
+      const text = heading.querySelector<HTMLElement>('.route-name');
+      if (text && !open) setCut(text.scrollHeight > text.clientHeight + 1);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(heading);
+    return () => observer.disconnect();
+  }, [name, open]);
+  const text = <span className={`route-name${open ? ' open' : ''}`}>{name}</span>;
+  return (
+    <h2 ref={headingRef} title={name}>
+      {cut || open ? (
+        <button type="button" className="route-name-toggle" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+          {text}
+        </button>
+      ) : (
+        text
+      )}
+    </h2>
+  );
+}
 
 interface RoutePanelProps {
   route: Route;
@@ -397,11 +433,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
   const units = useUnits();
   // Only a route anyone can open has a link worth sharing: not one held, rejected or kept on this device.
   const shareable = reviewable;
-  const [copied, setCopied] = useState(false);
-  const copyTimer = useRef<number | null>(null);
-  useEffect(() => () => {
-    if (copyTimer.current != null) window.clearTimeout(copyTimer.current);
-  }, []);
+  const [sharing, setSharing] = useState(false);
   const elevation = useTerrainFill(route);
   const hasElevation = routeHasElevation(route) || elevation.fromTerrain;
   const endpoints = useMemo(() => routeEndpoints(route.coordinates), [route.coordinates]);
@@ -415,24 +447,6 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
     );
     return () => window.clearTimeout(timer);
   }, [route.slug, route.name, endpoints]);
-  const share = async () => {
-    const url = routeLink(route.slug);
-    const text = `${route.name}: ${units.distance(route.distanceM)}${hasElevation ? `, ${units.height(elevation.gainM)} elevation gain` : ''} on HillGPX`;
-    // The phone's share sheet when there is one; cancelling it is not an error.
-    if (navigator.share) {
-      await navigator.share({ title: route.name, text, url }).catch(() => undefined);
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      if (copyTimer.current != null) window.clearTimeout(copyTimer.current);
-      copyTimer.current = window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Copying can be blocked: hand the link over to copy by hand.
-      window.prompt('Copy this link to share the route', url);
-    }
-  };
   const { minM, maxM } = useMemo(() => computeGain(elevation.points), [elevation.points]);
   const overlaps = useMemo(() => findOverlaps(route.coordinates, allRoutes, route.slug), [route, allRoutes]);
   const region = route.country ?? regionOf(route.coordinates[0][0], route.coordinates[0][1]);
@@ -451,9 +465,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
       )}
       <header className="gpx-panel-head">
         <div className="route-panel-title">
-          <h2 title={route.name}>
-            <Marquee>{route.name}</Marquee>
-          </h2>
+          <RouteTitle name={route.name} />
           <InfoTip>
             <RecordedLine recordedAt={route.recordedAt} />
             {hasElevation && <ElevationSourceLine source={elevation.fromTerrain ? 'terrain' : route.elevationSource ?? 'gps'} />}
@@ -482,14 +494,8 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           )}
           <RouteBookmarkButton route={route} variant="panel" />
           {shareable && (
-            <button
-              type="button"
-              className="gpx-icon-btn"
-              onClick={() => void share()}
-              aria-label={copied ? 'Link copied' : 'Share this route'}
-              data-tip={copied ? 'Link copied' : 'Share'}
-            >
-              {copied ? <CheckIcon size={15} /> : <ShareIcon size={15} />}
+            <button type="button" className="gpx-icon-btn" onClick={() => setSharing(true)} aria-label="Share this route" aria-haspopup="dialog" data-tip="Share">
+              <ShareIcon size={15} />
             </button>
           )}
           <button type="button" className="gpx-icon-btn" onClick={() => downloadRoute(route)} aria-label="Download GPX" data-tip="Download GPX">
@@ -500,7 +506,6 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           </button>
         </div>
       </header>
-      <span className="visually-hidden" role="status">{copied ? 'Link copied' : ''}</span>
       <span className="visually-hidden" role="status">{announced}</span>
       {mine && route.held && (
         <div className="route-held">
@@ -582,7 +587,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           {touches.length > 0 && (
             <div className="gpx-touches route-passes">
               <strong>Passes</strong>
-              <Marquee className="route-passes-line" speed={30}>
+              <div className="route-passes-line">
                 {touches.map((venue) => (
                   <button
                     type="button"
@@ -596,7 +601,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
                     {venue.name}
                   </button>
                 ))}
-              </Marquee>
+              </div>
             </div>
           )}
 
@@ -635,6 +640,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
       )}
 
       {adding && <RoutePhotoModal route={route} startIndex={hoverIndex ?? Math.floor(route.coordinates.length / 2)} onPreviewIndex={onHoverIndex} onClose={() => setAdding(false)} onAdded={onPhotoAdded} />}
+      {sharing && <ShareRouteDialog route={route} gainM={hasElevation ? elevation.gainM : null} onClose={() => setSharing(false)} />}
       {reporting && <ReportModal targetType="route" targetSlug={route.slug} targetName={route.name} onClose={() => setReporting(false)} />}
     </section>
   );

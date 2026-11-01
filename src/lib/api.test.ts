@@ -18,7 +18,7 @@ describe('api', () => {
     const review = await submitReview({ venueSlug: 'test-hill', rating: 4, comment: ' Solid ', author: '' });
     expect(review.comment).toBe('Solid');
     expect(review.author).toBe('Anonymous');
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const [url, init] = (fetchMock.mock.calls as unknown as [string, RequestInit][]).find(([u]) => u.includes('/rest/v1/reviews')) as [string, RequestInit];
     expect(url).toContain('/rest/v1/reviews');
     const body = JSON.parse(String(init.body)) as Record<string, unknown>;
     expect(body).not.toHaveProperty('status');
@@ -115,7 +115,8 @@ describe('route reviews', () => {
   const stubFetch = (response: () => Response) => {
     const mock = vi.fn(async () => response());
     vi.stubGlobal('fetch', mock);
-    return () => mock.mock.calls[0] as unknown as [string, RequestInit];
+    // The /api/moderate pre-check call shares the same fetch; assertions want the REST call.
+    return () => (mock.mock.calls as unknown as [string, RequestInit][]).find(([url]) => url !== '/api/moderate') as [string, RequestInit];
   };
 
   it('reads approved reviews newest first, naming only the public columns', async () => {

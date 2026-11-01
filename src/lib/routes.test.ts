@@ -3,7 +3,7 @@ import ridgesGpx from '../../data/routes/southern-ridges-walk.gpx?raw';
 import { describe, expect, it } from 'vitest';
 import type { RoutePoint } from '../types';
 import { parseGpx } from './gpx';
-import { NO_ROUTE_FILTERS, filterRoutes, mixByDifficulty, nearestPointOnRoute, routeFromPoints, routeEndpoints, routeLink, routeSlugFromHash, routesBounds, routesNear, routesWithin } from './routes';
+import { NO_ROUTE_FILTERS, filterRoutes, mixByDifficulty, nearestPointOnRoute, radiusBounds, routeEndpoints, routeFromPoints, routeLink, routeSlugFromHash, routesBounds, routesNear, routesWithin } from './routes';
 
 const kluang = routeFromPoints('Kluang', parseGpx(kluangGpx).points, []);
 const ridges = routeFromPoints('Southern Ridges', parseGpx(ridgesGpx).points, []);
@@ -95,6 +95,17 @@ describe('filterRoutes: distance and gain bounds', () => {
   it('drops routes without elevation once a gain bound is set', () => {
     expect(slugs(filterRoutes(pool, { ...NO_ROUTE_FILTERS, maxGainM: 500 }))).toEqual(['short', 'mid']);
     expect(slugs(filterRoutes(pool, NO_ROUTE_FILTERS))).toContain('no-elev');
+  });
+});
+
+describe('radiusBounds', () => {
+  it('centres a box the radius wide on the point, in degrees', () => {
+    // 5 km at the equator is ~0.045° each way.
+    const box = radiusBounds(103.8, 0, 5_000);
+    expect(box.north).toBeCloseTo(0.045, 3);
+    expect(box.south).toBeCloseTo(-0.045, 3);
+    expect(box.east).toBeCloseTo(103.845, 3);
+    expect(box.west).toBeCloseTo(103.755, 3);
   });
 });
 

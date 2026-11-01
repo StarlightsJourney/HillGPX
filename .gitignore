@@ -11,6 +11,7 @@ dist/
 .env.*.local
 .env.production
 .env.docker
+.dev.vars
 
 # Local MongoDB data (if mongod is ever run against the repo checkout)
 mongo-data/

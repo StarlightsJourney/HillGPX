@@ -8753,6 +8753,44 @@ html:has(.ac) {
   align-self: stretch;
 }
 
+/* Start, finish and loop markers on the open or hovered route (src/map/endpoints.ts):
+   decoration only, never in the way of a tap, and under every pin (pins are 2 to 4), so a
+   hovered pin covers the ring beneath it. */
+.route-end {
+  z-index: 1;
+  pointer-events: none;
+}
+.route-end svg {
+  display: block;
+  overflow: visible;
+}
+
+/* The open route's pin sits on its start, where the ring is: lifted just above it, the
+   pin keeps its place (the open route always shows its pin) and the ring is seen. `translate`,
+   not `transform`, so the hover scale is untouched. */
+.route-pin.is-selected {
+  translate: 0 -34px;
+}
+/* The key to the start and finish markers, under the elevation profile. */
+.route-legend {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+  font-size: var(--t1);
+  color: var(--ink-2);
+}
+.route-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.route-legend svg {
+  display: block;
+  overflow: visible;
+
 /* Share this route (ShareRouteDialog): the route, then one row per way to pass it on. */
 .share-route {
   padding-bottom: 16px;

@@ -198,6 +198,26 @@ export function setRouteStarts(map: MlMap, routes: Route[]): void {
   (map.getSource('route-starts') as GeoJSONSource | undefined)?.setData(routeStartsToGeoJson(routes));
 }
 
+/** A small white arrowhead, drawn once, for the direction arrows on the open route. */
+function addRouteArrowImage(map: MlMap): void {
+  if (map.hasImage('route-arrow')) return;
+  const size = 24;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  if (!context) return;
+  context.fillStyle = '#ffffff';
+  context.beginPath();
+  context.moveTo(7, 5);
+  context.lineTo(19, 12);
+  context.lineTo(7, 19);
+  context.lineTo(11, 12);
+  context.closePath();
+  context.fill();
+  map.addImage('route-arrow', context.getImageData(0, 0, size, size), { pixelRatio: 2 });
+}
+
 export function addRouteLayers(map: MlMap): void {
   map.addSource('active-route', {
     type: 'geojson',
@@ -243,19 +263,19 @@ export function addRouteLayers(map: MlMap): void {
     paint: { 'line-color': '#c1502e', 'line-width': 5 },
   });
 
-  map.addSource('active-route-ends', {
-    type: 'geojson',
-    data: { type: 'FeatureCollection', features: [] },
-  });
+  // Small white arrows along the open route, pointing the way it runs.
+  addRouteArrowImage(map);
   map.addLayer({
-    id: 'active-route-ends',
-    type: 'circle',
-    source: 'active-route-ends',
-    paint: {
-      'circle-radius': ['match', ['get', 'end'], 'start', 7, 5],
-      'circle-color': ['match', ['get', 'end'], 'start', '#ffffff', '#222222'],
-      'circle-stroke-width': ['match', ['get', 'end'], 'start', 3, 2.5],
-      'circle-stroke-color': ['match', ['get', 'end'], 'start', '#222222', '#ffffff'],
+    id: 'active-route-arrows',
+    type: 'symbol',
+    source: 'active-route',
+    layout: {
+      'symbol-placement': 'line',
+      'symbol-spacing': 120,
+      'icon-image': 'route-arrow',
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.55, 16, 0.9],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
     },
   });
 
@@ -288,20 +308,17 @@ export function animateActiveRoute(
   trim: [number, number] | null = null,
   durationMs = 1100,
 ): () => void {
-  const ends = map.getSource('active-route-ends') as GeoJSONSource | undefined;
   const cut = map.getSource('active-route-cut') as GeoJSONSource | undefined;
   const kept = coordinates && trim ? coordinates.slice(trim[0], trim[1] + 1) : coordinates;
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (!kept || kept.length < 2 || reduce || durationMs <= 0) {
     cut?.setData(cutFeatures(coordinates, trim));
     setActiveRoute(map, kept);
-    ends?.setData(endsFeature(kept));
     return () => {};
   }
   let frame = 0;
   const start = performance.now();
   cut?.setData({ type: 'FeatureCollection', features: [] });
-  ends?.setData(endsFeature(kept.slice(0, 1)));
   const tick = (now: number) => {
     const t = Math.min(1, (now - start) / durationMs);
     const eased = 1 - Math.pow(1 - t, 3);
@@ -310,7 +327,6 @@ export function animateActiveRoute(
     if (t < 1) {
       frame = requestAnimationFrame(tick);
     } else {
-      ends?.setData(endsFeature(kept));
       cut?.setData(cutFeatures(coordinates, trim));
     }
   };
@@ -342,18 +358,6 @@ function cutFeatures(
       },
     ],
   };
-}
-
-function endsFeature(coordinates: [number, number, number][] | null): FeatureCollection {
-  if (!coordinates || coordinates.length === 0) return { type: 'FeatureCollection', features: [] };
-  const point = (c: [number, number, number], end: string) => ({
-    type: 'Feature' as const,
-    properties: { end },
-    geometry: { type: 'Point' as const, coordinates: [c[0], c[1]] },
-  });
-  const features = [point(coordinates[0], 'start')];
-  if (coordinates.length > 1) features.unshift(point(coordinates[coordinates.length - 1], 'finish'));
-  return { type: 'FeatureCollection', features };
 }
 
 export function setActiveRoute(

@@ -20,6 +20,7 @@ interface ShareRouteDialogProps {
 export function ShareRouteDialog({ route, gainM, onClose }: ShareRouteDialogProps) {
   const units = useUnits();
   const url = routeLink(route.slug);
+  const canShare = typeof navigator.share === 'function';
   const stats = `${units.distance(route.distanceM)}${gainM != null ? ` · ${units.height(gainM)} EG` : ''}`;
   const text = `${route.name}: ${units.distance(route.distanceM)}${gainM != null ? `, ${units.height(gainM)} elevation gain` : ''} on HillGPX`;
   const [copied, setCopied] = useState(false);
@@ -53,28 +54,30 @@ export function ShareRouteDialog({ route, gainM, onClose }: ShareRouteDialogProp
         <p className="share-route-name">{route.name}</p>
         <p className="share-route-stats">{stats}</p>
       </div>
-      <ul className="share-rows">
-        <li>
-          <button type="button" className="share-row" onClick={() => void copy()}>
-            <span className="share-row-icon">{copied ? <CheckIcon size={20} /> : <CopyIcon size={20} />}</span>
-            {copied ? 'Link copied' : 'Copy link'}
+      {/* One main action in the brand colour, the rest as quiet pills. */}
+      <div className="share-pills">
+        {canShare && (
+          <button type="button" className="btn btn-accent share-pill share-pill-main" onClick={shareSheet}>
+            <ShareIcon size={18} />
+            Share
           </button>
-        </li>
-        {typeof navigator.share === 'function' && (
-          <li>
-            <button type="button" className="share-row" onClick={shareSheet}>
-              <span className="share-row-icon"><ShareIcon size={20} /></span>
-              More options
-            </button>
-          </li>
         )}
-        <li>
-          <a className="share-row" href={`mailto:?subject=${encodeURIComponent(route.name)}&body=${encodeURIComponent(`${text}\n${url}`)}`}>
-            <span className="share-row-icon"><MailIcon size={20} /></span>
-            Email
-          </a>
-        </li>
-      </ul>
+        <button
+          type="button"
+          className={`btn share-pill ${canShare ? 'share-pill-quiet' : 'btn-accent share-pill-main'}`}
+          onClick={() => void copy()}
+        >
+          {copied ? <CheckIcon size={18} /> : <CopyIcon size={18} />}
+          {copied ? 'Link copied' : 'Copy link'}
+        </button>
+        <a
+          className="btn share-pill share-pill-quiet"
+          href={`mailto:?subject=${encodeURIComponent(route.name)}&body=${encodeURIComponent(`${text}\n${url}`)}`}
+        >
+          <MailIcon size={18} />
+          Email
+        </a>
+      </div>
       {manual && (
         <label className="share-manual">
           <span>Copy this link</span>

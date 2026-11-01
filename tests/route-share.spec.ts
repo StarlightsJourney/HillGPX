@@ -37,7 +37,7 @@ test('Share opens a dialog with the route and a Copy link row that copies a link
   await expect(dialog(page)).toContainText('Hong Kong Trail Section 2');
   await expect(dialog(page)).toContainText('4.3 km');
   // No share sheet in this browser: copy and email are the ways to pass it on.
-  await expect(dialog(page).getByRole('button', { name: 'More options' })).toHaveCount(0);
+  await expect(dialog(page).getByRole('button', { name: 'Share', exact: true })).toHaveCount(0);
 
   await dialog(page).getByRole('button', { name: 'Copy link' }).click();
   await expect(dialog(page).getByRole('button', { name: 'Link copied' })).toBeVisible();
@@ -64,7 +64,7 @@ test('Email opens a message with the route and its link', async ({ page }) => {
   expect(decodeURIComponent(href!)).toContain('4.3 km');
 });
 
-test('with a share sheet, More options hands it the name, numbers and link; cancelling says nothing', async ({ page }) => {
+test('with a share sheet, the Share pill hands it the name, numbers and link; cancelling says nothing', async ({ page }) => {
   await page.addInitScript(() => {
     const w = window as unknown as { __shared: unknown[]; __cancel: boolean };
     w.__shared = [];
@@ -81,12 +81,12 @@ test('with a share sheet, More options hands it the name, numbers and link; canc
 
   // Cancelled first: the dialog stays, with no message and no error.
   await page.evaluate(() => ((window as unknown as { __cancel: boolean }).__cancel = true));
-  await dialog(page).getByRole('button', { name: 'More options' }).click();
+  await dialog(page).getByRole('button', { name: 'Share', exact: true }).click();
   await expect(dialog(page)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Link copied' })).toHaveCount(0);
 
   await page.evaluate(() => ((window as unknown as { __cancel: boolean }).__cancel = false));
-  await dialog(page).getByRole('button', { name: 'More options' }).click();
+  await dialog(page).getByRole('button', { name: 'Share', exact: true }).click();
   const shared = (await page.evaluate(() => (window as unknown as { __shared: { title: string; text: string; url: string }[] }).__shared)).at(-1)!;
   expect(shared.title).toBe('Hong Kong Trail Section 2');
   expect(shared.text).toContain('4.3 km');
@@ -95,6 +95,29 @@ test('with a share sheet, More options hands it the name, numbers and link; canc
   // Shared: the dialog has done its job.
   await expect(dialog(page)).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test('the options are clean pills: no bullets, no default button outlines, the main one in the brand colour', async ({ page }) => {
+  await openRoute(page);
+  await page.getByRole('button', { name: 'Share this route' }).click();
+  const copy = dialog(page).getByRole('button', { name: 'Copy link' });
+  const email = dialog(page).getByRole('link', { name: 'Email' });
+  await expect(copy).toBeVisible();
+  const look = (locator: typeof copy) =>
+    locator.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { radius: parseFloat(s.borderTopLeftRadius), border: s.borderTopWidth, background: s.backgroundColor, height: el.getBoundingClientRect().height };
+    });
+  const [main, quiet] = [await look(copy), await look(email)];
+  // Pills (fully rounded), 44 px or taller, with no browser-default border.
+  for (const pill of [main, quiet]) {
+    expect(pill.radius).toBeGreaterThanOrEqual(24);
+    expect(pill.border).toBe('0px');
+    expect(pill.height).toBeGreaterThanOrEqual(44);
+  }
+  // The main action is not the same colour as the quiet one, and no list bullets are drawn.
+  expect(main.background).not.toBe(quiet.background);
+  expect(await dialog(page).locator('ul, li').count()).toBe(0);
 });
 
 test('when copying is blocked the link is shown to copy by hand', async ({ page }) => {

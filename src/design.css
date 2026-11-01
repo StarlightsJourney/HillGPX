@@ -8790,6 +8790,7 @@ html:has(.ac) {
 .route-legend svg {
   display: block;
   overflow: visible;
+}
 
 /* Share this route (ShareRouteDialog): the route, then one row per way to pass it on. */
 .share-route {
@@ -8808,45 +8809,32 @@ html:has(.ac) {
   font-size: var(--t2);
   color: var(--muted);
 }
-.share-rows {
-  display: grid;
-  gap: 4px;
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-}
-.share-row {
+.share-pills {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  width: 100%;
-  min-height: 56px;
-  padding: 8px;
-  border: 0;
-  border-radius: 14px;
-  background: none;
-  color: var(--ink);
-  font: inherit;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+/* Pills, as wide as the room allows: the main action on a row of its own, the others beside each other. */
+.share-pill {
+  flex: 1 1 calc(50% - 6px);
+  min-width: 0;
+  border-radius: 999px;
   font-size: var(--t2);
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
 }
-.share-row:hover {
+.share-pill-main {
+  flex-basis: 100%;
+}
+.share-pill-quiet {
   background: var(--bg-raised);
+  color: var(--ink);
 }
-.share-row:focus-visible {
+.share-pill-quiet:hover {
+  background: var(--hairline);
+}
+.share-pill:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-.share-row-icon {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: var(--bg-raised);
 }
 .share-manual {
   display: grid;

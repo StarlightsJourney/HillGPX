@@ -70,22 +70,22 @@ begin
   -- Which fields this table sends, in a fixed order; messages[i] is the
   -- sentence for inputs[i] so a refused row can say which field failed.
   if TG_TABLE_NAME in ('reviews', 'route_reviews') then
-    inputs := inputs || jsonb_build_object('type', 'text', 'text', row_json ->> 'comment');
-    messages := messages || 'That review can''t be published — it was flagged by our automated checks.';
+    inputs := inputs || jsonb_build_array(jsonb_build_object('type', 'text', 'text', row_json ->> 'comment'));
+    messages := array_append(messages, 'That review can''t be published — it was flagged by our automated checks.');
   elsif TG_TABLE_NAME = 'routes' then
-    inputs := inputs || jsonb_build_object('type', 'text', 'text', row_json ->> 'name');
-    messages := messages || 'That route name can''t be published — it was flagged by our automated checks.';
+    inputs := inputs || jsonb_build_array(jsonb_build_object('type', 'text', 'text', row_json ->> 'name'));
+    messages := array_append(messages, 'That route name can''t be published — it was flagged by our automated checks.');
   elsif TG_TABLE_NAME = 'profiles' then
-    inputs := inputs || jsonb_build_object('type', 'text', 'text', row_json ->> 'username');
-    messages := messages || 'That username isn''t allowed — pick another.';
+    inputs := inputs || jsonb_build_array(jsonb_build_object('type', 'text', 'text', row_json ->> 'username'));
+    messages := array_append(messages, 'That username isn''t allowed — pick another.');
   elsif TG_TABLE_NAME in ('photos', 'route_photos') then
     -- The file is uploaded before the row insert, so its public URL is
     -- already live for OpenAI to fetch.
-    inputs := inputs || jsonb_build_object('type', 'image', 'url', photos_base || (row_json ->> 'storage_path'));
-    messages := messages || 'That photo can''t be published — it was flagged by our automated checks.';
+    inputs := inputs || jsonb_build_array(jsonb_build_object('type', 'image', 'url', photos_base || (row_json ->> 'storage_path')));
+    messages := array_append(messages, 'That photo can''t be published — it was flagged by our automated checks.');
     if TG_TABLE_NAME = 'route_photos' and nullif(row_json ->> 'caption', '') is not null then
-      inputs := inputs || jsonb_build_object('type', 'text', 'text', row_json ->> 'caption');
-      messages := messages || 'That caption can''t be published — it was flagged by our automated checks.';
+      inputs := inputs || jsonb_build_array(jsonb_build_object('type', 'text', 'text', row_json ->> 'caption'));
+      messages := array_append(messages, 'That caption can''t be published — it was flagged by our automated checks.');
     end if;
   else
     return new;

@@ -1,9 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { REPO_URL, addPlaceUrl, openImportHere } from '../lib/contribute';
+import { openImportHere, requestAddPlace } from '../lib/contribute';
 import { AccountMenu } from './AccountMenu';
 import { HeaderControls } from './HeaderControls';
 import { CoverageModal, useCoverage } from './Coverage';
-import { GitHubIcon, Mark } from './icons';
+import { Mark } from './icons';
 import { OpenSourceInline } from './OpenSourceNotice';
 
 /**
@@ -69,14 +69,14 @@ export function SiteFooter({ openSourcePill = false }: { openSourcePill?: boolea
           <div>
             <h3>Contribute</h3>
             <a href="#import" onClick={openImportHere}>Upload GPX</a>
-            <a href={addPlaceUrl()} target="_blank" rel="noreferrer">Add a missing place</a>
-            <a href={`${REPO_URL}/blob/HEAD/CONTRIBUTING.md`} target="_blank" rel="noreferrer">Contributor guide</a>
+            <button type="button" className="site-footer-link" onClick={requestAddPlace}>
+              Add a missing place
+            </button>
           </div>
           <div>
             <h3>Project</h3>
-            <a href={`${REPO_URL}/blob/HEAD/docs/COMMUNITY.md`} target="_blank" rel="noreferrer">How we run and fund it</a>
-            <a href={`${REPO_URL}/blob/HEAD/README.md#data-sources-and-licensing`} target="_blank" rel="noreferrer">Data sources and licences</a>
-            <a href={REPO_URL} target="_blank" rel="noreferrer">Source code</a>
+            <a href="#community">How we run and fund it</a>
+            <a href="#data">Data sources and licences</a>
           </div>
           <div>
             <h3>About</h3>
@@ -97,9 +97,6 @@ export function SiteFooter({ openSourcePill = false }: { openSourcePill?: boolea
             <a href="https://commons.wikimedia.org" target="_blank" rel="noreferrer">Wikimedia</a>,{' '}
             <a href="https://www.mapillary.com" target="_blank" rel="noreferrer">Mapillary</a>
           </span>
-          <a className="site-footer-gh" href={REPO_URL} target="_blank" rel="noreferrer" aria-label="GitHub">
-            <GitHubIcon size={16} />
-          </a>
         </div>
       </div>
       {coverageOpen && <FooterCoverage onClose={() => setCoverageOpen(false)} />}

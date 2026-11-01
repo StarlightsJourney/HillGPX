@@ -47,7 +47,7 @@ SEARCH_LOG_PATH = SCRIPT_DIR / ".cache" / "open_photos_searched.json"
 PHOTOS_JSON = REPO_ROOT / "data" / "photos.json"
 VENUES_JSON = REPO_ROOT / "public" / "data" / "venues.json"
 
-USER_AGENT = f"HillGPX/0.3 (https://github.com/StarlightsJourney/HillGPX; open photo pipeline) aiohttp/{aiohttp.__version__}"
+USER_AGENT = f"HillGPX/0.3 (https://hillgpx.com; open photo pipeline) aiohttp/{aiohttp.__version__}"
 MAX_WIDTH = 420
 WEBP_QUALITY = 72
 VENUE_CONCURRENCY = 2

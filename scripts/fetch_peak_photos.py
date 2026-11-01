@@ -34,7 +34,7 @@ from fetch_peaks import ssl_context  # noqa: E402
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 INDEX = os.path.join(ROOT, "public", "data", "peaks", "index.json")
 OUT = os.path.join(ROOT, "public", "data", "peaks", "photos.json")
-UA = "HillGPX/0.4 (open source; https://github.com/StarlightsJourney/HillGPX)"
+UA = "HillGPX/0.4 (open source; https://hillgpx.com)"
 PER_COUNTRY = 12
 OPEN = re.compile(r"^(cc[ -]by(-sa)?([ -]\d\.\d)?|cc0|public domain|pd)", re.I)
 NOT_VIEW = re.compile(r"\b(map|sign|logo|diagram|plaque|chart|flag|coat of arms|locator|stamp|book)\b|\.(svg|pdf|tif|tiff|webm|ogv)$", re.I)

@@ -75,6 +75,8 @@ export type TrackedEvent =
   | 'review_post'
   | 'route_review_post'
   | 'report_sent'
+  | 'contact_sent'
+  | 'place_suggested'
   | 'sign_up'
   | 'log_in'
   | 'username_change'

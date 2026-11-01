@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { errorText } from '../lib/api';
 import { deleteMyRoute, type AuthUser, type MyUpload } from '../lib/auth';
-import { openImportHere, REPO_URL } from '../lib/contribute';
+import { openImportHere } from '../lib/contribute';
 import { openMapWith } from '../lib/mapIntent';
 import { forgetMyRoute } from '../lib/myRoutes';
 import type { RouteActivity } from '../types';
@@ -149,9 +149,7 @@ export function AccountRoutes({ user, routes, error, onRetry }: Props) {
       <footer className="ac-note">
         <p>
           Public in the open archive, credited to @{user.username}. They stay even if you delete your account.{' '}
-          <a href={`${REPO_URL}/blob/HEAD/docs/COMMUNITY.md`} target="_blank" rel="noreferrer">
-            How the archive works
-          </a>
+          <a href="#community">How the archive works</a>
         </p>
       </footer>
     </Panel>

@@ -3185,13 +3185,9 @@
 .site-footer-base a {
   color: inherit;
 }
-.site-footer-gh {
-  display: inline-flex;
-  color: var(--ink) !important;
-}
-/* Narrower than the content: the base line becomes two neat rows (copyright
-   with the GitHub mark at its end, then the data credits), instead of the
-   credits squeezing into a ragged column beside the copyright. */
+/* Narrower than the content: the base line becomes two neat rows (copyright,
+   then the data credits), instead of the credits squeezing into a ragged
+   column beside the copyright. */
 @media (max-width: 899px) {
   .site-footer-base {
     display: grid;
@@ -3202,10 +3198,6 @@
   .site-footer-credits {
     grid-column: 1 / -1;
     grid-row: 2;
-  }
-  .site-footer-gh {
-    grid-column: 2;
-    grid-row: 1;
   }
 }
 @media (max-width: 559px) {
@@ -4394,6 +4386,72 @@
 .report-kind.on {
   border-color: var(--ink);
   box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+/* The contact form lives inline on the Contact page and inside the Help and
+   feedback dialog; the same kind chips and textarea as the report form. */
+.contact-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 560px;
+  margin-bottom: 28px;
+}
+.contact-form .report-kinds {
+  margin-bottom: 0;
+}
+.contact-form .contact-send {
+  align-self: flex-start;
+  height: 42px;
+  padding: 0 22px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Add a missing place: two-up coordinate fields, the locate shortcut under
+   them, and type chips that reuse the report-kind card look. */
+.add-place-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.add-place-coords {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.add-place-locate {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.place-type {
+  padding: 8px 12px;
+  border-radius: 999px;
+}
+@media (max-width: 560px) {
+  .add-place-coords {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The MIT licence, shown whole on the data and licences page. */
+.licence-block {
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--sand, #faf7f2);
+  color: var(--ink-2);
+  font: 400 13px/1.6 var(--font-sans);
+  white-space: pre-wrap;
 }
 
 /* Sticky card keeps a gap under the sticky header instead of touching it. */

@@ -955,12 +955,8 @@ function MapApp() {
           {dataset && mode === 'routes' && (
             <>
             <RunNeedsBar
-              length={planner.length}
-              terrain={planner.terrain}
               whereLabel={planner.whereLabel}
               busy={planner.busy}
-              onLength={planner.setLength}
-              onTerrain={planner.setTerrain}
               onPlan={planner.plan}
               onClear={planner.clear}
             />

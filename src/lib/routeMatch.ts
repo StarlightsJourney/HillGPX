@@ -13,12 +13,8 @@ export interface RunNeeds {
   paceSPerKm: number;
 }
 
-/** The runner's needs when nothing has been chosen: one tap gives results. */
-export const DEFAULT_RUN_LENGTH: RunLength = { kind: 'time', minutes: 45 };
+/** The runner's terrain when nothing has been chosen: every route fits. */
 export const DEFAULT_TERRAIN: Terrain = 'any';
-
-/** A half marathon, in metres: offered as a distance in either unit setting. */
-export const HALF_MARATHON_M = 21_097;
 
 /** 6:30 per km on flat ground. */
 export const DEFAULT_PACE_S_PER_KM = 390;

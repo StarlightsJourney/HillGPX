@@ -49,6 +49,7 @@ function Privacy() {
         <li><strong>GPX routes:</strong> the track and its elevation. Heart rate, cadence, power and other device data are removed before upload.</li>
         <li><strong>Photos:</strong> re-encoded in your browser before upload, which removes location and camera data.</li>
         <li><strong>Reviews, ratings and reports:</strong> what you write, and the name you give, if any. A route review needs an account. If you post one as anonymous, your name is not shown, but it stays linked to your account privately so you can edit or delete it.</li>
+        <li><strong>Automated checks:</strong> usernames, review text, route names, captions and photos are screened by OpenAI's moderation service as you submit them. Anything it flags is refused and not stored. OpenAI does not use this data to train its models.</li>
         <li><strong>Spam protection:</strong> a one-way, salted fingerprint of your network address, used only to limit how often one connection can post. It cannot be turned back into your address and is deleted after a day.</li>
       </ul>
       <p>Contributions are stored with <a href="https://supabase.com" target="_blank" rel="noreferrer">Supabase</a> and are public once published.</p>
@@ -95,7 +96,8 @@ function Terms() {
       <h2>House rules</h2>
       <ul>
         <li>Be accurate and kind. No adverts, spam or personal details about other people.</li>
-        <li>Everything appears straight away. Anyone can report a photo or review; once three different people have reported it, it is hidden until a moderator looks.</li>
+        <li>Names, text and photos are screened by automated checks when you submit them; anything flagged is refused and never published.</li>
+        <li>Everything else appears straight away. Anyone can report a photo or review; once three different people have reported it, it is hidden until a moderator looks.</li>
       </ul>
       <h2>The code and the data we build on</h2>
       <p>

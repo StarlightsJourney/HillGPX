@@ -293,7 +293,7 @@ export function routeFromPoints(name: string, points: RoutePoint[], venueSlugs: 
     distanceM: Math.round(totalDistanceM(coordinates)),
     gainM,
     lossM,
-    loop: Boolean(first && last && haversineM(first[0], first[1], last[0], last[1]) < 100),
+    loop: Boolean(first && last && haversineM(first[0], first[1], last[0], last[1]) < LOOP_MAX_M),
     coordinates,
     source: 'local',
   };
@@ -320,4 +320,27 @@ export function routeSlugFromHash(hash: string): string | null {
     return null;
   }
   return /^[a-z0-9-]{1,160}$/.test(slug) ? slug : null;
+}
+
+/** A route whose finish is this close to its start is a loop (build_data.py uses the same 100 m). */
+export const LOOP_MAX_M = 100;
+
+export interface RouteEndpoints {
+  start: [number, number];
+  finish: [number, number];
+  /** Start and finish are close enough to be one place: one loop marker, not two. */
+  isLoop: boolean;
+}
+
+/** Where a route starts and finishes, or null when there are fewer than two usable points. */
+export function routeEndpoints(coordinates: readonly RoutePoint[] | null | undefined): RouteEndpoints | null {
+  if (!coordinates || coordinates.length < 2) return null;
+  const first = coordinates[0];
+  const last = coordinates[coordinates.length - 1];
+  if (![first[0], first[1], last[0], last[1]].every(Number.isFinite)) return null;
+  return {
+    start: [first[0], first[1]],
+    finish: [last[0], last[1]],
+    isLoop: haversineM(first[0], first[1], last[0], last[1]) < LOOP_MAX_M,
+  };
 }

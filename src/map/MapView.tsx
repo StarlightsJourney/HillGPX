@@ -38,6 +38,7 @@ import {
   MARKER_COLS,
   MARKER_ROWS,
 } from './layers';
+import { RouteEndpointMarkers } from './endpoints';
 import { RouteMarkers, VenueMarkers } from './markers';
 import './worker';
 import { MAP_STYLE_URL } from './constants';
@@ -378,6 +379,9 @@ class TerrainControl {
   }
 }
 
+/** Room for a start or finish marker's radius at the edge of the area left clear of the panel. */
+const MARKER_ROOM = 16;
+
 /**
  * Padding that keeps a framed route clear of the route panel. On a wide map
  * the panel is a side sheet down the left, so the route is framed to its
@@ -398,10 +402,12 @@ function panelClearance(map: MlMap, base: Padding): Padding {
   const top = panel.offsetTop - container.offsetTop;
   if (panel.offsetWidth < width * 0.6) {
     const clear = left + panel.offsetWidth + 24;
-    return { ...base, left: Math.max(base.left, Math.min(clear, width * 0.6)) };
+    // The cap leaves a little extra (a start marker's radius), so a route that begins at the
+    // edge of the clear area still shows its whole start marker beside the panel.
+    return { ...base, left: Math.max(base.left, Math.min(clear, width * 0.6 + MARKER_ROOM)) };
   }
   const clear = height - top + 16;
-  return { ...base, bottom: Math.max(base.bottom, Math.min(clear, height * 0.6)) };
+  return { ...base, bottom: Math.max(base.bottom, Math.min(clear, height * 0.6 + MARKER_ROOM)) };
 }
 
 /**
@@ -483,6 +489,7 @@ export function MapView({
   const onHoverRouteRef = useRef(onHoverRoute);
   onHoverRouteRef.current = onHoverRoute;
   const routeMarkersRef = useRef<RouteMarkers | null>(null);
+  const endpointMarkersRef = useRef<RouteEndpointMarkers | null>(null);
   const prevSelectedRouteRef = useRef<string | null>(null);
   const prevHoveredRouteRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -656,6 +663,7 @@ export function MapView({
           map.easeTo({ center, zoom: Math.max(zoom, map.getZoom() + 1), duration: 600 });
         },
       });
+      endpointMarkersRef.current = new RouteEndpointMarkers(map);
       refreshMarkersRef.current(true);
       setReady(true);
 
@@ -860,6 +868,8 @@ export function MapView({
       markersRef.current = null;
       routeMarkersRef.current?.remove();
       routeMarkersRef.current = null;
+      endpointMarkersRef.current?.remove();
+      endpointMarkersRef.current = null;
       map.remove();
       mapRef.current = null;
       setReady(false);
@@ -989,6 +999,16 @@ export function MapView({
     if (!map || !ready) return;
     setRouteHover(map, hoverPoint);
   }, [hoverPoint, ready]);
+
+  // Start and finish markers: on the route being hovered (its pin or its row in the list)
+  // while the pointer is on it, otherwise on the open route (or the dropped GPX, kept part only).
+  useEffect(() => {
+    const markers = endpointMarkersRef.current;
+    if (!markers || !ready) return;
+    const hovered = hoveredRouteSlug ? allRoutes.find((route) => route.slug === hoveredRouteSlug) : undefined;
+    const open = activeRoute && activeRouteTrim ? activeRoute.slice(activeRouteTrim[0], activeRouteTrim[1] + 1) : activeRoute;
+    markers.show(hovered ? hovered.coordinates : open);
+  }, [ready, hoveredRouteSlug, allRoutes, activeRoute, activeRouteTrim]);
 
   const photoMarkersRef = useRef(new Map<string, Marker>());
   useEffect(() => {

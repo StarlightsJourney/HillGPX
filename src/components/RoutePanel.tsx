@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Marquee } from './Marquee';
+import { endpointIconMarkup } from '../map/endpoints';
 import { RouteBookmarkButton } from './RouteBookmarkButton';
 import type { Route, RoutePoint, Venue } from '../types';
 import { computeGain, cumulativeDistances, totalDistanceM } from '../lib/elevation';
-import { linkVenues, routeHasElevation, routeLink } from '../lib/routes';
+import { linkVenues, routeEndpoints, routeHasElevation, routeLink } from '../lib/routes';
 import { regionOf } from '../lib/regions';
 import { hasRealElevation, terrainElevations } from '../lib/terrain';
 import { assessRoute } from '../lib/routeQuality';
@@ -403,6 +404,17 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
   }, []);
   const elevation = useTerrainFill(route);
   const hasElevation = routeHasElevation(route) || elevation.fromTerrain;
+  const endpoints = useMemo(() => routeEndpoints(route.coordinates), [route.coordinates]);
+  // Said once when the route opens: the markers are only on the map, where a screen reader cannot see them.
+  const [announced, setAnnounced] = useState('');
+  useEffect(() => {
+    if (!endpoints) return;
+    const timer = window.setTimeout(
+      () => setAnnounced(`${route.name} selected. ${endpoints.isLoop ? 'Start and finish are at the same point.' : 'Start and finish are marked on the map.'}`),
+      400,
+    );
+    return () => window.clearTimeout(timer);
+  }, [route.slug, route.name, endpoints]);
   const share = async () => {
     const url = routeLink(route.slug);
     const text = `${route.name}: ${units.distance(route.distanceM)}${hasElevation ? `, ${units.height(elevation.gainM)} elevation gain` : ''} on HillGPX`;
@@ -489,6 +501,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
         </div>
       </header>
       <span className="visually-hidden" role="status">{copied ? 'Link copied' : ''}</span>
+      <span className="visually-hidden" role="status">{announced}</span>
       {mine && route.held && (
         <div className="route-held">
           <HeldBadge />
@@ -535,6 +548,19 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
         <ElevationProfile points={elevation.points} height={72} hoverIndex={hoverIndex} onHoverIndex={onHoverIndex} />
       ) : (
         <p className="route-elevation-unavailable">{elevation.pending ? 'Measuring elevation from terrain data…' : 'Elevation is unavailable for this route.'}</p>
+      )}
+
+      {endpoints && (
+        <p className="route-legend">
+          {endpoints.isLoop ? (
+            <span><span aria-hidden="true" dangerouslySetInnerHTML={{ __html: endpointIconMarkup('loop', 18) }} />Start and finish</span>
+          ) : (
+            <>
+              <span><span aria-hidden="true" dangerouslySetInnerHTML={{ __html: endpointIconMarkup('start', 18) }} />Start</span>
+              <span><span aria-hidden="true" dangerouslySetInnerHTML={{ __html: endpointIconMarkup('finish', 18) }} />Finish</span>
+            </>
+          )}
+        </p>
       )}
 
       {/* Always rendered, so opening it can slide; inert while folded. */}

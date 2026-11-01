@@ -1,8 +1,9 @@
 import kluangGpx from '../../data/routes/kluang-district-trail-run.gpx?raw';
 import ridgesGpx from '../../data/routes/southern-ridges-walk.gpx?raw';
 import { describe, expect, it } from 'vitest';
+import type { RoutePoint } from '../types';
 import { parseGpx } from './gpx';
-import { NO_ROUTE_FILTERS, filterRoutes, mixByDifficulty, nearestPointOnRoute, routeFromPoints, routeLink, routeSlugFromHash, routesBounds, routesNear, routesWithin } from './routes';
+import { NO_ROUTE_FILTERS, filterRoutes, mixByDifficulty, nearestPointOnRoute, routeFromPoints, routeEndpoints, routeLink, routeSlugFromHash, routesBounds, routesNear, routesWithin } from './routes';
 
 const kluang = routeFromPoints('Kluang', parseGpx(kluangGpx).points, []);
 const ridges = routeFromPoints('Southern Ridges', parseGpx(ridgesGpx).points, []);
@@ -197,5 +198,35 @@ describe('route links', () => {
     expect(routeSlugFromHash('#route/Has Spaces')).toBeNull();
     expect(routeSlugFromHash('#route/%E0%A4%A')).toBeNull();
     expect(routeSlugFromHash('#route/<script>')).toBeNull();
+  });
+});
+
+
+describe('route endpoints', () => {
+  const north = (metres: number): RoutePoint => [103.8, 1.3 + metres / 111_195, 10];
+
+  it('finds the first and last point of a route', () => {
+    const found = routeEndpoints([[103.8, 1.3, 5], [103.81, 1.31, 9], [103.82, 1.32, 7]]);
+    expect(found).toEqual({ start: [103.8, 1.3], finish: [103.82, 1.32], isLoop: false });
+  });
+
+  it('calls a route a loop when it finishes within 100 m of where it started', () => {
+    expect(routeEndpoints([north(0), north(2000), north(60)])?.isLoop).toBe(true);
+    expect(routeEndpoints([north(0), north(2000), north(99)])?.isLoop).toBe(true);
+    expect(routeEndpoints([north(0), north(2000), north(130)])?.isLoop).toBe(false);
+  });
+
+  it('agrees with the loop flag a built route carries', () => {
+    const points = [north(0), north(2000), north(80)];
+    expect(routeEndpoints(points)?.isLoop).toBe(true);
+    expect(routeFromPoints('Round', points, []).loop).toBe(true);
+  });
+
+  it('returns null for bad input rather than markers in the wrong place', () => {
+    expect(routeEndpoints(null)).toBeNull();
+    expect(routeEndpoints(undefined)).toBeNull();
+    expect(routeEndpoints([])).toBeNull();
+    expect(routeEndpoints([north(0)])).toBeNull();
+    expect(routeEndpoints([[Number.NaN, 1.3, 0], north(10)])).toBeNull();
   });
 });

@@ -330,7 +330,7 @@ writeFileSync(
 - Routes: ${SITE}/#routes
 - Every place has a page at ${SITE}/place/<slug>/ and every country at ${SITE}/country/<iso-code>/
 - Sitemap: ${SITE}/sitemap.xml
-- Source code and data (MIT licence): https://github.com/StarlightsJourney/HillGPX
+- Licences (MIT code, CC BY 4.0 routes and reviews, CC BY-SA photos): ${SITE}/#data
 
 ## Countries with the most mapped summits
 ${topCountries.map(([code, [count]]) => `- [${countryName(code)}](${SITE}/country/${code.toLowerCase()}/): ${count.toLocaleString('en')} summits`).join('\n')}

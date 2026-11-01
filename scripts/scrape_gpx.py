@@ -42,7 +42,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 OUT_DIR = REPO_ROOT / "data" / "routes"
 
-USER_AGENT = "HillGPX/0.2 (open source; https://github.com/StarlightsJourney/HillGPX)"
+USER_AGENT = "HillGPX/0.2 (open source; https://hillgpx.com)"
 
 
 def ssl_context() -> ssl.SSLContext:

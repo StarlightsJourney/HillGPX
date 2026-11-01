@@ -653,6 +653,65 @@ export async function submitReport(input: { targetType: ReportTarget; targetSlug
   track('report_sent', input.targetType);
 }
 
+export type ContactKind = 'question' | 'feedback' | 'removal' | 'other';
+
+/**
+ * A question, bit of feedback or removal request from the contact form. It
+ * lands in the same insert-only reports queue as everything else, so the
+ * moderators have one place to look; `replyTo` is the optional address for a
+ * private answer.
+ */
+export async function submitContact(input: { kind: ContactKind; message: string; author: string; replyTo: string }): Promise<void> {
+  await rest('/rest/v1/reports', {
+    method: 'POST',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      target_type: 'site',
+      target_slug: 'site',
+      kind: input.kind,
+      message: input.message.trim().slice(0, 1000),
+      author: input.author.trim().slice(0, 60) || null,
+      reply_to: input.replyTo.trim().slice(0, 160) || null,
+    }),
+  });
+  track('contact_sent', input.kind);
+}
+
+/** A suggested place (hill, stairs, block…) from the Add a missing place form — same moderator queue as reports. */
+export async function submitPlaceSuggestion(input: {
+  name: string;
+  type: string;
+  lat: string;
+  lng: string;
+  gainM: string;
+  summitM: string;
+  source: string;
+  notes: string;
+  author: string;
+}): Promise<void> {
+  const lines = [
+    `Name: ${input.name}`,
+    `Type: ${input.type}`,
+    `Location: ${input.lat}, ${input.lng}`,
+  ];
+  if (input.gainM.trim()) lines.push(`Height gain: ${input.gainM.trim()} m`);
+  if (input.summitM.trim()) lines.push(`Summit elevation: ${input.summitM.trim()} m`);
+  lines.push(`Source: ${input.source.trim()}`);
+  if (input.notes.trim()) lines.push(`Access notes: ${input.notes.trim()}`);
+  await rest('/rest/v1/reports', {
+    method: 'POST',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      target_type: 'site',
+      target_slug: 'site',
+      kind: 'add_place',
+      message: lines.join('\n').slice(0, 1000),
+      author: input.author.trim().slice(0, 60) || null,
+    }),
+  });
+  track('place_suggested', input.type);
+}
+
 /* ─── Photos and hazards along a route ─────────────────────────────────── */
 
 export interface RoutePhoto {

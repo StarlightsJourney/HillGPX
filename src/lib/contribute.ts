@@ -1,22 +1,23 @@
 /**
- * Contribution links.
+ * Contribution plumbing.
  *
- * There is no server, so a rating, a photo or a new place is published the same
- * way a height fix is: as a reviewable change to the repository. These build
- * links to the GitHub issue forms in .github/ISSUE_TEMPLATE, prefilled with
- * whatever the page already knows, so contributing is one click and one submit.
+ * Ratings, photos, routes, reports, contact messages and place suggestions
+ * all go into the shared store through api.ts; this module holds the events
+ * that open those forms from anywhere and the bits of browser state they use.
  */
 import type { ReportTarget } from './api';
 
-export const REPO_URL = 'https://github.com/StarlightsJourney/HillGPX';
-
-/** Questions and removal requests: a public GitHub form (see .github/ISSUE_TEMPLATE/contact.yml). */
-export const CONTACT_URL = `${REPO_URL}/issues/new?template=contact.yml`;
 /**
  * A private address for removal requests, shown on the Contact page when set.
  * Left empty until the maintainer chooses one to publish.
  */
 export const CONTACT_EMAIL = '';
+
+/** Opens the "Add a missing place" dialog from anywhere (the footer on every page); App listens. */
+export const ADD_PLACE_EVENT = 'hillgpx:add-place';
+export function requestAddPlace(): void {
+  window.dispatchEvent(new Event(ADD_PLACE_EVENT));
+}
 
 /** Opens the report form for something drawn outside React (map popups); App listens. */
 export const REPORT_EVENT = 'hillgpx:report';
@@ -47,25 +48,6 @@ export function openImportHere(event: { preventDefault: () => void }): void {
   window.dispatchEvent(new Event(IMPORT_EVENT));
 }
 
-function issueUrl(template: string, fields: Record<string, string | number | undefined>): string {
-  const params = new URLSearchParams({ template });
-  for (const [key, value] of Object.entries(fields)) {
-    if (value !== undefined && value !== '') params.set(key, String(value));
-  }
-  return `${REPO_URL}/issues/new?${params.toString()}`;
-}
-
-export const rateVenueUrl = (venue: string, rating?: number, name?: string) =>
-  issueUrl('rate-venue.yml', { venue, rating, title: name ? `Rating: ${name}` : undefined });
-
-export const addPhotoUrl = (venue: string, name?: string) =>
-  issueUrl('add-photo.yml', { venue, title: name ? `Photo: ${name}` : undefined });
-
-export const addPlaceUrl = (lat?: number, lng?: number) =>
-  issueUrl('add-place.yml', { lat: lat?.toFixed(5), lng: lng?.toFixed(5) });
-
-export const addRouteUrl = (name?: string) => issueUrl('add-route.yml', { name });
-
 const RATINGS_KEY = 'hillgpx:myRatings';
 
 /** Your own ratings, kept in this browser until they are published. */
@@ -83,6 +65,6 @@ export function saveMyRating(slug: string, rating: number): void {
   try {
     localStorage.setItem(RATINGS_KEY, JSON.stringify(next));
   } catch {
-    // Storage full or disabled: the GitHub link still works without it.
+    // Storage full or disabled: the rating just is not remembered.
   }
 }

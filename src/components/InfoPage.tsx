@@ -1,14 +1,17 @@
 import { useEffect } from 'react';
-import { CONTACT_EMAIL, CONTACT_URL, REPO_URL } from '../lib/contribute';
+import { CONTACT_EMAIL } from '../lib/contribute';
 import { ANALYTICS } from '../lib/analytics';
+import { ContactForm } from './ContactForm';
 import { SiteSearch } from './SearchBar';
 import { SiteFooter, SiteHeader } from './SiteChrome';
 
-export type InfoPageId = 'privacy' | 'terms' | 'contact';
+export type InfoPageId = 'privacy' | 'terms' | 'community' | 'data' | 'contact';
 
 const TABS: { id: InfoPageId; label: string }[] = [
   { id: 'privacy', label: 'Privacy' },
   { id: 'terms', label: 'Contributions and licences' },
+  { id: 'community', label: 'How we run and fund it' },
+  { id: 'data', label: 'Data and licences' },
   { id: 'contact', label: 'Contact' },
 ];
 
@@ -49,6 +52,7 @@ function Privacy() {
         <li><strong>GPX routes:</strong> the track and its elevation. Heart rate, cadence, power and other device data are removed before upload.</li>
         <li><strong>Photos:</strong> re-encoded in your browser before upload, which removes location and camera data.</li>
         <li><strong>Reviews, ratings and reports:</strong> what you write, and the name you give, if any. A route review needs an account. If you post one as anonymous, your name is not shown, but it stays linked to your account privately so you can edit or delete it.</li>
+        <li><strong>Contact messages:</strong> what you write in the contact form, and a reply email if you choose to leave one. Only the volunteer moderators see them.</li>
         <li><strong>Automated checks:</strong> usernames, review text, route names, captions and photos are screened by OpenAI's moderation service as you submit them. Anything it flags is refused and not stored. OpenAI does not use this data to train its models.</li>
         <li><strong>Spam protection:</strong> a one-way, salted fingerprint of your network address, used only to limit how often one connection can post. It cannot be turned back into your address and is deleted after a day.</li>
       </ul>
@@ -101,25 +105,113 @@ function Terms() {
       </ul>
       <h2>The code and the data we build on</h2>
       <p>
-        The code is open source under the <a href={`${REPO_URL}/blob/HEAD/LICENSE`} target="_blank" rel="noreferrer">MIT licence</a>. Map data © OpenStreetMap contributors (ODbL), summits from GeoNames (CC BY 4.0), photos from Wikimedia Commons and Mapillary under their own licences, weather from Open-Meteo (CC BY 4.0). Singapore neighbourhood search contains information from Master Plan 2019 Subzone Boundary (No Sea) accessed on 25 October 2026 from data.gov.sg which is made available under the terms of the Singapore Open Data Licence version 1.0{' '}
-        (<a href="https://data.gov.sg/open-data-licence" target="_blank" rel="noreferrer">licence</a>). The full list is in the{' '}
-        <a href={`${REPO_URL}/blob/HEAD/README.md#data-sources-and-licensing`} target="_blank" rel="noreferrer">data sources and licences</a>.
+        The code is open source under the <a href="#data">MIT licence</a>. Map data © OpenStreetMap contributors (ODbL), summits from GeoNames (CC BY 4.0), photos from Wikimedia Commons and Mapillary under their own licences, weather from Open-Meteo (CC BY 4.0). Singapore neighbourhood search contains information from Master Plan 2019 Subzone Boundary (No Sea) accessed on 25 October 2026 from data.gov.sg which is made available under the terms of the Singapore Open Data Licence version 1.0{' '}
+        (<a href="https://data.gov.sg/open-data-licence" target="_blank" rel="noreferrer">licence</a>). The full list is on the{' '}
+        <a href="#data">data and licences</a> page.
       </p>
     </>
   );
 }
 
+function Community() {
+  return (
+    <>
+      <h1>How we run and fund it</h1>
+      <p className="info-lead">hillGPX is free to use and owned by the community that builds it. This is the deal, in plain words.</p>
+      <h2>Open by default</h2>
+      <ul>
+        <li><strong>The code</strong> is open source under the MIT licence.</li>
+        <li><strong>Routes and reviews</strong> are shared under CC BY 4.0 — free to download and reuse, with credit to the contributor.</li>
+        <li><strong>Photos</strong> are shared under CC BY-SA 4.0, CC BY 4.0 or CC0, whichever the contributor picks.</li>
+        <li><strong>Map and summit data</strong> come from OpenStreetMap and GeoNames under their own open licences.</li>
+      </ul>
+      <p>Browsing, downloading and uploading need no account and no payment, and everything contributed can be exported again — the archive never depends on one host.</p>
+      <h2>How people contribute</h2>
+      <p>Routes, ratings and reviews go live the moment they are sent. Photos appear after a quick volunteer check. The name a contributor gives is shown on everything they share.</p>
+      <h2>How quality stays high</h2>
+      <ul>
+        <li>Duplicate tracks are refused automatically, and every route shows where its elevation numbers came from.</li>
+        <li>Volunteer moderators check photos and read every report; anything several people flag is hidden until a moderator looks.</li>
+        <li>Names, text and photos are screened by automated checks before they are stored.</li>
+      </ul>
+      <h2>Who runs it</h2>
+      <ul>
+        <li><strong>Maintainers</strong> — always at least two, so there is no single point of failure — look after the site.</li>
+        <li><strong>Moderators</strong> check photos and answer reports; they come from local running and hiking clubs.</li>
+        <li>Decisions are discussed in the open, and anything involving money gets a public discussion before it ships.</li>
+      </ul>
+      <h2>What it costs</h2>
+      <p>hillGPX runs on free tiers today. Storing photos is the first thing likely to cost real money as the archive grows, and usage and spending are published so the community can see them.</p>
+      <h2>Paying for it, without selling out</h2>
+      <ul>
+        <li>The map, downloads and uploads stay free forever.</li>
+        <li>Money never changes the data: no paid ranking, no hidden placements, and nobody's data or tracks are sold.</li>
+        <li>Anything sponsored is labelled "Sponsored" or "Partner", every time.</li>
+        <li>Income and spending are published.</li>
+      </ul>
+      <p>Donations and grants cover running costs first. Later, clearly labelled income — event listings, partner cards, tools for clubs — can fund maintainer time and moderation.</p>
+      <h2>Where it is heading</h2>
+      <p>An open archive where every route has a stable link, a downloadable original file, a licence and a credit — free for other apps and mirrors to build on.</p>
+    </>
+  );
+}
+
+function DataSources() {
+  return (
+    <>
+      <h1>Data sources and licences</h1>
+      <p className="info-lead">Everything on the map is credited to the people and projects it came from.</p>
+      <h2>Where the data comes from</h2>
+      <ul>
+        <li><strong>Map data</strong> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors (ODbL), served by <a href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a>.</li>
+        <li><strong>Worldwide summits</strong> from <a href="https://www.geonames.org" target="_blank" rel="noreferrer">GeoNames</a> (CC BY 4.0) and OpenStreetMap (ODbL).</li>
+        <li><strong>Place summaries</strong> from <a href="https://en.wikipedia.org" target="_blank" rel="noreferrer">Wikipedia</a> (CC BY-SA).</li>
+        <li><strong>Photos</strong> from <a href="https://commons.wikimedia.org" target="_blank" rel="noreferrer">Wikimedia Commons</a> and <a href="https://www.mapillary.com" target="_blank" rel="noreferrer">Mapillary</a>, each credited.</li>
+        <li><strong>Weather</strong> from <a href="https://open-meteo.com" target="_blank" rel="noreferrer">Open-Meteo</a> (CC BY 4.0).</li>
+        <li><strong>Elevation and hillshade</strong> from <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noreferrer">AWS Terrain Tiles</a>.</li>
+        <li><strong>Singapore blocks</strong> from <a href="https://data.gov.sg" target="_blank" rel="noreferrer">data.gov.sg</a>; neighbourhood search contains information from Master Plan 2019 Subzone Boundary (No Sea) accessed on 25 October 2026 from data.gov.sg under the <a href="https://data.gov.sg/open-data-licence" target="_blank" rel="noreferrer">Singapore Open Data Licence 1.0</a>.</li>
+      </ul>
+      <h2>Licences for what people add</h2>
+      <ul>
+        <li><strong>GPX routes and reviews:</strong> CC BY 4.0, credited with the name the contributor gives.</li>
+        <li><strong>Photos:</strong> CC BY-SA 4.0, CC BY 4.0 or CC0 — the contributor picks at upload.</li>
+      </ul>
+      <h2>The code</h2>
+      <p>hillGPX's code is open source under the MIT licence:</p>
+      <pre className="licence-block">{MIT_TEXT}</pre>
+    </>
+  );
+}
+
+const MIT_TEXT = `MIT License
+
+Copyright (c) 2026 hillGPX contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.`;
+
 function Contact() {
   return (
     <>
       <h1>Contact</h1>
-      <p className="info-lead">Questions, corrections and removal requests are all welcome.</p>
+      <p className="info-lead">Questions, corrections and removal requests are all welcome — they go straight to the volunteer moderators.</p>
+      <ContactForm />
       <ul className="info-contact">
-        <li>
-          <strong>Ask or request a removal</strong>
-          <span>Use the public form on GitHub. Do not include private details there; say if you need a private reply.</span>
-          <a className="btn btn-dark" href={CONTACT_URL} target="_blank" rel="noreferrer">Open the contact form</a>
-        </li>
         {CONTACT_EMAIL && (
           <li>
             <strong>Private requests</strong>
@@ -136,7 +228,7 @@ function Contact() {
   );
 }
 
-/** Privacy, contribution terms and licences, and contact: one quiet page with three tabs, reached from the footer. */
+/** Privacy, contribution terms and licences, the community and data pages, and contact: one quiet page with five tabs, reached from the footer. */
 export function InfoPage({ page }: { page: InfoPageId }) {
   useEffect(() => {
     window.scrollTo({ top: 0 });
@@ -156,7 +248,9 @@ export function InfoPage({ page }: { page: InfoPageId }) {
             </a>
           ))}
         </nav>
-        <article className="info-article">{page === 'privacy' ? <Privacy /> : page === 'terms' ? <Terms /> : <Contact />}</article>
+        <article className="info-article">
+          {page === 'privacy' ? <Privacy /> : page === 'terms' ? <Terms /> : page === 'community' ? <Community /> : page === 'data' ? <DataSources /> : <Contact />}
+        </article>
       </main>
       <SiteFooter />
     </div>

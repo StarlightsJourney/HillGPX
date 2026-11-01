@@ -50,8 +50,9 @@ import { SiteFooter, SiteHeader } from './components/SiteChrome';
 import { OpenSourceBadge, OpenSourceNotice } from './components/OpenSourceNotice';
 import { errorText, fetchCommunityRoutes, fetchRoutePhotos, type RoutePhoto } from './lib/api';
 import { findOverlaps } from './lib/routeAnalysis';
-import { IMPORT_EVENT, REPORT_EVENT, type ReportRequest } from './lib/contribute';
+import { IMPORT_EVENT, REPORT_EVENT, ADD_PLACE_EVENT, type ReportRequest } from './lib/contribute';
 import { ReportModal } from './components/ReportModal';
+import { AddPlaceModal } from './components/AddPlaceModal';
 import { SetPasswordModal } from './components/AuthModal';
 import { clearPasswordRecovery, usePasswordRecovery } from './lib/auth';
 import { track } from './lib/analytics';
@@ -71,7 +72,7 @@ const MapView = lazy(() => import('./map/MapView').then((m) => ({ default: m.Map
 
 type View = 'landing' | 'map' | 'training' | 'account' | 'settings' | InfoPageId;
 
-const INFO_PAGES: ReadonlySet<string> = new Set<InfoPageId>(['privacy', 'terms', 'contact']);
+const INFO_PAGES: ReadonlySet<string> = new Set<InfoPageId>(['privacy', 'terms', 'community', 'data', 'contact']);
 
 function viewFromHash(): View {
   const hash = window.location.hash;
@@ -93,12 +94,20 @@ export default function App() {
   const [view, setView] = useState<View>(viewFromHash);
   // "Report" on a photo or review anywhere (map popups dispatch requestReport).
   const [report, setReport] = useState<ReportRequest | null>(null);
+  // The footer's "Add a missing place" opens the suggestion dialog anywhere.
+  const [addPlaceOpen, setAddPlaceOpen] = useState(false);
   // A reset-password email link opens a recovery session — collect the new password.
   const recovering = usePasswordRecovery();
   useEffect(() => {
     const open = (event: Event) => setReport((event as CustomEvent<ReportRequest>).detail);
     window.addEventListener(REPORT_EVENT, open);
     return () => window.removeEventListener(REPORT_EVENT, open);
+  }, []);
+
+  useEffect(() => {
+    const open = () => setAddPlaceOpen(true);
+    window.addEventListener(ADD_PLACE_EVENT, open);
+    return () => window.removeEventListener(ADD_PLACE_EVENT, open);
   }, []);
 
   useEffect(() => {
@@ -127,6 +136,7 @@ export default function App() {
       )}
       {view === 'landing' && <OpenSourceNotice />}
       {report && <ReportModal targetType={report.targetType} targetSlug={report.targetSlug} targetName={report.targetName} onClose={() => setReport(null)} />}
+      {addPlaceOpen && <AddPlaceModal onClose={() => setAddPlaceOpen(false)} />}
       {recovering && <SetPasswordModal onClose={clearPasswordRecovery} />}
       {view !== 'map' && view !== 'account' && view !== 'settings' && <OpenSourceBadge placement={view === 'landing' ? 'landing' : 'corner'} />}
     </UnitsProvider>

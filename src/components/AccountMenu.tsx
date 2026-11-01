@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { accountHref } from '../lib/accountRoute';
 import { logOut, useAuthUser } from '../lib/auth';
-import { REPO_URL } from '../lib/contribute';
 import { useMyRoutes } from '../lib/myRoutes';
 import { useSavedPlaces, useSavedRoutes } from '../lib/saved';
 import { AuthModal } from './AuthModal';
 import { Avatar } from './Avatar';
+import { ContactModal } from './ContactForm';
 import { ChevronRightIcon, GearIcon, HeartIcon, HelpIcon, LogOutIcon, RouteLineIcon, UserIcon } from './icons';
 
 /**
@@ -21,6 +21,7 @@ export function AccountMenu() {
   const user = useAuthUser();
   const [menuOpen, setMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -142,18 +143,19 @@ export function AccountMenu() {
             </a>
           </div>
           <div className="am-group muted">
-            <a
+            <button
+              type="button"
               className="am-item"
               role="menuitem"
               tabIndex={-1}
-              href={`${REPO_URL}/issues`}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => close(false)}
+              onClick={() => {
+                close(false);
+                setHelpOpen(true);
+              }}
             >
               <HelpIcon />
               <span>Help and feedback</span>
-            </a>
+            </button>
             <button
               type="button"
               className="am-item"
@@ -171,6 +173,7 @@ export function AccountMenu() {
         </div>
       )}
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
+      {helpOpen && <ContactModal onClose={() => setHelpOpen(false)} />}
     </div>
   );
 }

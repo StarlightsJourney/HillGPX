@@ -59,7 +59,7 @@ OVERPASS_URLS = (
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
 )
-USER_AGENT = "HillGPX/0.2 (open source; https://github.com/StarlightsJourney/HillGPX)"
+USER_AGENT = "HillGPX/0.2 (open source; https://hillgpx.com)"
 
 # Seconds between consecutive region requests.
 POLITE_PAUSE_S = 10

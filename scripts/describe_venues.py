@@ -45,7 +45,7 @@ VENUES = os.path.join(ROOT, "public", "data", "venues.json")
 ROUTES = os.path.join(ROOT, "public", "data", "routes.json")
 SUPABASE_URL = os.environ.get("VITE_SUPABASE_URL", "https://dzpgnebkyubeptitzjlj.supabase.co")
 SUPABASE_KEY = os.environ.get("VITE_SUPABASE_KEY", "sb_publishable_invDmVPb4d4aKqTMTRp72w_hpFBZ0AI")
-USER_AGENT = "HillGPX/0.3 (open source; https://github.com/StarlightsJourney/HillGPX)"
+USER_AGENT = "HillGPX/0.3 (open source; https://hillgpx.com)"
 
 SYSTEM_PROMPT = """You write the "About this place" line on HillGPX, a free community map of hills, mountains, staircases and tall blocks that people climb to train.
 

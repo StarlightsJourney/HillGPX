@@ -91,6 +91,8 @@ End-to-end: `npx playwright test --workers=2`. With the default worker count on 
 
 ## Environment quirks and required permissions
 
+- **The GitHub repo is private.** The site links nowhere to github.com: contact, help/feedback and "Add a missing place" are in-site forms that write to the `reports` table (migration `20261101010000_contact_reports.sql` added the `site` target, `question`/`feedback`/`removal`/`add_place` kinds and `reply_to`); "How we run and fund it" (`#community`), "Data sources and licences" (`#data`, includes the MIT text) and Contact are tabs on the info page. Do not re-add repo links or GitHub issue forms.
+
 - **Port 5180 is strict.** `vite.config.ts` sets `strictPort: true`; if another process holds the port, `npm run dev` fails loudly. Stop the other process or temporarily override `PORT`. Playwright's `reuseExistingServer` would silently test whatever holds 5180 (often another checkout): run e2e with a throwaway config outside the repo that extends `playwright.config.ts` with another `baseURL` and `webServer.command: 'npx vite --port <n> --strictPort --open false'` (CLI flags override `vite.config.ts`); do not commit it. Outside the repo it cannot resolve `@playwright/test`: symlink the checkout's `node_modules` beside it (or import by absolute path), and give each parallel worktree its own port.
 - **OneMap credentials** are only needed for `scripts/ingest_hdb.py`. Without them, do not run that script; use the committed `data/venues/hdb-blocks.json`.
 - **Mapillary token** is only needed for `scripts/fetch_photos.py`. Without it, photos are not refreshed.

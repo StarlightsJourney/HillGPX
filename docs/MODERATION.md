@@ -1,9 +1,22 @@
 # Moderating hillGPX
 
 Everything people add goes straight from their browser to the project's
-Supabase database and **appears straight away**. Nobody has to approve it
-first. Instead:
+Supabase database and **appears straight away** — once it passes the screens
+below. Nobody has to approve it first. Instead:
 
+- **Automated moderation screens every submission** inside the database
+  transaction (`supabase/migrations/20261101000000_ai_moderation.sql`). A
+  trigger sends the username, review text, route name, caption or photo to
+  `/api/moderate` (a Cloudflare Pages function that asks OpenAI's free
+  `omni-moderation-latest` model) and **refuses flagged content outright** —
+  it is never stored, and the API caller gets a plain sentence back. A
+  flagged username at sign-up is swapped for a generated `climber-XXXXXXXX`
+  handle instead of refusing the account; a flagged rename is refused. If
+  the check cannot answer, writes are refused (fail-closed) — flip
+  `private.settings` → `moderation_fail` to `'open'` during an outage and
+  back afterwards. Refusals, resets and outages are noted in the Postgres
+  log (a refused write rolls its transaction back, so no table could keep
+  the record): Dashboard → Logs → Postgres logs, filter "moderation_gate".
 - **Automatic checks** run on every contribution: per-person rate limits, one
   review per place per day, no web links, file type and size limits, and
   daily ceilings (`supabase/migrations/20261006000000_spam_limits.sql`).
@@ -13,9 +26,25 @@ first. Instead:
   hidden at once (`status` goes back to `pending`) and waits for you
   (`supabase/migrations/20261007000000_auto_publish.sql`).
 
-So the only regular job is the reports queue. There is no admin page on the
-site: moderation happens in the Supabase dashboard, where you are signed in
-as the project owner.
+So the regular jobs are the reports queue and an occasional grep of the
+Postgres log for "moderation_gate" false positives. There is no admin page
+on the site: moderation happens in the Supabase dashboard, where you are
+signed in as the project owner.
+
+## Automated moderation upkeep
+
+- **The OpenAI key** lives in the Cloudflare Pages project → Settings →
+  Variables and Secrets → `OPENAI_API_KEY` (the moderation endpoint is free;
+  the key is still needed). Locally it goes in `.dev.vars` for
+  `wrangler pages dev`. Put a rate-limit rule on `/api/moderate` in
+  Cloudflare → Security → WAF → Rate limiting, since the endpoint is public.
+- **Orphaned photo files:** a refused photo row leaves its uploaded file in
+  the bucket. Run `select public.purge_orphan_photos();` in the SQL editor
+  now and then — it deletes unreferenced `photos`-bucket files older than
+  30 minutes and returns the count.
+- **The moderation URL** is `private.settings` → `moderation_url`
+  (`https://hillgpx.com/api/moderate`). Point it at a Pages preview or a
+  tunnel when testing the trigger against a non-production function.
 
 ## Where people add things
 
@@ -55,7 +84,7 @@ To make hiding stricter or looser, change how many reports it takes:
 
 Route reviews (`route_reviews`) use the same `status` column, and the same
 reports queue (`target_type` is `route_review`, `target_slug` is the review's
-`id`). There is nothing to check before they go up.
+`id`). Only the automated screen stands between them and going up.
 
 | To | Change | What happens |
 | --- | --- | --- |

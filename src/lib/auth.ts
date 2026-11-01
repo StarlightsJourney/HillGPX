@@ -12,6 +12,7 @@ import { useSyncExternalStore } from 'react';
 import type { AuthError, User } from '@supabase/supabase-js';
 import { ApiError, apiErrorMessage, isSchemaError, publicUrl, supabase } from './api';
 import { track } from './analytics';
+import { MODERATION_MESSAGES, moderateText, refusalMessage } from './moderate';
 import { syncSavedForUser } from './saved';
 import type { RoutePoint } from '../types';
 import type { QualityFlag } from './routeQuality';
@@ -211,6 +212,8 @@ export async function signUp(username: string, email: string, password: string):
   if (!/^[A-Za-z0-9_.-]{3,24}$/.test(username)) {
     throw new ApiError('Usernames are 3–24 letters, numbers, dots, dashes or underscores.', 400);
   }
+  const refused = refusalMessage(await moderateText(username), [MODERATION_MESSAGES.username]);
+  if (refused) throw new ApiError(refused, 400);
   // A friendly check before the database's unique index says the same thing.
   // (ilike wildcards make _ and % match anything — compare the hit properly.)
   const { data: hits } = await supabase.from('profiles').select('username').ilike('username', username).limit(1);
@@ -352,6 +355,8 @@ export async function changeUsername(next: string): Promise<void> {
     throw new ApiError('Usernames are 3–24 letters, numbers, dots, dashes or underscores.', 400);
   }
   if (username === current.username) return;
+  const refused = refusalMessage(await moderateText(username), [MODERATION_MESSAGES.username]);
+  if (refused) throw new ApiError(refused, 400);
   // As at sign-up, ilike's wildcards only narrow the list; the lower() match
   // below is the real comparison, and the owner's own row is not a clash.
   const { data: hits } = await supabase.from('profiles').select('id,username').ilike('username', username).limit(10);

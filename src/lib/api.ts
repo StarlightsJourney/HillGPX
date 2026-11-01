@@ -14,6 +14,7 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import { track } from './analytics';
+import { MODERATION_MESSAGES, blobToBase64, moderate, moderateImage, moderateText, refusalMessage } from './moderate';
 import type { Route, RouteActivity, RoutePoint } from '../types';
 import { toGpx } from './gpx';
 import type { QualityFlag } from './routeQuality';
@@ -206,6 +207,8 @@ export async function submitReview(input: { venueSlug: string; rating: number; c
     author: input.author.trim().slice(0, 60) || 'Anonymous',
     createdAt: new Date().toISOString(),
   };
+  const refused = refusalMessage(await moderateText(review.comment), [MODERATION_MESSAGES.comment]);
+  if (refused) throw new ApiError(refused, 400);
   await rest('/rest/v1/reviews', {
     method: 'POST',
     headers: { Prefer: 'return=minimal' },
@@ -293,7 +296,7 @@ export function fetchRouteReviews(routeSlug: string): Promise<RouteReview[]> {
   });
 }
 
-export function submitRouteReview(input: { routeSlug: string; rating: number; comment: string; author: string }): Promise<RouteReview> {
+export async function submitRouteReview(input: { routeSlug: string; rating: number; comment: string; author: string }): Promise<RouteReview> {
   const { comment, author } = reviewText(input);
   const review: RouteReview = {
     id: id(),
@@ -304,6 +307,8 @@ export function submitRouteReview(input: { routeSlug: string; rating: number; co
     createdAt: new Date().toISOString(),
     editedAt: null,
   };
+  const refused = refusalMessage(await moderateText(comment), [MODERATION_MESSAGES.comment]);
+  if (refused) throw new ApiError(refused, 400);
   return routeReviewCall(async () => {
     await rest('/rest/v1/route_reviews', {
       method: 'POST',
@@ -315,8 +320,10 @@ export function submitRouteReview(input: { routeSlug: string; rating: number; co
   });
 }
 
-export function editRouteReview(reviewId: string, input: { rating: number; comment: string; author: string }): Promise<RouteReview> {
+export async function editRouteReview(reviewId: string, input: { rating: number; comment: string; author: string }): Promise<RouteReview> {
   const { comment, author } = reviewText(input);
+  const refused = refusalMessage(await moderateText(comment), [MODERATION_MESSAGES.comment]);
+  if (refused) throw new ApiError(refused, 400);
   return routeReviewCall(async () => {
     const [row] = await rest<RouteReviewRow[]>('/rest/v1/rpc/edit_route_review', {
       method: 'POST',
@@ -387,6 +394,8 @@ async function preparePhoto(file: File): Promise<Blob> {
 export async function submitPhoto(input: { venueSlug: string; file: File; credit: string; licence: string; author: string }): Promise<void> {
   if (!input.file.type.startsWith('image/')) throw new ApiError('That file is not an image.', 400);
   const blob = await preparePhoto(input.file);
+  const refused = refusalMessage(await moderateImage(blob), [MODERATION_MESSAGES.photo]);
+  if (refused) throw new ApiError(refused, 400);
   const photoId = id();
   const path = `${storageSafe(input.venueSlug)}/${photoId}.jpg`;
   await upload('photos', path, blob, 'image/jpeg');
@@ -490,6 +499,8 @@ export interface PublishRouteInput {
 /** Store the GPX file and its row. The database rejects a second copy of the same track. */
 export async function publishRoute(input: PublishRouteInput): Promise<Route> {
   const { route } = input;
+  const refused = refusalMessage(await moderateText(route.name), [MODERATION_MESSAGES.routeName]);
+  if (refused) throw new ApiError(refused, 400);
   // Originals are gzipped: a 50 MB ultra GPX becomes a few MB, inside the bucket limit.
   const canGzip = typeof CompressionStream !== 'undefined' && typeof Blob.prototype.stream === 'function';
   const gpxPath = `${storageSafe(route.slug)}.gpx${canGzip ? '.gz' : ''}`;
@@ -689,6 +700,13 @@ export async function fetchRoutePhotos(routeSlug: string): Promise<RoutePhoto[]>
 export async function submitRoutePhoto(input: { routeSlug: string; lng: number; lat: number; kind: 'photo' | 'hazard'; caption: string; file: File; author: string }): Promise<RoutePhoto> {
   if (!input.file.type.startsWith('image/')) throw new ApiError('That file is not an image.', 400);
   const blob = await preparePhoto(input.file);
+  const caption = input.caption.trim().slice(0, 280);
+  const check = await moderate([
+    { type: 'image', base64: await blobToBase64(blob) },
+    ...(caption ? [{ type: 'text', text: caption } as const] : []),
+  ]);
+  const refused = refusalMessage(check, caption ? [MODERATION_MESSAGES.photo, MODERATION_MESSAGES.caption] : [MODERATION_MESSAGES.photo]);
+  if (refused) throw new ApiError(refused, 400);
   const photoId = id();
   const path = `route-${storageSafe(input.routeSlug).slice(0, 70)}/${photoId}.jpg`;
   await upload('photos', path, blob, 'image/jpeg');
@@ -701,7 +719,7 @@ export async function submitRoutePhoto(input: { routeSlug: string; lng: number; 
       lng: input.lng,
       lat: input.lat,
       kind: input.kind,
-      caption: input.caption.trim().slice(0, 280) || null,
+      caption: caption || null,
       storage_path: path,
       author: input.author.trim().slice(0, 60) || null,
     }),
@@ -713,7 +731,7 @@ export async function submitRoutePhoto(input: { routeSlug: string; lng: number; 
     lng: input.lng,
     lat: input.lat,
     kind: input.kind,
-    caption: input.caption.trim(),
+    caption,
     url: publicUrl('photos', path),
     author: input.author.trim() || 'You',
     createdAt: new Date().toISOString(),

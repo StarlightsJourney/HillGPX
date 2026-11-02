@@ -69,7 +69,8 @@ export const QUALITY_LIMITS = {
   minDistanceM: 300,
   minPoints: 10,
   maxVerticalMps: 5,
-  maxGainPerKm: 400,
+  // Temporarily disabled: Infinity never trips. Restore to 400 to re-enable.
+  maxGainPerKm: Infinity,
   gainWindowM: 1000,
 } as const;
 

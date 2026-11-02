@@ -1015,7 +1015,16 @@ export function MapView({
     const map = mapRef.current;
     if (!map) return;
     const markers = photoMarkersRef.current;
-    for (const photo of routePhotos ?? []) markers.set(photo.id, routePhotoMarker(photo).addTo(map));
+    for (const photo of routePhotos ?? []) {
+      const marker = routePhotoMarker(photo).addTo(map);
+      // Opening one photo or hazard closes the one that was open before it.
+      marker.getPopup()?.on('open', () => {
+        markers.forEach((other) => {
+          if (other !== marker && other.getPopup()?.isOpen()) other.togglePopup();
+        });
+      });
+      markers.set(photo.id, marker);
+    }
     return () => {
       markers.forEach((marker) => marker.remove());
       markers.clear();

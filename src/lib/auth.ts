@@ -423,6 +423,9 @@ interface MyUploadRow {
   quality_flags?: QualityFlag[];
 }
 
+/** Columns added by later migrations; a database without them still lists the routes. */
+const OPTIONAL_UPLOAD_COLUMNS = ['downloads', 'anonymous', 'quality_flags', 'status'];
+
 /** Community routes the signed-in user published (stamped with their id). */
 export async function fetchMyRoutes(): Promise<MyUpload[]> {
   const current = requireUser();
@@ -434,11 +437,18 @@ export async function fetchMyRoutes(): Promise<MyUpload[]> {
       .eq('user_id', current.id)
       .order('created_at', { ascending: false })
       .limit(500);
-  let { data, error } = await query(fields);
-  // Before the accounts migration adds routes.downloads/anonymous — fetch
-  // without them (user_id itself must exist; without it there are no owners).
-  if (error && isSchemaError(error)) {
-    ({ data, error } = await query(fields.replace(',downloads', '').replace(',anonymous', '').replace(',quality_flags', '')));
+  let columns = fields;
+  let { data, error } = await query(columns);
+  // A newer column may not exist on this database yet (a migration not applied).
+  // Drop only the column Postgres names and retry, so one missing column never
+  // hides the others (dropping `downloads` too showed 0 downloads everywhere).
+  // user_id itself must exist; without it there are no owners.
+  for (let attempt = 0; error && isSchemaError(error) && attempt < 4; attempt++) {
+    const missing = /column \w+\.(\w+) does not exist/.exec(error.message ?? '')?.[1];
+    const parts = columns.split(',');
+    if (!missing || !parts.includes(missing) || !OPTIONAL_UPLOAD_COLUMNS.includes(missing)) break;
+    columns = parts.filter((part) => part !== missing).join(',');
+    ({ data, error } = await query(columns));
   }
   if (error) throw dbError(error);
   // The column list is a variable (the fallback drops downloads), so the

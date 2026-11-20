@@ -1,5 +1,13 @@
 import type { RouteActivity } from '../types';
-import { CLIMB_S_PER_10M, DEFAULT_PACE_S_PER_KM } from './routeMatch';
+
+/** 6:30 per km on flat ground: the run planner's default pace, and the pace for a run. */
+export const DEFAULT_PACE_S_PER_KM = 390;
+
+/**
+ * Time added for climbing, in the spirit of Naismith's rule (a minute per
+ * 10 m for walkers), halved for runners.
+ */
+export const CLIMB_S_PER_10M = 30;
 
 /**
  * Rough time for a route at an easy, average pace: flat-ground pace per
@@ -22,10 +30,14 @@ export const EFFORT: Record<RouteActivity, Effort> = {
   cycle: { paceSPerKm: 200, climbSPer10M: 8 },
 };
 
-/** Estimated moving time in seconds. A route with no activity reads as a run, like the planner. */
-export function estimateRouteTimeS(distanceM: number, gainM: number, activity: RouteActivity | undefined): number {
+/**
+ * Estimated moving time in seconds. A route with no activity reads as a run.
+ * `paceScale` stretches the flat-ground pace only (a runner who is slower or
+ * quicker than the default scales every activity alike); climbing is not scaled.
+ */
+export function estimateRouteTimeS(distanceM: number, gainM: number, activity: RouteActivity | undefined, paceScale = 1): number {
   const effort = EFFORT[activity ?? 'run'];
-  return (distanceM / 1000) * effort.paceSPerKm + (Math.max(0, gainM) / 10) * effort.climbSPer10M;
+  return (distanceM / 1000) * effort.paceSPerKm * paceScale + (Math.max(0, gainM) / 10) * effort.climbSPer10M;
 }
 
 /** "~45 min", "~1 h 45 min", "~3 h": rounded, because the estimate is not precise. */

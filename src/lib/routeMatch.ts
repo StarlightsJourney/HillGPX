@@ -1,6 +1,8 @@
 import type { Route } from '../types';
 import type { Bounds } from './venues';
 import { NEAR_ME_RADII_M, distanceToRouteM, routeIntersects } from './routes';
+import { routeActivity } from './routeAnalysis';
+import { CLIMB_S_PER_10M, DEFAULT_PACE_S_PER_KM, estimateRouteTimeS } from './routeTime';
 
 export type Terrain = 'flat' | 'rolling' | 'hilly' | 'any';
 export type RunLength = { kind: 'time'; minutes: number } | { kind: 'distance'; metres: number };
@@ -13,14 +15,9 @@ export interface RunNeeds {
   paceSPerKm: number;
 }
 
-/** 6:30 per km on flat ground. */
-export const DEFAULT_PACE_S_PER_KM = 390;
-
-/**
- * Time added for climbing, in the spirit of Naismith's rule (a minute per
- * 10 m for walkers), halved for runners.
- */
-export const CLIMB_S_PER_10M = 30;
+// The pace and climb allowance live with the estimate itself (routeTime.ts), so the
+// planner, the cards and the route panel all read the same numbers.
+export { CLIMB_S_PER_10M, DEFAULT_PACE_S_PER_KM };
 
 /** How much each fit counts towards the score; only the needs that are set take part. */
 export const WEIGHTS = { closeness: 0.3, length: 0.45, terrain: 0.25 } as const;
@@ -88,10 +85,15 @@ function terrainFit(rate: number | null, wanted: Terrain): number {
   return Math.max(0, 1 - gap / TERRAIN_SLACK);
 }
 
-/** How long a route takes at a pace, allowing for its climb (none when its elevation is unknown). */
+/**
+ * How long a route takes, allowing for its climb (none when its elevation is
+ * unknown). The same estimate the cards and panel show, by the route's
+ * activity; `paceSPerKm` scales the flat pace for a runner slower or quicker
+ * than the 6:30 default.
+ */
 export function estimateDurationS(route: Route, paceSPerKm: number): number {
   const climbM = route.elevationAvailable === false ? 0 : route.gainM;
-  return (route.distanceM / 1000) * paceSPerKm + (climbM / 10) * CLIMB_S_PER_10M;
+  return estimateRouteTimeS(route.distanceM, climbM, routeActivity(route), paceSPerKm / DEFAULT_PACE_S_PER_KM);
 }
 
 /** 1 when the route is exactly the asked length or time, falling to 0 at double (or nothing). */

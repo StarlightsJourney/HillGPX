@@ -6,6 +6,7 @@ import { regionOf } from '../lib/regions';
 import { RouteThumb } from './RouteThumb';
 import { ActivityTag } from './ActivityIcon';
 import { routeActivity } from '../lib/routeAnalysis';
+import { estimateRouteTimeS, formatEstimate } from '../lib/routeTime';
 import { useUnits } from './UnitsContext';
 import { DownloadIcon, HeartIcon, UploadIcon } from './icons';
 import { downloadRoute } from './VenueCard';
@@ -112,7 +113,8 @@ function RoutesListInner({ routes, bounds, selectedSlug, onSelect, onHover, onIm
                     )}
                   </span>
                   <span className="result-card-gain">
-                    <strong>{units.distance(route.distanceM)}</strong> · <strong>{routeHasElevation(route) ? `${units.height(route.gainM)} EG` : 'Elevation unavailable'}</strong>
+                    <strong>{units.distance(route.distanceM)}</strong> · <strong>{routeHasElevation(route) ? `${units.height(route.gainM)} EG` : 'Elevation unavailable'}</strong> ·{' '}
+                    <strong>{formatEstimate(estimateRouteTimeS(route.distanceM, routeHasElevation(route) ? route.gainM : 0, routeActivity(route)))}</strong>
                   </span>
                 </button>
               </li>

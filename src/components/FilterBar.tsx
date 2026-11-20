@@ -220,7 +220,8 @@ function CategoryBarInner({
             </button>
             {routeModalOpen && (
               <RouteFilterModal
-                routes={routes}
+                routes={routePool}
+                scope={routePool === routes ? 'everywhere' : 'in this area'}
                 filters={routeFilters}
                 onChange={onRouteFiltersChange}
                 onClose={() => setRouteModalOpen(false)}
@@ -277,12 +278,15 @@ const DURATION_UNIT_S = 300;
 
 function RouteFilterModal({
   routes,
+  scope,
   filters,
   onChange,
   onClose,
   returnFocusTo,
 }: {
   routes: Route[];
+  /** Which routes the counts and bars cover, matching the list's heading. */
+  scope: 'in this area' | 'everywhere';
   filters: RouteFilters;
   onChange: (filters: RouteFilters) => void;
   onClose: () => void;
@@ -302,6 +306,22 @@ function RouteFilterModal({
   // Times go to the slider in five-minute units, so every stop it can land on
   // is a time the label can print exactly ("~45 min"), never "~38 min".
   const durationUnits = useMemo(() => routes.map((route) => routeEstimateS(route) / DURATION_UNIT_S), [routes]);
+  // Each histogram ignores its own bounds but respects the others, so a bar
+  // shows what widening that filter would bring back.
+  const withoutOwn = (own: 'distance' | 'gain' | 'duration') =>
+    filterRoutes(
+      routes,
+      {
+        ...filters,
+        ...(own === 'distance' ? { minDistanceM: null, maxDistanceM: null } : {}),
+        ...(own === 'gain' ? { minGainM: null, maxGainM: null } : {}),
+        ...(own === 'duration' ? { minDurationS: null, maxDurationS: null } : {}),
+      },
+      bookmarks,
+    );
+  const matchDistances = withoutOwn('distance').map((route) => route.distanceM);
+  const matchGains = withoutOwn('gain').filter(routeHasElevation).map((route) => route.gainM);
+  const matchDurations = withoutOwn('duration').map((route) => routeEstimateS(route) / DURATION_UNIT_S);
 
   useEffect(() => {
     const opener = returnFocusTo.current;
@@ -327,6 +347,7 @@ function RouteFilterModal({
       >
         <header className="filter-modal-head">
           <h2 id="route-filter-title">Route filters</h2>
+          <p className="filter-modal-scope">Routes {scope}</p>
           <button type="button" className="filter-modal-close" aria-label="Close filters" onClick={close}>
             <CloseIcon />
           </button>
@@ -336,6 +357,7 @@ function RouteFilterModal({
             <h3>Distance</h3>
             <ValueRange
               values={distances}
+              matching={matchDistances}
               min={filters.minDistanceM}
               max={filters.maxDistanceM}
               format={units.distance}
@@ -348,6 +370,7 @@ function RouteFilterModal({
             <h3>Elevation gain</h3>
             <ValueRange
               values={gains}
+              matching={matchGains}
               min={filters.minGainM}
               max={filters.maxGainM}
               format={units.height}
@@ -360,6 +383,7 @@ function RouteFilterModal({
             <h3>Estimated time</h3>
             <ValueRange
               values={durationUnits}
+              matching={matchDurations}
               min={filters.minDurationS == null ? null : filters.minDurationS / DURATION_UNIT_S}
               max={filters.maxDurationS == null ? null : filters.maxDurationS / DURATION_UNIT_S}
               format={(units) => (units === 0 ? '0 min' : formatEstimate(units * DURATION_UNIT_S))}
@@ -384,7 +408,7 @@ function RouteFilterModal({
             className="filter-apply"
             onClick={close}
           >
-            {count === 0 ? 'No matches' : `Show ${count} route${count === 1 ? '' : 's'}`}
+            <span aria-live="polite">{count === 0 ? 'No matches' : `Show ${count} route${count === 1 ? '' : 's'}`}</span>
           </button>
         </footer>
       </div>
@@ -800,6 +824,12 @@ function clamp(n: number, lo: number, hi: number): number {
 interface ValueRangeProps {
   /** The pool the histogram and scale are built from, in the values' own units. */
   values: number[];
+  /**
+   * The part of `values` that passes every other filter. The axis stays built
+   * from `values` (so handles never move by themselves); these drive the solid
+   * bars, and the rest of each bucket shows as a faint ghost. Omit to show all.
+   */
+  matching?: number[];
   min: number | null;
   max: number | null;
   /** How a bound is printed ("163 m", "12.4 km") and read out to screen readers. */
@@ -810,7 +840,7 @@ interface ValueRangeProps {
   onChange: (min: number | null, max: number | null) => void;
 }
 
-function ValueRange({ values, min, max, format, minLabel, maxLabel, onChange }: ValueRangeProps) {
+function ValueRange({ values, matching, min, max, format, minLabel, maxLabel, onChange }: ValueRangeProps) {
   const scale = useMemo(() => buildScale(values), [values]);
   const trackRef = useRef<HTMLDivElement>(null);
   const dragging = useRef<'min' | 'max' | null>(null);
@@ -889,6 +919,12 @@ function ValueRange({ values, min, max, format, minLabel, maxLabel, onChange }: 
   };
 
   const tallest = Math.max(1, ...scale.counts);
+  const matchCounts = useMemo(() => {
+    if (!matching) return scale.counts;
+    const counts = new Array<number>(scale.counts.length).fill(0);
+    for (const v of matching) counts[Math.min(counts.length - 1, Math.floor(v / scale.step))] += 1;
+    return counts;
+  }, [matching, scale]);
   const minPos = positionOf(minValue, scale);
   const maxPos = positionOf(maxValue, scale);
 
@@ -907,7 +943,12 @@ function ValueRange({ values, min, max, format, minLabel, maxLabel, onChange }: 
               // be a one-pixel line, and the tail is the half of the range someone
               // opening this control is trying to see into.
               style={{ height: `${Math.max(3, 100 * Math.sqrt(count / tallest))}%` }}
-            />
+            >
+              <div
+                className="range-bar-match"
+                style={{ height: `${matchCounts[i] === 0 ? 0 : Math.max(3, 100 * Math.sqrt(matchCounts[i] / count))}%` }}
+              />
+            </div>
           );
         })}
       </div>

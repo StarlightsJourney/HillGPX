@@ -2057,6 +2057,17 @@ button {
   font-weight: 600;
 }
 
+.filter-modal-head:has(.filter-modal-scope) {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.filter-modal-scope {
+  margin: 0;
+  font-size: var(--t1);
+  color: var(--muted);
+}
+
 .filter-modal-close {
   position: absolute;
   right: 12px;
@@ -2159,13 +2170,31 @@ button {
 }
 
 .range-bar {
+  position: relative;
   flex: 1 1 0;
   min-width: 0;
-  background: #e5e5e5;
+  background: #f2f2f2;
   border-radius: 2px 2px 0 0;
 }
 .range-bar.in {
+  background: color-mix(in srgb, var(--accent) 22%, white);
+}
+/* The routes in this bucket that pass the other filters, over the faint ghost
+   of the ones they hide. */
+.range-bar-match {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #e5e5e5;
+  border-radius: 2px 2px 0 0;
+  transition: height 150ms ease;
+}
+.range-bar.in .range-bar-match {
   background: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .range-bar-match { transition: none; }
 }
 
 .range-track {

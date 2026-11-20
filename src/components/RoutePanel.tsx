@@ -21,6 +21,7 @@ import { ElevationProfile } from './ElevationProfile';
 import { TypeGlyph } from './TypeGlyph';
 import { useUnits } from './UnitsContext';
 import { downloadRoute } from './VenueCard';
+import { ESTIMATE_NOTE, estimateRouteTimeS, formatEstimate } from '../lib/routeTime';
 import { ChevronRightIcon, CloseIcon, DownloadIcon, PencilIcon, ShareIcon } from './icons';
 import { ShareRouteDialog } from './ShareRouteDialog';
 import type { RoutePhoto } from '../lib/api';
@@ -541,8 +542,9 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           ['EL', hasElevation ? units.height(elevation.lossM) : unavailable],
           // Community routes only: curated files have no counter.
           ...(route.downloads !== undefined ? [['Downloads', String(route.downloads)]] : []),
+          ['Est. time', formatEstimate(estimateRouteTimeS(route.distanceM, hasElevation ? elevation.gainM : 0, route.activity))],
         ].map(([label, value]) => (
-          <div className="gpx-stat" key={label}>
+          <div className="gpx-stat" key={label} title={label === 'Est. time' ? ESTIMATE_NOTE[route.activity ?? 'run'] : undefined}>
             <strong>{value}</strong>
             <span>{label}</span>
           </div>

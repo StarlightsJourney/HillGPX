@@ -1,3 +1,4 @@
+import { routeEstimateS } from './routeTime';
 import type { Route, RouteActivity, RoutePoint, Venue } from '../types';
 import { routeActivity } from './routeAnalysis';
 import { computeGain, haversineM, totalDistanceM } from './elevation';
@@ -25,6 +26,9 @@ export interface RouteFilters {
   maxGainM: number | null;
   minDistanceM: number | null;
   maxDistanceM: number | null;
+  /** Bounds on the estimated time (seconds), by the route's own activity pace. */
+  minDurationS: number | null;
+  maxDurationS: number | null;
 }
 
 export const NO_ROUTE_FILTERS: RouteFilters = {
@@ -33,6 +37,8 @@ export const NO_ROUTE_FILTERS: RouteFilters = {
   maxGainM: null,
   minDistanceM: null,
   maxDistanceM: null,
+  minDurationS: null,
+  maxDurationS: null,
 };
 
 export function routeHasElevation(route: Route): boolean {
@@ -49,6 +55,12 @@ export function filterRoutes(routes: Route[], filters: RouteFilters, bookmarks: 
     if (filters.maxGainM != null && route.gainM > filters.maxGainM) return false;
     if (filters.minDistanceM != null && route.distanceM < filters.minDistanceM) return false;
     if (filters.maxDistanceM != null && route.distanceM > filters.maxDistanceM) return false;
+    // Unlike gain, an unknown elevation does not rule a route out: its time is then distance only.
+    if (filters.minDurationS != null || filters.maxDurationS != null) {
+      const durationS = routeEstimateS(route);
+      if (filters.minDurationS != null && durationS < filters.minDurationS) return false;
+      if (filters.maxDurationS != null && durationS > filters.maxDurationS) return false;
+    }
     switch (filters.category) {
       case 'run':
       case 'trail':

@@ -45,12 +45,19 @@ describe('matchRoutes', () => {
   describe('time', () => {
     const at = (name: string, n: RunNeeds) => matchRoutes(all, n).matches.find((m) => m.route.name === name)!;
 
-    it('estimates duration from the pace plus a climbing allowance', () => {
-      // Southern Ridges: 10.74 km at 6:30/km is 69.8 min, plus 305 m of climb
-      // at 30 s per 10 m is 15.25 min: about 85 minutes.
-      expect(at('Southern Ridges', needs({})).durationS / 60).toBeCloseTo(85.1, 0);
-      // At 8:00/km: 85.9 + 15.25.
-      expect(at('Southern Ridges', needs({ paceSPerKm: 480 })).durationS / 60).toBeCloseTo(101.2, 0);
+    it("estimates duration from the route's activity pace plus a climbing allowance", () => {
+      // Southern Ridges climbs 28 m/km here, so it is a trail: 10.74 km at
+      // 9:00/km is 96.7 min, plus 305 m of climb at 45 s per 10 m is 22.9 min.
+      expect(at('Southern Ridges', needs({})).durationS / 60).toBeCloseTo(119.5, 0);
+      // A slower runner (8:00/km instead of 6:30) stretches the flat pace by
+      // 480/390 and leaves the climbing allowance alone: 96.7 * 1.231 + 22.9.
+      expect(at('Southern Ridges', needs({ paceSPerKm: 480 })).durationS / 60).toBeCloseTo(141.9, 0);
+    });
+
+    it('keeps a road run at the run pace and climb allowance it always had', () => {
+      // UTSG climbs 15 m/km, so it is a run: its distance at 6:30/km plus its climb at 30 s per 10 m.
+      const expected = ((utsg.distanceM / 1000) * 390 + (utsg.gainM / 10) * 30) / 60;
+      expect(at('UTSG', needs({})).durationS / 60).toBeCloseTo(expected, 0);
     });
 
     it('matches a target time against the estimate, so a hilly route of the same length counts as longer', () => {
@@ -167,9 +174,9 @@ describe('matchRoutes', () => {
       it('is a Partial match when far off what was asked, and says what is off', () => {
         const m = ridgesFrom({ length: { kind: 'time', minutes: 45 }, terrain: 'flat' });
         expect(m.label).toBe('partial');
-        // 85 min estimated against 45 asked.
+        // 120 min estimated (a trail) against 45 asked.
         expect(m.misses[0]).toMatchObject({ kind: 'length', unit: 'time', longer: true });
-        expect(Math.round((m.misses[0] as { by: number }).by / 60)).toBe(40);
+        expect(Math.round((m.misses[0] as { by: number }).by / 60)).toBe(75);
         expect(m.misses[1]).toEqual({ kind: 'terrain', wanted: 'flat', band: 'rolling' });
       });
 

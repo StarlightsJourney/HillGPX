@@ -198,6 +198,27 @@ describe('auth', () => {
     expect(new URL(requests[1]).searchParams.get('select')).not.toContain('downloads');
   });
 
+  it('keeps download counts when only quality_flags is missing', async () => {
+    const fetchMock = mockApi({ '/auth/v1/token': () => json(SESSION) });
+    vi.stubGlobal('fetch', fetchMock);
+    await logIn('r@x.com', 'password123');
+    const requests: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (!url.includes('/rest/v1/routes')) return fetchMock(input, init);
+      requests.push(url);
+      const select = new URL(url).searchParams.get('select') ?? '';
+      return select.includes('quality_flags')
+        ? json({ code: '42703', message: 'column routes.quality_flags does not exist' }, 400)
+        : json([{ slug: 'coast', name: 'Coast', activity: 'trail', distance_m: 1000, gain_m: 10, downloads: 6, anonymous: false, created_at: '2026-11-01T00:00:00Z', gpx_path: 'coast.gpx.gz', status: 'approved' }]);
+    }));
+    const [route] = await fetchMyRoutes();
+    expect(route.downloads).toBe(6);
+    expect(route.qualityFlags).toEqual([]);
+    expect(requests).toHaveLength(2);
+    expect(new URL(requests[1]).searchParams.get('select')).toContain('downloads');
+  });
+
   it('drops a stored session Supabase no longer accepts', async () => {
     localStorage.setItem(SESSION_KEY, JSON.stringify({ ...SESSION, expires_at: 1 }));
     vi.resetModules();

@@ -136,8 +136,8 @@ test('populated profile: units, sorting, stats and opening a route on the map', 
 
   await page.getByRole('link', { name: /^Stats/ }).click();
   await expect(page).toHaveURL(/#account\/stats$/);
-  await expect(page.locator('.ac-hero-number')).toHaveText('490 m');
-  await expect(page.getByText('of climbing shared across 2 routes')).toBeVisible();
+  await expect(page.locator('.ac-hero-number')).toHaveText(['490 m', '29.5 km']);
+  await expect(page.getByText('Shared across 2 routes')).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/stats-overview.png`, fullPage: true });
   await page.getByRole('link', { name: 'By route' }).click();
   await expect(page).toHaveURL(/#account\/stats\/routes$/);

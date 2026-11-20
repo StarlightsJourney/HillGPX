@@ -28,9 +28,10 @@ export function AccountStats({ routes, error, onRetry, tab }: Props) {
     if (!routes || routes.length === 0) return null;
     const downloads = routes.reduce((sum, route) => sum + route.downloads, 0);
     const gainM = routes.reduce((sum, route) => sum + route.gainM, 0);
+    const distanceM = routes.reduce((sum, route) => sum + route.distanceM, 0);
     const biggest = routes.reduce((best, route) => (route.gainM > best.gainM ? route : best));
     const popular = routes.reduce((best, route) => (route.downloads > best.downloads ? route : best));
-    return { downloads, gainM, biggest, popular, byDownloads: [...routes].sort((a, b) => b.downloads - a.downloads) };
+    return { downloads, gainM, distanceM, biggest, popular, byDownloads: [...routes].sort((a, b) => b.downloads - a.downloads) };
   }, [routes]);
 
   const head = (
@@ -97,10 +98,21 @@ export function AccountStats({ routes, error, onRetry, tab }: Props) {
         <>
           <div className="ac-hero-stat">
             <ContourArt className="ac-hero-art" />
-            <p className="ac-hero-number" aria-label={`Total elevation gain ${units.height(facts.gainM)}`}>
-              {units.height(facts.gainM)}
-            </p>
-            <p className="ac-hero-sub">of climbing shared across {pluralise(routes.length, 'route', 'routes')}</p>
+            <div className="ac-hero-split">
+              <div className="ac-hero-half">
+                <p className="ac-hero-number" aria-label={`Total elevation gain ${units.height(facts.gainM)}`}>
+                  {units.height(facts.gainM)}
+                </p>
+                <p className="ac-hero-label">of climbing</p>
+              </div>
+              <div className="ac-hero-half">
+                <p className="ac-hero-number" aria-label={`Total distance ${units.distance(facts.distanceM)}`}>
+                  {units.distance(facts.distanceM)}
+                </p>
+                <p className="ac-hero-label">of trail</p>
+              </div>
+            </div>
+            <p className="ac-hero-sub">Shared across {pluralise(routes.length, 'route', 'routes')}</p>
           </div>
           <div className="ac-tiles">
             <div className="ac-tile">

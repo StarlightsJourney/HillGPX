@@ -26,6 +26,7 @@ import {
 import { useRouteBookmarks } from '../lib/useRouteBookmarks';
 import { NO_ROUTE_FILTERS, ROUTE_CATEGORIES, filterRoutes, routeHasElevation, routeIntersects, type RouteCategory, type RouteFilters } from '../lib/routes';
 import { ACTIVITY_PATHS } from '../lib/activityGlyphs';
+import { formatEstimate, routeEstimateS } from '../lib/routeTime';
 import { VENUE_GLYPH_PATH } from '../lib/venueGlyphs';
 
 export type BrowseMode = 'climbs' | 'routes';
@@ -136,7 +137,9 @@ function CategoryBarInner({
     (routeFilters.minGainM != null ? 1 : 0) +
     (routeFilters.maxGainM != null ? 1 : 0) +
     (routeFilters.minDistanceM != null ? 1 : 0) +
-    (routeFilters.maxDistanceM != null ? 1 : 0);
+    (routeFilters.maxDistanceM != null ? 1 : 0) +
+    (routeFilters.minDurationS != null ? 1 : 0) +
+    (routeFilters.maxDurationS != null ? 1 : 0);
 
   // Routes the list would show for this view: the ones crossing it, or every
   // route when none do (the list falls back to "everywhere" rather than going
@@ -269,6 +272,9 @@ function CategoryButton({
   );
 }
 
+/** One slider step for the time filter: five minutes, the estimate's own rounding. */
+const DURATION_UNIT_S = 300;
+
 function RouteFilterModal({
   routes,
   filters,
@@ -293,6 +299,9 @@ function RouteFilterModal({
   // with no elevation, which a gain bound excludes anyway.
   const distances = useMemo(() => routes.map((route) => route.distanceM), [routes]);
   const gains = useMemo(() => routes.filter(routeHasElevation).map((route) => route.gainM), [routes]);
+  // Times go to the slider in five-minute units, so every stop it can land on
+  // is a time the label can print exactly ("~45 min"), never "~38 min".
+  const durationUnits = useMemo(() => routes.map((route) => routeEstimateS(route) / DURATION_UNIT_S), [routes]);
 
   useEffect(() => {
     const opener = returnFocusTo.current;
@@ -345,6 +354,24 @@ function RouteFilterModal({
               minLabel="Minimum elevation gain"
               maxLabel="Maximum elevation gain"
               onChange={(minGainM, maxGainM) => onChange({ ...filters, minGainM, maxGainM })}
+            />
+          </section>
+          <section className="filter-group">
+            <h3>Estimated time</h3>
+            <ValueRange
+              values={durationUnits}
+              min={filters.minDurationS == null ? null : filters.minDurationS / DURATION_UNIT_S}
+              max={filters.maxDurationS == null ? null : filters.maxDurationS / DURATION_UNIT_S}
+              format={(units) => (units === 0 ? '0 min' : formatEstimate(units * DURATION_UNIT_S))}
+              minLabel="Minimum estimated time"
+              maxLabel="Maximum estimated time"
+              onChange={(min, max) =>
+                onChange({
+                  ...filters,
+                  minDurationS: min == null ? null : min * DURATION_UNIT_S,
+                  maxDurationS: max == null ? null : max * DURATION_UNIT_S,
+                })
+              }
             />
           </section>
         </div>

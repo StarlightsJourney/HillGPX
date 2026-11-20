@@ -1,8 +1,7 @@
 import type { Route } from '../types';
 import type { Bounds } from './venues';
 import { NEAR_ME_RADII_M, distanceToRouteM, routeIntersects } from './routes';
-import { routeActivity } from './routeAnalysis';
-import { CLIMB_S_PER_10M, DEFAULT_PACE_S_PER_KM, estimateRouteTimeS } from './routeTime';
+import { CLIMB_S_PER_10M, DEFAULT_PACE_S_PER_KM, routeEstimateS } from './routeTime';
 
 export type Terrain = 'flat' | 'rolling' | 'hilly' | 'any';
 export type RunLength = { kind: 'time'; minutes: number } | { kind: 'distance'; metres: number };
@@ -92,8 +91,7 @@ function terrainFit(rate: number | null, wanted: Terrain): number {
  * than the 6:30 default.
  */
 export function estimateDurationS(route: Route, paceSPerKm: number): number {
-  const climbM = route.elevationAvailable === false ? 0 : route.gainM;
-  return estimateRouteTimeS(route.distanceM, climbM, routeActivity(route), paceSPerKm / DEFAULT_PACE_S_PER_KM);
+  return routeEstimateS(route, paceSPerKm / DEFAULT_PACE_S_PER_KM);
 }
 
 /** 1 when the route is exactly the asked length or time, falling to 0 at double (or nothing). */

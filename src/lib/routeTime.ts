@@ -1,4 +1,5 @@
-import type { RouteActivity } from '../types';
+import type { Route, RouteActivity } from '../types';
+import { routeActivity } from './routeAnalysis';
 
 /** 6:30 per km on flat ground: the run planner's default pace, and the pace for a run. */
 export const DEFAULT_PACE_S_PER_KM = 390;
@@ -38,6 +39,15 @@ export const EFFORT: Record<RouteActivity, Effort> = {
 export function estimateRouteTimeS(distanceM: number, gainM: number, activity: RouteActivity | undefined, paceScale = 1): number {
   const effort = EFFORT[activity ?? 'run'];
   return (distanceM / 1000) * effort.paceSPerKm * paceScale + (Math.max(0, gainM) / 10) * effort.climbSPer10M;
+}
+
+/**
+ * A route's estimated time by its own activity, with its climb counted only
+ * when its elevation is known. What the planner, filter and cards all use.
+ */
+export function routeEstimateS(route: Route, paceScale = 1): number {
+  const climbM = route.elevationAvailable === false ? 0 : route.gainM;
+  return estimateRouteTimeS(route.distanceM, climbM, routeActivity(route), paceScale);
 }
 
 /** "~45 min", "~1 h 45 min", "~3 h": rounded, because the estimate is not precise. */

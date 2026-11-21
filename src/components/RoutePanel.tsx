@@ -4,7 +4,7 @@ import { endpointIconMarkup } from '../map/endpoints';
 import { RouteBookmarkButton } from './RouteBookmarkButton';
 import type { Route, RoutePoint, Venue } from '../types';
 import { computeGain, cumulativeDistances, totalDistanceM } from '../lib/elevation';
-import { linkVenues, routeEndpoints, routeHasElevation } from '../lib/routes';
+import { linkVenues, routeDirectionsUrl, routeEndpoints, routeHasElevation } from '../lib/routes';
 import { regionOf } from '../lib/regions';
 import { hasRealElevation, terrainElevations } from '../lib/terrain';
 import { assessRoute } from '../lib/routeQuality';
@@ -22,7 +22,7 @@ import { TypeGlyph } from './TypeGlyph';
 import { useUnits } from './UnitsContext';
 import { downloadRoute } from './VenueCard';
 import { ESTIMATE_NOTE, estimateRouteTimeS, formatEstimate } from '../lib/routeTime';
-import { ArrowLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon, PencilIcon, ShareIcon } from './icons';
+import { ArrowLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon, MapIcon, PencilIcon, ShareIcon } from './icons';
 import { ShareRouteDialog } from './ShareRouteDialog';
 import type { RoutePhoto } from '../lib/api';
 import { RoutePhotoModal } from './RoutePhotoModal';
@@ -448,6 +448,7 @@ export function RoutePanel({ placement = 'map', onToggleDock, route, venuesBySlu
   const units = useUnits();
   // Only a route anyone can open has a link worth sharing: not one held, rejected or kept on this device.
   const shareable = reviewable;
+  const directionsHref = routeDirectionsUrl(route.coordinates);
   const [sharing, setSharing] = useState(false);
   const elevation = useTerrainFill(route);
   const hasElevation = routeHasElevation(route) || elevation.fromTerrain;
@@ -591,6 +592,13 @@ export function RoutePanel({ placement = 'map', onToggleDock, route, venuesBySlu
             </>
           )}
         </p>
+      )}
+
+      {directionsHref && (
+        <a className="venue-primary-action route-directions" href={directionsHref} target="_blank" rel="noreferrer" aria-label="Get directions to the start (opens in maps)">
+          <MapIcon size={16} />
+          Get directions
+        </a>
       )}
 
       {/* Always rendered, so opening it can slide; inert while folded. */}

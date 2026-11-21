@@ -7084,6 +7084,15 @@
   transform: rotate(90deg);
   transition: transform 0.3s var(--ease-out);
 }
+.venue-more-toggle {
+  box-sizing: border-box;
+  width: auto;
+  margin: 0 16px 12px;
+  text-decoration: none;
+}
+.venue-more-toggle svg {
+  transform: none;
+}
 .route-panel.expanded .route-more-toggle svg {
   transform: rotate(-90deg);
 }
@@ -9278,4 +9287,23 @@ html:has(.ac) {
   .rpv { animation: none; }
   .rpv-round,
   .rpv-arrow { transition: none; }
+}
+
+.card-share {
+  position: absolute;
+  top: 12px;
+  right: 52px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 90%);
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
 }

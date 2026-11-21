@@ -21,7 +21,7 @@ import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon, 
 import { FlagIcon, LinkIcon, PlusIcon, ReportModal } from './ReportModal';
 import { useReveal } from './useReveal';
 import { SiteFooter, SiteHeader } from './SiteChrome';
-import { SEARCH_OPENS_MAP, SearchBar } from './SearchBar';
+import { SEARCH_OPENS_MAP, SearchBar, SiteSearch } from './SearchBar';
 import { RatingLabel } from './ResultsList';
 import { ReviewCard, StarPicker } from './ReviewCard';
 import { directionsUrl, venueConditions, type Conditions } from '../lib/conditions';
@@ -1055,6 +1055,30 @@ export function VenueDetailSkeleton() {
         <div className="sk-line" />
         <div className="sk-line sk-short" />
       </main>
+    </div>,
+    document.body,
+  );
+}
+
+/**
+ * A place link nobody answers to (mistyped, or a place since removed): the
+ * same page chrome as a place, a short message and a way back. Shown only once
+ * the data has loaded and no place matched, never while it is still loading.
+ */
+export function VenueNotFound() {
+  useEffect(() => lockPageScroll(), []);
+  return createPortal(
+    <div className="venue-detail venue-detail-notfound">
+      <SiteHeader center={<SiteSearch />} />
+      <main className="venue-detail-content venue-notfound">
+        <h1>We couldn&apos;t find that place</h1>
+        <p>The link may be mistyped, or the place may have been removed. Search for it above, or go back to the map.</p>
+        <a className="venue-open-map" href="#map">
+          <MapIcon size={16} />
+          Back to the map
+        </a>
+      </main>
+      <SiteFooter />
     </div>,
     document.body,
   );

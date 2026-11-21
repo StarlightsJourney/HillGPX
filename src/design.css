@@ -1335,6 +1335,29 @@
 .venue-detail-loading .sk-short {
   width: 40%;
 }
+.venue-detail-notfound {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+.venue-notfound {
+  flex: 1;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 72px 20px 96px;
+  text-align: center;
+}
+.venue-notfound h1 {
+  margin: 0 0 12px;
+  font-size: 28px;
+}
+.venue-notfound p {
+  margin: 0 0 28px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.5;
+}
 .venue-detail-sub {
   display: flex;
   flex-wrap: wrap;

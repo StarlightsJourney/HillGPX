@@ -364,3 +364,15 @@ export function routeEndpoints(coordinates: readonly RoutePoint[] | null | undef
     isLoop: haversineM(first[0], first[1], last[0], last[1]) < LOOP_MAX_M,
   };
 }
+
+/**
+ * Turn-by-turn directions to where a route starts, in whatever maps app the
+ * phone prefers (the same link the climbs use for a place). Null when the route
+ * has no usable first point.
+ */
+export function routeDirectionsUrl(coordinates: readonly RoutePoint[] | null | undefined): string | null {
+  const ends = routeEndpoints(coordinates);
+  if (!ends) return null;
+  const [lng, lat] = ends.start;
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+}

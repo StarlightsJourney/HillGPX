@@ -360,11 +360,17 @@ test.describe('on a phone', () => {
     await sheet.getByRole('button', { name: 'Show more route details' }).click();
     await expect(sheet).toHaveClass(/expanded/);
     const section = sheet.locator('.route-reviews');
-    await section.locator('.review-card').first().scrollIntoViewIfNeeded();
-    await expect(section.locator('.review-card').first()).toBeInViewport();
+    // The details slide open, so the sheet's height is still changing: scroll again until the target is in view.
+    const firstReview = section.locator('.review-card').first();
+    await expect(async () => {
+      await firstReview.scrollIntoViewIfNeeded();
+      await expect(firstReview).toBeInViewport();
+    }).toPass();
     const post = section.getByRole('button', { name: 'Post review' });
-    await post.scrollIntoViewIfNeeded();
-    await expect(post).toBeInViewport();
+    await expect(async () => {
+      await post.scrollIntoViewIfNeeded();
+      await expect(post).toBeInViewport();
+    }).toPass();
     const overflow = await sheet.evaluate((element) => element.scrollWidth - element.clientWidth);
     expect(overflow).toBeLessThanOrEqual(0);
     await page.screenshot({ path: '/tmp/hillgpx-pw-reviews/phone.png' });

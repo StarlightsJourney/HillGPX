@@ -8883,6 +8883,13 @@ html:has(.ac) {
   overflow: visible;
 }
 
+/* "Get directions" reuses the climbs' primary button; inside the panel it must not read as a text link. */
+.route-panel .route-directions,
+.route-panel .route-directions:hover {
+  color: #fff;
+  text-decoration: none;
+}
+
 /* Share this route (ShareRouteDialog): the route, then one row per way to pass it on. */
 .share-route {
   padding-bottom: 16px;
@@ -8943,4 +8950,61 @@ html:has(.ac) {
   font: inherit;
   font-size: var(--t2);
   color: var(--ink);
+}
+
+/* ─── Route panel in the left column ──────────────────────────────────────
+   On a split page an open route takes the list's place, so the map beside it
+   is clear: the whole route is framed there and nothing floats over it. The
+   page scrolls with the details; the map stays put. */
+.list-pane > .gpx-panel.route-panel.in-sidebar {
+  position: static;
+  flex: none;
+  width: auto;
+  max-height: none;
+  padding: 12px 40px 56px;
+  overflow: visible;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  animation: none;
+}
+.route-back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px -10px;
+  padding: 7px 14px 7px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.route-back:hover {
+  background: var(--bg-raised);
+}
+.route-back:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.route-panel.in-sidebar .route-panel-title h2 {
+  font-size: 24px;
+}
+.route-panel.in-sidebar .gpx-stats {
+  margin-top: 16px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .list-pane > .gpx-panel.route-panel.in-sidebar {
+    animation: sidebar-in 0.22s var(--ease-out);
+  }
+}
+@keyframes sidebar-in {
+  from {
+    opacity: 0;
+  }
 }

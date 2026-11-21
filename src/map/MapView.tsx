@@ -24,6 +24,7 @@ import { rankingHeight, type Bounds } from '../lib/venues';
 import { haversineM } from '../lib/elevation';
 import { useUnits } from '../components/UnitsContext';
 import { VenueCard } from '../components/VenueCard';
+import { RoutePhotoViewer } from '../components/RoutePhotoViewer';
 import {
   addAllRouteLayers,
   addRouteLayers,
@@ -408,6 +409,42 @@ function panelClearance(map: MlMap, base: Padding): Padding {
   }
   const clear = height - top + 16;
   return { ...base, bottom: Math.max(base.bottom, Math.min(clear, height * 0.6 + MARKER_ROOM)) };
+}
+
+/** The strip down the map's right edge that its own buttons (expand, 3D, locate, zoom) sit in. */
+const CONTROLS_ROOM = 76;
+
+/**
+ * Pans the map just far enough that an opened card is whole: inside the map,
+ * clear of the route panel and of the map's own buttons. A card opens at its
+ * photo, wherever that is, and could otherwise sit half under the panel, behind
+ * a button or off the edge.
+ */
+function keepPopupInView(map: MlMap, popup: Popup, panelOpen: boolean, release: (map: MlMap) => void): void {
+  const element = popup.getElement();
+  if (!element) return;
+  const margin = 16;
+  const plain: Padding = { top: margin, bottom: margin, left: margin, right: margin };
+  const mapBox = map.getContainer().getBoundingClientRect();
+  const box = element.getBoundingClientRect();
+  const room = (pad: Padding) => ({
+    left: mapBox.left + pad.left,
+    right: mapBox.right - Math.max(pad.right, CONTROLS_ROOM),
+    top: mapBox.top + pad.top,
+    bottom: mapBox.bottom - pad.bottom,
+  });
+  let safe = room(panelOpen ? panelClearance(map, plain) : plain);
+  // Not enough clear room beside the panel: rather than squeeze the card against the map's
+  // edge (where it is cut off), let it float over the panel, whole.
+  if (panelOpen && (box.width > safe.right - safe.left || box.height > safe.bottom - safe.top)) safe = room(plain);
+  // Too big for the room (a small map): line its top-left up with the room's.
+  const shift = (low: number, high: number, safeLow: number, safeHigh: number) =>
+    high - low > safeHigh - safeLow ? low - safeLow : low < safeLow ? low - safeLow : high > safeHigh ? high - safeHigh : 0;
+  const dx = shift(box.left, box.right, safe.left, safe.right);
+  const dy = shift(box.top, box.bottom, safe.top, safe.bottom);
+  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+  release(map);
+  map.panBy([dx, dy], { duration: prefersReducedMotion() ? 0 : 280 });
 }
 
 /**
@@ -1011,17 +1048,25 @@ export function MapView({
   }, [ready, hoveredRouteSlug, allRoutes, activeRoute, activeRouteTrim]);
 
   const photoMarkersRef = useRef(new Map<string, Marker>());
+  // The photo open full screen, if any (from the card on a photo's pin).
+  const [viewerId, setViewerId] = useState<string | null>(null);
+  const viewerIndex = viewerId && routePhotos ? routePhotos.findIndex((photo) => photo.id === viewerId) : -1;
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const markers = photoMarkersRef.current;
     for (const photo of routePhotos ?? []) {
-      const marker = routePhotoMarker(photo).addTo(map);
-      // Opening one photo or hazard closes the one that was open before it.
-      marker.getPopup()?.on('open', () => {
+      const marker = routePhotoMarker(photo, setViewerId).addTo(map);
+      // Opening one photo or hazard closes the one that was open before it, and brings it fully into view.
+      const popup = marker.getPopup();
+      popup?.on('open', () => {
         markers.forEach((other) => {
           if (other !== marker && other.getPopup()?.isOpen()) other.togglePopup();
         });
+        const bringIntoView = () => requestAnimationFrame(() => popup && popup.isOpen() && keepPopupInView(map, popup, routePanelOpenRef.current, releaseGeolocate));
+        // A card opened by the panel's thumbnail arrives while the map is still flying to it.
+        if (map.isMoving()) map.once('moveend', bringIntoView);
+        else bringIntoView();
       });
       markers.set(photo.id, marker);
     }
@@ -1029,7 +1074,7 @@ export function MapView({
       markers.forEach((marker) => marker.remove());
       markers.clear();
     };
-  }, [routePhotos]);
+  }, [routePhotos, releaseGeolocate]);
   useEffect(() => {
     const map = mapRef.current;
     const marker = photoFocus ? photoMarkersRef.current.get(photoFocus.id) : undefined;
@@ -1109,6 +1154,14 @@ export function MapView({
           <span className="visually-hidden">Loading the map</span>
         </div>
       )}
+      {viewerIndex >= 0 && routePhotos && (
+        <RoutePhotoViewer
+          photos={routePhotos}
+          index={viewerIndex}
+          onIndex={(next) => setViewerId(routePhotos[next]?.id ?? null)}
+          onClose={() => setViewerId(null)}
+        />
+      )}
       {selectedVenue && mapRef.current && (
         <VenuePopup
           map={mapRef.current}
@@ -1125,9 +1178,10 @@ export function MapView({
 
 /**
  * A photo (round thumbnail) or hazard (warning badge) on the route. Tapping it
- * opens a card with the picture, caption and who added it.
+ * opens a card with the whole picture, its caption and who added it; the picture
+ * opens full screen (`onEnlarge`).
  */
-function routePhotoMarker(photo: RoutePhoto): Marker {
+function routePhotoMarker(photo: RoutePhoto, onEnlarge: (id: string) => void): Marker {
   const el = document.createElement('button');
   el.type = 'button';
   el.className = `route-photo-pin ${photo.kind}`;
@@ -1140,11 +1194,29 @@ function routePhotoMarker(photo: RoutePhoto): Marker {
 
   const card = document.createElement('div');
   card.className = `route-photo-pop ${photo.kind}`;
+
+  // The whole photo, never a cropped slice: it sits inside the frame over a blurred
+  // copy of itself, so a tall or wide picture has no bare bars either side.
+  const frame = document.createElement('button');
+  frame.type = 'button';
+  frame.className = 'route-photo-pop-frame';
+  frame.setAttribute('aria-label', 'View photo full screen');
+  const backdrop = document.createElement('span');
+  backdrop.className = 'route-photo-pop-bg';
+  backdrop.style.backgroundImage = `url("${photo.url}")`;
   const big = document.createElement('img');
   big.src = photo.url;
   big.alt = photo.caption;
-  card.appendChild(big);
+  const expand = document.createElement('span');
+  expand.className = 'route-photo-pop-expand';
+  expand.appendChild(parseSvg(EXPAND_SVG));
+  expand.appendChild(textSpan('View larger', 'route-photo-pop-expand-label'));
+  frame.append(backdrop, big, expand);
+  frame.addEventListener('click', () => onEnlarge(photo.id));
+  card.appendChild(frame);
+
   const body = document.createElement('div');
+  body.className = 'route-photo-pop-body';
   if (photo.kind === 'hazard') body.appendChild(textSpan('Hazard', 'route-photo-pop-tag'));
   if (photo.caption) body.appendChild(textSpan(photo.caption, 'route-photo-pop-caption'));
   body.appendChild(textSpan(`Added by ${photo.author} · ${new Date(photo.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`, 'route-photo-pop-meta'));
@@ -1156,10 +1228,20 @@ function routePhotoMarker(photo: RoutePhoto): Marker {
   body.appendChild(report);
   card.appendChild(body);
 
-  const popup = new Popup({ offset: 22, closeButton: true, maxWidth: '280px', className: 'route-photo-popup' }).setDOMContent(card);
-  el.addEventListener('click', (event) => event.stopPropagation());
-  return new Marker({ element: el, anchor: 'center' }).setLngLat([photo.lng, photo.lat]).setPopup(popup);
+  const popup = new Popup({ offset: 22, closeButton: true, maxWidth: '300px', className: 'route-photo-popup' }).setDOMContent(card);
+  const marker = new Marker({ element: el, anchor: 'center' }).setLngLat([photo.lng, photo.lat]).setPopup(popup);
+  el.addEventListener('click', (event) => {
+    // The click stays off the map (it would clear the selection), but the map is also what
+    // opens a marker's card from a click, so a tap or click has to open it here. Enter and
+    // Space (a click with no pointer, `detail` 0) are already handled by the marker itself.
+    event.stopPropagation();
+    if (event.detail > 0) marker.togglePopup();
+  });
+  return marker;
 }
+
+/** Arrows pointing out of the corners: "make this bigger". */
+const EXPAND_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
 
 /** A selected-style pin, labelled by name, that opens the venue's detail page. */
 function spotlightMarker(venue: Venue): Marker {

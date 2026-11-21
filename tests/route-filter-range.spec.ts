@@ -26,13 +26,13 @@ test('typing a minimum and maximum distance filters the routes and moves the han
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toContainText('UTSG');
   await expect(page.getByRole('slider', { name: 'Minimum distance' })).toHaveAttribute('aria-valuenow', '20000');
-  await expect(min).toHaveValue('20');
+  await expect(min).toHaveValue('20 km');
 
   // A maximum below the minimum takes the minimum down with it.
   await max.fill('12.5');
   await max.press('Enter');
   await expect(page.getByRole('slider', { name: 'Maximum distance' })).toHaveAttribute('aria-valuenow', '12500');
-  await expect(min).toHaveValue('12.5');
+  await expect(min).toHaveValue('12.5 km');
   await expect(rows(page)).toHaveCount(0);
 
   // Emptying the minimum lifts it; Southern Ridges (10.7 km) is under 12.5 km.
@@ -48,7 +48,7 @@ test('what cannot be read puts the value back, and says so', async ({ page }) =>
   await min.fill('soon');
   await min.press('Enter');
   await expect(min).toHaveAttribute('aria-invalid', 'true');
-  await expect(min).toHaveValue('0');
+  await expect(min).toHaveValue('0 km');
   await expect(rows(page)).toHaveCount(2);
   // Typing again clears the complaint.
   await min.fill('4');
@@ -60,7 +60,7 @@ test('Escape in a field puts the value back without closing the dialog; elsewher
   const min = field(page, 'Minimum distance');
   await min.fill('30');
   await min.press('Escape');
-  await expect(min).toHaveValue('0');
+  await expect(min).toHaveValue('0 km');
   await expect(page.getByRole('dialog', { name: 'Route filters' })).toBeVisible();
   await expect(rows(page)).toHaveCount(2);
   await page.getByRole('dialog', { name: 'Route filters' }).getByRole('heading', { name: 'Route filters' }).click();
@@ -73,7 +73,7 @@ test('a maximum past the top of the track is a real bound; the handle waits at t
   const max = field(page, 'Maximum distance');
   await max.fill('500');
   await max.press('Enter');
-  await expect(max).toHaveValue('500');
+  await expect(max).toHaveValue('500 km');
   await expect(page.getByRole('slider', { name: 'Maximum distance' })).toHaveAttribute('aria-valuenow', '500000');
   await expect(rows(page)).toHaveCount(2);
 });
@@ -94,7 +94,7 @@ test('time and elevation gain take typed values too', async ({ page }) => {
   const minGain = field(page, 'Minimum elevation gain');
   await minGain.fill('500');
   await minGain.press('Enter');
-  await expect(minGain).toHaveValue('500');
+  await expect(minGain).toHaveValue('500 m');
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toContainText('UTSG');
 });

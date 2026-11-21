@@ -1,13 +1,11 @@
 import { useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import {
-  binCount,
+  barHeight,
   buildScale,
   histogram,
+  matchShare,
   neighbourStop,
   positionOf,
-  ridgeHeights,
-  ridgePath,
-  smooth,
   stopAt,
   type RangeKind,
 } from '../lib/rangeScale';
@@ -17,8 +15,8 @@ export interface ValueRangeProps {
   values: number[];
   /**
    * The part of `values` that passes every other filter. The axis stays built
-   * from `values` (so handles never move by themselves); this drives the solid
-   * shape, and the rest of the pool shows as a faint ghost. Omit to show all.
+   * from `values` (so handles never move by themselves); these drive the solid
+   * fill of each bar, and the rest of the bar shows as a faint ghost. Omit to show all.
    */
   matching?: number[];
   min: number | null;
@@ -32,7 +30,7 @@ export interface ValueRangeProps {
 }
 
 /**
- * A range filter: a silhouette of what is out there, two handles to drag, and
+ * A range filter: a histogram of what is out there, two handles to drag, and
  * two fields to type a minimum and a maximum into. A bound at an end of the
  * track means "no bound" (null); a typed bound can lie beyond the top.
  */
@@ -112,7 +110,9 @@ export function ValueRange({ values, matching, min, max, kind, minLabel, maxLabe
   const nearestIndex = (value: number) => stopAt(positionOf(value, scale), scale);
 
   /** A bound typed into a field. False when it was not understood, so the field can say so. */
-  const commitTyped = (which: 'min' | 'max', text: string): boolean => {
+  const commitTyped = (which: 'min' | 'max', typed: string): boolean => {
+    // "85 km+" is how no maximum is shown; the plus is not part of the number.
+    const text = typed.replace(/\+\s*$/, '');
     const cleared = text.trim() === '';
     if (cleared) {
       onChange(which === 'min' ? null : min, which === 'max' ? null : max);
@@ -130,39 +130,38 @@ export function ValueRange({ values, matching, min, max, kind, minLabel, maxLabe
     return true;
   };
 
-  // The silhouette: the whole pool as a faint ghost, what passes the other
-  // filters over it, and the part of that between the handles in colour.
-  const shape = useMemo(() => {
-    const pool = smooth(histogram(values, scale));
+  // One bar per slice of the track: its height says how many are out there, the
+  // fill how many of those pass the other filters.
+  const bars = useMemo(() => {
+    const pool = histogram(values, scale);
+    const matched = matching ? histogram(matching, scale) : pool;
     const tallest = Math.max(0, ...pool);
-    const matched = matching ? smooth(histogram(matching, scale)) : pool;
-    return {
-      pool: ridgePath(ridgeHeights(pool, tallest)),
-      matched: ridgePath(ridgeHeights(matched, tallest)),
-      bins: binCount(scale),
-    };
+    return pool.map((count, i) => ({
+      start: i * scale.bar,
+      end: (i + 1) * scale.bar,
+      height: barHeight(count, tallest),
+      share: matchShare(matched[i], count),
+      empty: count === 0,
+    }));
   }, [values, matching, scale]);
 
-  const minShown = kind.toField(minValue);
-  const maxShown = max == null ? `${kind.toField(scale.hi)}${scale.truncated ? '+' : ''}` : kind.toField(max);
+  // What each field shows, unit and all: "0 km", "85 km+" for no maximum.
+  const minShown = kind.label(minValue);
+  const maxShown = max == null ? `${kind.label(scale.hi)}+` : kind.label(max);
 
   return (
     <div className="range">
       <div className="range-hist" aria-hidden="true">
-        <svg className="range-shape range-shape-pool" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <path d={shape.pool} />
-        </svg>
-        <svg className="range-shape range-shape-out" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <path d={shape.matched} />
-        </svg>
-        <svg
-          className="range-shape range-shape-in"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          style={{ clipPath: `inset(0 ${(1 - maxPos) * 100}% 0 ${minPos * 100}%)` }}
-        >
-          <path d={shape.matched} />
-        </svg>
+        {bars.map((bar, i) => (
+          <div
+            key={i}
+            // Strictly inside, so a handle resting on a bar's edge does not light its neighbour.
+            className={`range-bar${bar.end > minValue && bar.start < maxValue ? ' in' : ''}${bar.empty ? ' none' : ''}`}
+            style={{ height: `${bar.height * 100}%` }}
+          >
+            <div className="range-bar-match" style={{ height: `${bar.share * 100}%` }} />
+          </div>
+        ))}
       </div>
 
       <div
@@ -211,15 +210,15 @@ export function ValueRange({ values, matching, min, max, kind, minLabel, maxLabe
         <RangeField
           caption="Minimum"
           inputLabel={minLabel}
+          inputMode={kind.inputMode}
           shown={minShown}
-          unit={kind.unit}
           onCommit={(text) => commitTyped('min', text)}
         />
         <RangeField
           caption="Maximum"
           inputLabel={maxLabel}
+          inputMode={kind.inputMode}
           shown={maxShown}
-          unit={kind.unit}
           onCommit={(text) => commitTyped('max', text)}
         />
       </div>
@@ -230,9 +229,10 @@ export function ValueRange({ values, matching, min, max, kind, minLabel, maxLabe
 interface RangeFieldProps {
   caption: string;
   inputLabel: string;
-  /** What the field shows at rest ("12.5", or "80+" for no maximum). */
+  /** The keypad a phone shows: numbers only, or full text where units and "1h30" are typed. */
+  inputMode: 'decimal' | 'text';
+  /** What the field shows at rest ("12.5 km", or "80 km+" for no maximum). */
   shown: string;
-  unit: string;
   /** Apply what was typed. False when it was not understood. */
   onCommit: (text: string) => boolean;
 }
@@ -242,7 +242,7 @@ interface RangeFieldProps {
  * is held only until Enter or leaving the field, then the value comes back from
  * the filter again (so a rejected entry simply returns to what it was).
  */
-function RangeField({ caption, inputLabel, shown, unit, onCommit }: RangeFieldProps) {
+function RangeField({ caption, inputLabel, inputMode, shown, onCommit }: RangeFieldProps) {
   const [text, setText] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
 
@@ -254,42 +254,39 @@ function RangeField({ caption, inputLabel, shown, unit, onCommit }: RangeFieldPr
   return (
     <label className={`range-field${invalid ? ' invalid' : ''}`}>
       <span className="range-field-label">{caption}</span>
-      <span className="range-field-box">
-        <input
-          type="text"
-          inputMode="decimal"
-          autoComplete="off"
-          spellCheck={false}
-          aria-label={inputLabel}
-          aria-invalid={invalid || undefined}
-          value={text ?? shown}
-          onFocus={(e) => {
+      <input
+        type="text"
+        inputMode={inputMode}
+        autoComplete="off"
+        spellCheck={false}
+        aria-label={inputLabel}
+        aria-invalid={invalid || undefined}
+        value={text ?? shown}
+        onFocus={(e) => {
+          setInvalid(false);
+          // It starts as exactly what is shown, so picking it up changes nothing under the caret.
+          setText(shown);
+          const input = e.currentTarget;
+          requestAnimationFrame(() => input.select());
+        }}
+        onChange={(e) => {
+          setInvalid(false);
+          setText(e.target.value);
+        }}
+        onBlur={finish}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            finish();
+            e.currentTarget.select();
+          } else if (e.key === 'Escape' && text !== null) {
+            // Put the value back, and keep the dialog open: this Escape was for the field.
+            e.stopPropagation();
+            setText(null);
             setInvalid(false);
-            // It starts as exactly what is shown, so picking it up changes nothing under the caret.
-            setText(shown);
-            const input = e.currentTarget;
-            requestAnimationFrame(() => input.select());
-          }}
-          onChange={(e) => {
-            setInvalid(false);
-            setText(e.target.value);
-          }}
-          onBlur={finish}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              finish();
-              e.currentTarget.select();
-            } else if (e.key === 'Escape' && text !== null) {
-              // Put the value back, and keep the dialog open: this Escape was for the field.
-              e.stopPropagation();
-              setText(null);
-              setInvalid(false);
-            }
-          }}
-        />
-        {unit && <span className="range-field-unit" aria-hidden="true">{unit}</span>}
-      </span>
+          }
+        }}
+      />
     </label>
   );
 }

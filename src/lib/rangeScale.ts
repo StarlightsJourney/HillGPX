@@ -11,40 +11,55 @@ import { M_TO_FT, METRES_PER_MILE, type Units } from './units';
 export const DURATION_UNIT_MIN = 5;
 export const DURATION_UNIT_S = DURATION_UNIT_MIN * 60;
 
-/** Most intervals (and so most stops past zero) a scale is cut into. */
-const MAX_INTERVALS = 20;
-
 export interface RangeScale {
-  /** The top of the track: the 95th percentile, rounded up to a whole step. */
+  /** The top of the track: the 95th percentile, rounded up to a whole bar. */
   hi: number;
   /** Distance between stops, a round number in the unit the reader sees. */
   step: number;
   /** Every value a dragged handle can stop on, ascending, from 0 to `hi`. */
   stops: number[];
-  /** Some values lie beyond `hi`, folded into the last bin. */
+  /** Width of one histogram bar: a whole number of steps, so a bar's edges are stops. */
+  bar: number;
+  /** How many bars there are: `hi / bar`. */
+  bars: number;
+  /** Some values lie beyond `hi`, folded into the last bar. */
   truncated: boolean;
 }
 
+/** Fewest and most bars. Below six a histogram says little; above twenty the bars go thin and gappy. */
+const MIN_BARS = 6;
+const MAX_BARS = 20;
+
 /**
- * A linear scale from 0, its stops on round numbers.
+ * A linear scale from 0, its stops on round numbers and its bars sized to the data.
  *
  * The top is the 95th percentile, not the maximum: one 1,900 km ride among
  * five-kilometre runs would otherwise stretch the track until every stop was a
  * hundred kilometres apart. The step is the first of `steps` that keeps the
- * stops to twenty, so a 70 km spread reads 5 km, 10 km … 75 km rather than
- * 4.2 km, 8.4 km … 84 km.
+ * stops to twenty, so a 70 km spread reads 5 km, 10 km … rather than 4.2 km,
+ * 8.4 km …
+ *
+ * How many bars to draw depends on how many values there are (the Rice rule,
+ * 2 × the cube root of the count): a few dozen routes in twenty thin bars is
+ * mostly empty gaps, while a thousand venues can carry all twenty. Each bar
+ * spans a whole number of steps, so every bar edge is a place a handle can stop.
  */
 export function buildScale(values: readonly number[], steps: readonly number[]): RangeScale {
   let max = 0;
   for (const v of values) if (v > max) max = v;
-  if (max <= 0) return { hi: steps[0], step: steps[0], stops: [0, steps[0]], truncated: false };
+  if (max <= 0) return { hi: steps[0], step: steps[0], stops: [0, steps[0]], bar: steps[0], bars: 1, truncated: false };
   const sorted = [...values].sort((a, b) => a - b);
   const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
   const top = Math.min(max, p95);
-  const step = steps.find((s) => Math.ceil(top / s) <= MAX_INTERVALS) ?? Math.ceil(top / MAX_INTERVALS);
+  const step = steps.find((s) => Math.ceil(top / s) <= MAX_BARS) ?? Math.ceil(top / MAX_BARS);
   const intervals = Math.max(1, Math.ceil(top / step));
-  const stops = Array.from({ length: intervals + 1 }, (_, i) => Number((i * step).toFixed(6)));
-  return { hi: stops[intervals], step, stops, truncated: max > stops[intervals] };
+  const wanted = Math.min(MAX_BARS, Math.max(MIN_BARS, Math.round(2 * Math.cbrt(values.length))));
+  const perBar = Math.max(1, Math.round(intervals / wanted));
+  const bar = perBar * step;
+  const bars = Math.max(1, Math.ceil(top / bar));
+  const stopCount = bars * perBar;
+  const stops = Array.from({ length: stopCount + 1 }, (_, i) => Number((i * step).toFixed(6)));
+  return { hi: stops[stopCount], step, stops, bar, bars, truncated: max > stops[stopCount] };
 }
 
 /** Where a value sits along the track, 0 to 1 (past the top reads as the end). */
@@ -75,81 +90,43 @@ export function neighbourStop(value: number, direction: 1 | -1, scale: RangeScal
   return null;
 }
 
-/** Two bins per step, so the silhouette has more shape than the stops alone. */
-export function binCount(scale: RangeScale): number {
-  return Math.round(scale.hi / scale.step) * 2;
-}
-
-/** How many values fall in each bin; anything past the top counts in the last. */
+/** How many values fall in each bar; anything past the top counts in the last. */
 export function histogram(values: readonly number[], scale: RangeScale): number[] {
-  const bins = binCount(scale);
-  const counts = new Array<number>(bins).fill(0);
-  const width = scale.hi / bins;
-  for (const v of values) counts[Math.min(bins - 1, Math.max(0, Math.floor(v / width)))] += 1;
+  const counts = new Array<number>(scale.bars).fill(0);
+  for (const v of values) counts[Math.min(scale.bars - 1, Math.max(0, Math.floor(v / scale.bar)))] += 1;
   return counts;
 }
 
 /**
- * A light blur over neighbouring bins (1-2-3-2-1), so one or two routes in a bin
- * make a gentle rise, not a spike. A bin keeps its own weight where it has
- * fewer neighbours, so the ends are not pulled down.
+ * A bar's height from 0 to 1. Square-rooted: the busiest bar holds many times
+ * the quietest, and the thin tail is the half of the range someone opening this
+ * control is trying to see into. A bar with anything in it is never shorter than
+ * a stub; an empty one is a still shorter, quiet baseline, so the row reads as
+ * evenly spaced bars rather than as missing data.
  */
-export function smooth(counts: readonly number[]): number[] {
-  const weights = [1, 2, 3, 2, 1];
-  return counts.map((_, i) => {
-    let sum = 0;
-    let total = 0;
-    for (let k = -2; k <= 2; k += 1) {
-      const j = i + k;
-      if (j < 0 || j >= counts.length) continue;
-      sum += counts[j] * weights[k + 2];
-      total += weights[k + 2];
-    }
-    return sum / total;
-  });
+export function barHeight(count: number, tallest: number): number {
+  if (count <= 0 || tallest <= 0) return EMPTY_BAR;
+  return Math.min(1, Math.max(MIN_BAR, Math.sqrt(count / tallest)));
 }
+const EMPTY_BAR = 0.05;
+const MIN_BAR = 0.14;
 
-/**
- * Bin heights from 0 to 1 for drawing. Square-rooted, as the bars always were:
- * the busiest bin holds many times the quietest, and the thin tail is the half
- * of the range someone opening this control is trying to see into.
- */
-export function ridgeHeights(counts: readonly number[], tallest: number): number[] {
-  if (tallest <= 0) return counts.map(() => 0);
-  return counts.map((c) => Math.min(1, Math.sqrt(c / tallest)));
-}
-
-/**
- * A closed, smooth SVG path (a 100 × 100 box, y down) for bin heights 0 to 1:
- * a curve through the midpoints between bins, so it never overshoots the data.
- */
-export function ridgePath(heights: readonly number[]): string {
-  const n = heights.length;
-  if (n === 0) return '';
-  const r = (v: number) => Math.round(v * 100) / 100;
-  const pts = heights.map((h, i) => [(i + 0.5) * (100 / n), 100 - h * 100] as const);
-  let d = `M0,100 L0,${r(pts[0][1])} L${r(pts[0][0])},${r(pts[0][1])}`;
-  for (let i = 0; i < n - 1; i += 1) {
-    const mx = (pts[i][0] + pts[i + 1][0]) / 2;
-    const my = (pts[i][1] + pts[i + 1][1]) / 2;
-    d += ` Q${r(pts[i][0])},${r(pts[i][1])} ${r(mx)},${r(my)}`;
-  }
-  const last = pts[n - 1];
-  return `${d} L${r(last[0])},${r(last[1])} L100,${r(last[1])} L100,100 Z`;
+/** The share of a bar the matching values fill, 0 to 1 (linear: it is a share of that bar). */
+export function matchShare(matching: number, count: number): number {
+  if (matching <= 0 || count <= 0) return 0;
+  return Math.min(1, Math.max(0.1, matching / count));
 }
 
 /* ─── What a bound looks like ─────────────────────────────────────────── */
 
 /** How one kind of bound is shown, typed and kept. Values are in the slider's own unit. */
 export interface RangeKind {
-  /** Written beside the number in a field ("km"), or empty when the number carries it. */
-  unit: string;
   /** Candidate step sizes for the scale, ascending: round numbers in the unit the reader sees. */
   steps: readonly number[];
+  /** The keypad a phone shows for a field: numbers only, or text where a time is typed as "1h30". */
+  inputMode: 'decimal' | 'text';
   /** A bound for a label: "12.5 km", "1 h 30 min". */
   label: (value: number) => string;
-  /** A bound as the field shows it, without the unit: "12.5", "1 h 30 min". */
-  toField: (value: number) => string;
   /** What was typed, as a bound. Null when it is not a number this field understands. */
   fromField: (text: string) => number | null;
 }
@@ -179,10 +156,9 @@ export function distanceKind(units: Units): RangeKind {
   const unit = units === 'imperial' ? 'mi' : 'km';
   const stepsInUnit = [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500];
   return {
-    unit,
     steps: stepsInUnit.map((s) => s * perUnit),
+    inputMode: 'decimal',
     label: (m) => `${trim(m / perUnit)} ${unit}`,
-    toField: (m) => trim(m / perUnit),
     // To the tenth of a km or mile, which is as precise as a route's length is.
     fromField: (text) => {
       const n = parseNumber(text, units === 'imperial' ? ['mi', 'miles'] : ['km', 'k']);
@@ -196,10 +172,9 @@ export function heightKind(units: Units): RangeKind {
   const unit = units === 'imperial' ? 'ft' : 'm';
   const stepsInUnit = units === 'imperial' ? [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000] : [5, 10, 20, 25, 50, 100, 200, 500, 1000, 2000];
   return {
-    unit,
     steps: stepsInUnit.map((s) => s * perUnit),
+    inputMode: 'decimal',
     label: (m) => `${Math.round(m / perUnit)} ${unit}`,
-    toField: (m) => String(Math.round(m / perUnit)),
     // Whole metres or feet: the data has metres of error in it already.
     fromField: (text) => {
       const n = parseNumber(text, units === 'imperial' ? ['ft', 'feet'] : ['m']);
@@ -232,10 +207,9 @@ export function parseMinutes(text: string): number | null {
 
 /** Time: the slider's unit is five minutes, so what is typed is rounded to five. */
 export const durationKind: RangeKind = {
-  unit: '',
   steps: [5, 10, 15, 30, 60, 120, 180, 360, 720, 1440].map((minutes) => minutes / DURATION_UNIT_MIN),
+  inputMode: 'text',
   label: (units) => minutesLabel(units * DURATION_UNIT_MIN),
-  toField: (units) => minutesLabel(units * DURATION_UNIT_MIN),
   fromField: (text) => {
     const minutes = parseMinutes(text);
     return minutes == null ? null : Math.round(minutes / DURATION_UNIT_MIN);

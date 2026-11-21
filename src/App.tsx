@@ -462,9 +462,14 @@ function MapApp() {
     if (top > 0) requestAnimationFrame(() => window.scrollTo({ top }));
   }, []);
 
+  // The route whose details are docked into the left column, if any. Opening or
+  // closing any route clears it, so every route starts as the compact card.
+  const [dockedSlug, setDockedSlug] = useState<string | null>(null);
+
   const selectRoute = useCallback(
     (slug: string | null) => {
       setSelectedRouteSlug(slug);
+      setDockedSlug(null);
       setRouteHoverIndex(null);
       setSpotlight(null);
       setRouteEdit(null);
@@ -691,13 +696,13 @@ function MapApp() {
 
   const routeOpen = Boolean(droppedGpx || selectedRoute);
   const mapFullWidth = mapExpanded;
-  // On a split page (list left, map right) an open route takes the left column in
-  // place of the list, every detail open, so the map beside it is clear to frame
-  // the whole route. "Fewer details" floats it back as a card over the map; that
-  // choice lasts for the visit. The expanded map and narrow screens keep the card.
-  const [dockRoute, setDockRoute] = useState(true);
+  // A route opens as a card over the map. On a split page (list left, map right)
+  // "More details" docks it: it takes the left column in place of the list with
+  // every detail open, so the map beside it is clear to frame the whole route.
+  // "Fewer details" or "All routes" ends it, and the next route starts as a card
+  // again. The expanded map and narrow screens only ever show the card.
   const canDock = useMediaQuery('(min-width: 900px)') && !mapFullWidth;
-  const sidebarRoute = canDock && dockRoute;
+  const sidebarRoute = canDock && selectedRouteSlug !== null && dockedSlug === selectedRouteSlug;
   const hadSidebarRoute = useRef(false);
   useEffect(() => {
     const open = sidebarRoute && Boolean(selectedRouteSlug);
@@ -948,7 +953,7 @@ function MapApp() {
     !droppedGpx && selectedRoute ? (
     <RoutePanel
                     placement={sidebarRoute ? 'sidebar' : 'map'}
-                onToggleDock={canDock ? () => setDockRoute((docked) => !docked) : undefined}
+                onToggleDock={canDock ? () => setDockedSlug(sidebarRoute ? null : selectedRouteSlug) : undefined}
                     route={selectedRoute}
                     venuesBySlug={venueBySlug}
                     allRoutes={allRoutes}

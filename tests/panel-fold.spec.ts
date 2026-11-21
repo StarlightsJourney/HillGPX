@@ -81,8 +81,6 @@ test('tapping the folded strip opens it straight away', async ({ page }) => {
   await openRoutes(page);
   const panel = page.locator('.route-panel');
   await page.locator('.route-item .result-card').first().click();
-  // A route opens docked in the left column; only the floating card folds.
-  await page.getByRole('button', { name: 'Show fewer route details' }).click();
   await expect(panel).toBeVisible();
   await page.waitForTimeout(2_000);
 

@@ -48,7 +48,7 @@ test('markers appear on the open route only: ring at the start, flag at the fini
     expect(await page.locator(`.route-end-${kind}`).evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
   }
 
-  await page.getByRole('button', { name: 'All routes' }).click();
+  await page.getByRole('button', { name: 'Close route' }).click();
   await expect(page.locator('.route-end')).toHaveCount(0);
 });
 
@@ -64,13 +64,11 @@ test('selecting another route moves the markers; hovering a row shows them while
   await openRoutes(page);
   await row(page, 'Southern Ridges').click();
   await expect(page.locator('.route-end-start')).toHaveCount(1);
-  // The route takes the list's place: go back to the list to pick another.
-  await page.getByRole('button', { name: 'All routes' }).click();
   await row(page, 'UTSG 60km').click();
   await expect(page.locator('.route-end-loop')).toHaveCount(1);
   await expect(page.locator('.route-end-start')).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'All routes' }).click();
+  await page.getByRole('button', { name: 'Close route' }).click();
   await expect(page.locator('.route-end')).toHaveCount(0);
   await row(page, 'Southern Ridges').hover();
   await expect(page.locator('.route-end-start')).toHaveCount(1);

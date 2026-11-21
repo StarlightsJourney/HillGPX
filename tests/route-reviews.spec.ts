@@ -112,9 +112,7 @@ async function openRoute(page: Page) {
 const panel = (page: Page) => page.getByRole('region', { name: `Route: ${ROUTE}` });
 
 async function moreDetails(page: Page) {
-  // On a wide page a route opens docked with every detail already open.
-  const more = panel(page).getByRole('button', { name: 'Show more route details' });
-  if (await more.isVisible()) await more.click();
+  await panel(page).getByRole('button', { name: 'Show more route details' }).click();
   await expect(panel(page)).toHaveClass(/expanded/);
 }
 
@@ -287,8 +285,7 @@ test.describe('community routes', () => {
     await page.goto('/#routes');
     await page.locator('.route-item .result-card', { hasText: 'Bay Flat Loop' }).click({ timeout: 20_000 });
     const sheet = page.locator('.route-panel');
-    const more = sheet.getByRole('button', { name: 'Show more route details' });
-    if (await more.isVisible()) await more.click();
+    await sheet.getByRole('button', { name: 'Show more route details' }).click();
     await expect(sheet).toHaveClass(/expanded/);
     return sheet;
   }
@@ -336,8 +333,6 @@ test('Report opens the report dialog for that one review', async ({ page }) => {
 test('folding the panel hides the rating with the rest', async ({ page }) => {
   await stub(page, { reviews: [row('a', 5, 'Fine', 'hill_goat', 20)] });
   await openRoute(page);
-  // Only the floating card folds; a docked route stays whole.
-  await panel(page).getByRole('button', { name: 'Show fewer route details' }).click();
   const rating = panel(page).getByLabel('Rated 5.0 out of 5, 1 review');
   await expect(rating).toBeVisible();
   await page.waitForTimeout(2_000);
@@ -362,8 +357,7 @@ test.describe('on a phone', () => {
     const sheet = page.locator('.route-panel');
     await expect(sheet).toBeVisible();
     await expect(sheet.getByLabel('Rated 5.0 out of 5, 1 review')).toBeVisible();
-    const more = sheet.getByRole('button', { name: 'Show more route details' });
-    if (await more.isVisible()) await more.click();
+    await sheet.getByRole('button', { name: 'Show more route details' }).click();
     await expect(sheet).toHaveClass(/expanded/);
     const section = sheet.locator('.route-reviews');
     await section.locator('.review-card').first().scrollIntoViewIfNeeded();

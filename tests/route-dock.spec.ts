@@ -18,36 +18,57 @@ const card = (page: Page) => page.locator('.map-wrap .route-panel');
 const more = (page: Page) => page.getByRole('button', { name: 'Show more route details' });
 const fewer = (page: Page) => page.getByRole('button', { name: 'Show fewer route details' });
 
-test('a route opened from the list takes the left column, every detail open', async ({ page }) => {
+test('a route opens as a card over the map, with the list kept beside it', async ({ page }) => {
   await openRoutes(page);
   await row(page, 'Southern Ridges').click();
-  const docked = page.locator('.list-pane .route-panel.in-sidebar');
-  await expect(docked).toBeVisible();
-  await expect(docked).toHaveClass(/expanded/);
-  await expect(docked).toContainText('Southern Ridges');
-  await expect(page.locator('.map-wrap .route-panel')).toHaveCount(0);
-  await expect(page.locator('.route-item')).toHaveCount(0);
-  await expect(fewer(page)).toBeVisible();
-  await expect(page.locator('.route-end-start')).toHaveCount(1);
-});
-
-test('Fewer details floats the card over the map; More details docks it again', async ({ page }) => {
-  await openRoutes(page);
-  await row(page, 'Southern Ridges').click();
-  await fewer(page).click();
   await expect(card(page)).toBeVisible();
   await expect(page.locator('.list-pane .route-panel')).toHaveCount(0);
   await expect(page.locator('.route-item').first()).toBeVisible();
-  await expect(card(page)).toContainText('Southern Ridges');
+});
 
+test('More details docks the details into the left column; Fewer details floats the card back', async ({ page }) => {
+  await openRoutes(page);
+  await row(page, 'Southern Ridges').click();
+  await more(page).click();
+
+  // Docked: the details replace the list, every detail is open and nothing floats over the map.
+  const docked = page.locator('.list-pane .route-panel.in-sidebar');
+  await expect(docked).toBeVisible();
+  await expect(docked).toHaveClass(/expanded/);
+  await expect(page.locator('.map-wrap .route-panel')).toHaveCount(0);
+  await expect(page.locator('.route-item')).toHaveCount(0);
+  await expect(fewer(page)).toBeVisible();
+  await expect(docked).toContainText('Southern Ridges');
+  await expect(page.locator('.route-end-start')).toHaveCount(1);
+
+  await fewer(page).click();
+  await expect(card(page)).toBeVisible();
+  await expect(page.locator('.list-pane .route-panel')).toHaveCount(0);
+  await expect(card(page)).toContainText('Southern Ridges');
+});
+
+test('after All routes, the next route opens as a card again, not docked', async ({ page }) => {
+  await openRoutes(page);
+  await row(page, 'Southern Ridges').click();
   await more(page).click();
   await expect(page.locator('.list-pane .route-panel.in-sidebar')).toBeVisible();
-  await expect(page.locator('.map-wrap .route-panel')).toHaveCount(0);
+  await page.getByRole('button', { name: 'All routes' }).click();
+  await page.mouse.move(5, 400);
+
+  await row(page, 'UTSG 60km').click();
+  await expect(card(page)).toBeVisible();
+  await expect(card(page)).toContainText('UTSG 60km');
+  await expect(page.locator('.list-pane .route-panel')).toHaveCount(0);
+  await expect(page.locator('.route-item').first()).toBeVisible();
+  // Docking is asked for each time.
+  await more(page).click();
+  await expect(page.locator('.list-pane .route-panel.in-sidebar')).toBeVisible();
 });
 
 test('docked, All routes returns to the list and leaves no markers behind', async ({ page }) => {
   await openRoutes(page);
   await row(page, 'Southern Ridges').click();
+  await more(page).click();
   await page.getByRole('button', { name: 'All routes' }).click();
   // The list comes back under the pointer, and a hovered row shows its markers: look away first.
   await page.mouse.move(5, 400);
@@ -83,21 +104,21 @@ test('docking and floating back re-fit the whole route to the space that is left
     }, coordinates);
 
   await row(page, 'Southern Ridges').click();
-  await page.waitForTimeout(1_800);
-  const docked = await spread();
-  // Nothing covers the map: the route fits the whole of it, edge to edge with a margin.
-  expect(docked.left).toBeGreaterThanOrEqual(0);
-  expect(docked.right).toBeLessThanOrEqual(docked.width);
-
-  await fewer(page).click();
-  await page.waitForTimeout(1_800);
+  await page.waitForTimeout(1_800); // the camera finishes framing the route beside the card
   const floating = await spread();
-  // Beside the floating card the route keeps clear of its left side.
+  // Beside the card the route keeps clear of its left side.
   expect(floating.left).toBeGreaterThan(300);
-  expect(docked.left).toBeLessThan(floating.left - 150);
 
   await more(page).click();
   await page.waitForTimeout(1_800);
+  const docked = await spread();
+  // Nothing covers the map now: the route fits the whole of it, edge to edge with a margin.
+  expect(docked.left).toBeGreaterThanOrEqual(0);
+  expect(docked.right).toBeLessThanOrEqual(docked.width);
+  expect(docked.left).toBeLessThan(floating.left - 150);
+
+  await fewer(page).click();
+  await page.waitForTimeout(1_800);
   const back = await spread();
-  expect(back.left).toBeLessThan(floating.left - 150);
+  expect(back.left).toBeGreaterThan(300);
 });

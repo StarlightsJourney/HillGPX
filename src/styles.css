@@ -2163,44 +2163,30 @@ button {
 }
 
 .range-hist {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 74px;
+  position: relative;
+  height: 64px;
+  /* Tuck under the track by a pixel, so no hairline of page shows between them. */
+  margin-bottom: -1px;
 }
 
-.range-bar {
-  position: relative;
-  flex: 1 1 0;
-  min-width: 0;
-  background: #f2f2f2;
-  border-radius: 2px 2px 0 0;
-}
-.range-bar.in {
-  background: color-mix(in srgb, var(--accent) 22%, white);
-}
-/* The routes in this bucket that pass the other filters, over the faint ghost
-   of the ones they hide. */
-.range-bar-match {
+/* The histogram is one silhouette: the whole pool as a faint ghost, what passes
+   the other filters over it in grey, and the part between the handles in colour
+   (the same shape, cut to the handles with clip-path). */
+.range-shape {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: #e5e5e5;
-  border-radius: 2px 2px 0 0;
-  transition: height 150ms ease;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
 }
-.range-bar.in .range-bar-match {
-  background: var(--accent);
-}
-@media (prefers-reduced-motion: reduce) {
-  .range-bar-match { transition: none; }
-}
+.range-shape-pool path { fill: #f3f3f3; }
+.range-shape-out path { fill: #dedede; }
+.range-shape-in path { fill: var(--accent); }
 
 .range-track {
   position: relative;
   height: 4px;
-  margin-top: 2px;
+  margin-top: 0;
   border-radius: 999px;
   background: #e5e5e5;
   cursor: pointer;
@@ -2242,33 +2228,70 @@ button {
   display: flex;
   justify-content: space-between;
   margin-top: 12px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
-.range-readouts {
+.range-fields {
   display: flex;
   gap: var(--s2);
   margin-top: var(--s2);
 }
 
-.range-readout {
+/* Each bound is a labelled field: tap it to type a value, Enter to apply. */
+.range-field {
   flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 2px;
-  padding: 8px 14px;
+  padding: 8px 14px 9px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 14px;
+  background: var(--surface);
+  cursor: text;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.range-field:hover { border-color: var(--ink); }
+.range-field:focus-within {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+.range-field.invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger);
 }
 
-.range-readout-label {
+.range-field-label {
   font-size: 11px;
   color: var(--muted);
 }
 
-.range-readout-value {
-  font-size: var(--t2);
+.range-field-box {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+/* 16px or more, or iOS zooms the page when the field is picked up. */
+.range-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
   font-weight: 600;
+  color: var(--ink);
+}
+
+.range-field-unit {
+  flex: none;
+  font-size: 14px;
+  color: var(--muted);
 }
 
 /* Full-screen on a phone, at the same breakpoint the venue card and the GPX

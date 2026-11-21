@@ -2244,14 +2244,16 @@ button {
   margin-top: 12px;
 }
 
-.range-readouts {
+.range-fields {
   display: flex;
   gap: var(--s2);
   margin-top: var(--s2);
 }
 
-.range-readout {
+/* Each bound is a pill you can type into: tap it, type, Enter to apply. */
+.range-field {
   flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2259,16 +2261,38 @@ button {
   padding: 8px 14px;
   border: 1px solid var(--border);
   border-radius: 999px;
+  background: var(--surface);
+  cursor: text;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.range-field:hover { border-color: var(--ink); }
+.range-field:focus-within {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+.range-field.invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger);
 }
 
-.range-readout-label {
+.range-field-label {
   font-size: 11px;
   color: var(--muted);
 }
 
-.range-readout-value {
-  font-size: var(--t2);
+/* 16px or more, or iOS zooms the page when the field is picked up. */
+.range-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  text-align: center;
+  font: inherit;
+  font-size: 16px;
   font-weight: 600;
+  color: var(--ink);
 }
 
 /* Full-screen on a phone, at the same breakpoint the venue card and the GPX

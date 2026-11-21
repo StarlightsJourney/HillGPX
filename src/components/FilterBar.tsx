@@ -5,8 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type PointerEvent as ReactPointerEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -26,7 +24,9 @@ import {
 import { useRouteBookmarks } from '../lib/useRouteBookmarks';
 import { NO_ROUTE_FILTERS, ROUTE_CATEGORIES, filterRoutes, routeHasElevation, routeIntersects, type RouteCategory, type RouteFilters } from '../lib/routes';
 import { ACTIVITY_PATHS } from '../lib/activityGlyphs';
-import { formatEstimate, routeEstimateS } from '../lib/routeTime';
+import { routeEstimateS } from '../lib/routeTime';
+import { DURATION_UNIT_S, distanceKind, durationKind, heightKind } from '../lib/rangeScale';
+import { ValueRange } from './ValueRange';
 import { VENUE_GLYPH_PATH } from '../lib/venueGlyphs';
 
 export type BrowseMode = 'climbs' | 'routes';
@@ -273,8 +273,6 @@ function CategoryButton({
   );
 }
 
-/** One slider step for the time filter: five minutes, the estimate's own rounding. */
-const DURATION_UNIT_S = 300;
 
 function RouteFilterModal({
   routes,
@@ -297,6 +295,8 @@ function RouteFilterModal({
   const [closing, setClosing] = useState(false);
   const bookmarks = useRouteBookmarks();
   const units = useUnits();
+  const distanceK = useMemo(() => distanceKind(units.units), [units.units]);
+  const gainK = useMemo(() => heightKind(units.units), [units.units]);
   const count = filterRoutes(routes, filters, bookmarks).length;
   const close = useCallback(() => setClosing(true), []);
   // The histograms show what is actually out there. EG's pool skips routes
@@ -360,7 +360,7 @@ function RouteFilterModal({
               matching={matchDistances}
               min={filters.minDistanceM}
               max={filters.maxDistanceM}
-              format={units.distance}
+              kind={distanceK}
               minLabel="Minimum distance"
               maxLabel="Maximum distance"
               onChange={(minDistanceM, maxDistanceM) => onChange({ ...filters, minDistanceM, maxDistanceM })}
@@ -373,7 +373,7 @@ function RouteFilterModal({
               matching={matchGains}
               min={filters.minGainM}
               max={filters.maxGainM}
-              format={units.height}
+              kind={gainK}
               minLabel="Minimum elevation gain"
               maxLabel="Maximum elevation gain"
               onChange={(minGainM, maxGainM) => onChange({ ...filters, minGainM, maxGainM })}
@@ -386,7 +386,7 @@ function RouteFilterModal({
               matching={matchDurations}
               min={filters.minDurationS == null ? null : filters.minDurationS / DURATION_UNIT_S}
               max={filters.maxDurationS == null ? null : filters.maxDurationS / DURATION_UNIT_S}
-              format={(units) => (units === 0 ? '0 min' : formatEstimate(units * DURATION_UNIT_S))}
+              kind={durationKind}
               minLabel="Minimum estimated time"
               maxLabel="Maximum estimated time"
               onChange={(min, max) =>
@@ -536,6 +536,7 @@ function FilterModal({
   returnFocusTo,
 }: FilterModalProps) {
   const units = useUnits();
+  const heightK = useMemo(() => heightKind(units.units), [units.units]);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const [draft, setDraft] = useState<VenueFilters>(filters);
@@ -695,7 +696,7 @@ function FilterModal({
               values={heights}
               min={draft.minHeightM}
               max={draft.maxHeightM}
-              format={units.height}
+              kind={heightK}
               minLabel="Minimum height"
               maxLabel="Maximum height"
               onChange={(minHeightM, maxHeightM) => setDraft({ ...draft, minHeightM, maxHeightM })}
@@ -734,283 +735,6 @@ function FilterModal({
       </div>
     </div>,
     document.body,
-  );
-}
-
-/* ─── Value range ─────────────────────────────────────────────────────── */
-
-/** Bars in the histogram. Twenty is the most this data supports without gaps:
- *  HDB heights are storeys × 2.8 m, so buckets narrower than that at the low
- *  end fall between two rungs of the ladder the data is actually on and come
- *  out empty, which reads as missing data rather than as a bucketing artefact. */
-const BUCKETS = 20;
-
-interface RangeScale {
-  lo: number;
-  hi: number;
-  /** Bucket width in the pool's own units (metres). */
-  step: number;
-  /** Every value a handle can stop on, ascending. */
-  stops: number[];
-  /** Pool counts per bucket, left to right. */
-  counts: number[];
-  /** Some pool values lie beyond `hi`, folded into the last bucket. */
-  truncated: boolean;
-}
-
-/**
- * Linear scale starting from 0 so the histogram reads intuitively.
- *
- * The top is the 95th percentile, not the maximum: one 1,900 km ride or
- * 26,000 m Everesting among five-kilometre runs would otherwise stretch the
- * track so far that every handle stop landed a hundred kilometres apart and
- * no real bound could be picked. The tail folds into the last bucket and is
- * still reachable — the top stop means "no bound", and a min handle there
- * keeps everything at and above `hi`.
- */
-function buildScale(values: number[]): RangeScale {
-  let max = 0;
-  for (const h of values) {
-    if (h > max) max = h;
-  }
-  if (max <= 1) return { lo: 0, hi: 1, step: 1, stops: [0, 1], counts: [], truncated: false };
-  const sorted = [...values].sort((a, b) => a - b);
-  const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
-  const hi = Math.ceil(Math.max(1, Math.min(max, p95)));
-  const step = Math.max(1, Math.ceil(hi / BUCKETS));
-
-  const stops: number[] = [0];
-  for (let v = step; v <= hi; v += step) stops.push(v);
-  if (stops[stops.length - 1] < hi) stops.push(hi);
-
-  const counts = new Array(BUCKETS).fill(0);
-  for (const h of values) {
-    const bucket = Math.min(BUCKETS - 1, Math.floor(h / step));
-    counts[bucket] += 1;
-  }
-
-  return { lo: 0, hi, step, stops, counts, truncated: max > hi };
-}
-
-/** Where a value sits along the track, 0 to 1. */
-function positionOf(value: number, scale: RangeScale): number {
-  return clamp(value, 0, scale.hi) / scale.hi;
-}
-
-/** The stop nearest a point on the track. */
-function stopAt(ratio: number, scale: RangeScale): number {
-  const target = clamp(ratio, 0, 1) * scale.hi;
-  let best = 0;
-  let bestGap = Infinity;
-  for (let i = 0; i < scale.stops.length; i += 1) {
-    const gap = Math.abs(scale.stops[i] - target);
-    if (gap < bestGap) {
-      bestGap = gap;
-      best = i;
-    }
-  }
-  return best;
-}
-
-/** The stop index holding a value already in the filters. */
-function indexOfValue(value: number, scale: RangeScale): number {
-  return stopAt(positionOf(clamp(value, 0, scale.hi), scale), scale);
-}
-
-function clamp(n: number, lo: number, hi: number): number {
-  return Math.min(hi, Math.max(lo, n));
-}
-
-interface ValueRangeProps {
-  /** The pool the histogram and scale are built from, in the values' own units. */
-  values: number[];
-  /**
-   * The part of `values` that passes every other filter. The axis stays built
-   * from `values` (so handles never move by themselves); these drive the solid
-   * bars, and the rest of each bucket shows as a faint ghost. Omit to show all.
-   */
-  matching?: number[];
-  min: number | null;
-  max: number | null;
-  /** How a bound is printed ("163 m", "12.4 km") and read out to screen readers. */
-  format: (value: number) => string;
-  /** aria-labels for the two handles, e.g. "Minimum distance". */
-  minLabel: string;
-  maxLabel: string;
-  onChange: (min: number | null, max: number | null) => void;
-}
-
-function ValueRange({ values, matching, min, max, format, minLabel, maxLabel, onChange }: ValueRangeProps) {
-  const scale = useMemo(() => buildScale(values), [values]);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef<'min' | 'max' | null>(null);
-
-  const lastIndex = scale.stops.length - 1;
-  // Derived from the filters every render rather than held here as well. Two
-  // copies of the same number is how "Clear all" ends up moving the pins but
-  // leaving the handles where they were.
-  const minIndex = min == null ? 0 : indexOfValue(min, scale);
-  const maxIndex = max == null ? lastIndex : indexOfValue(max, scale);
-  const minValue = scale.stops[minIndex];
-  const maxValue = scale.stops[maxIndex];
-
-  /** Report a pair of stop indices as filter bounds, the ends meaning "no bound". */
-  const commit = (nextMin: number, nextMax: number) => {
-    const lower = clamp(nextMin, 0, nextMax);
-    const upper = clamp(nextMax, lower, lastIndex);
-    onChange(
-      lower === 0 ? null : scale.stops[lower],
-      upper === lastIndex ? null : scale.stops[upper],
-    );
-  };
-
-  const indexFromClientX = (clientX: number): number => {
-    const rect = trackRef.current?.getBoundingClientRect();
-    if (!rect || rect.width === 0) return 0;
-    return stopAt((clientX - rect.left) / rect.width, scale);
-  };
-
-  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    const index = indexFromClientX(e.clientX);
-    const handle = (e.target as HTMLElement).closest<HTMLElement>('[data-handle]');
-    // Whichever handle is nearer, so a press on bare track drags the one you
-    // meant instead of always the lower one.
-    const grabbed = handle?.dataset.handle === 'max' ? 'max'
-      : handle?.dataset.handle === 'min' ? 'min'
-      : Math.abs(index - minIndex) <= Math.abs(index - maxIndex) ? 'min' : 'max';
-    dragging.current = grabbed;
-    e.currentTarget.querySelector<HTMLElement>(`[data-handle="${grabbed}"]`)?.focus();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    if (grabbed === 'min') commit(Math.min(index, maxIndex), maxIndex);
-    else commit(minIndex, Math.max(index, minIndex));
-  };
-
-  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragging.current) return;
-    const index = indexFromClientX(e.clientX);
-    if (dragging.current === 'min') commit(Math.min(index, maxIndex), maxIndex);
-    else commit(minIndex, Math.max(index, minIndex));
-  };
-
-  const endDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragging.current) return;
-    dragging.current = null;
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
-  };
-
-  const onHandleKey = (which: 'min' | 'max') => (e: ReactKeyboardEvent<HTMLDivElement>) => {
-    const current = which === 'min' ? minIndex : maxIndex;
-    const delta =
-      e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1
-      : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1
-      : e.key === 'PageUp' ? 5
-      : e.key === 'PageDown' ? -5
-      : 0;
-    let next: number;
-    if (delta) next = current + delta;
-    else if (e.key === 'Home') next = which === 'min' ? 0 : minIndex;
-    else if (e.key === 'End') next = which === 'min' ? maxIndex : lastIndex;
-    else return;
-    e.preventDefault();
-    if (which === 'min') commit(clamp(next, 0, maxIndex), maxIndex);
-    else commit(minIndex, clamp(next, minIndex, lastIndex));
-  };
-
-  const tallest = Math.max(1, ...scale.counts);
-  const matchCounts = useMemo(() => {
-    if (!matching) return scale.counts;
-    const counts = new Array<number>(scale.counts.length).fill(0);
-    for (const v of matching) counts[Math.min(counts.length - 1, Math.floor(v / scale.step))] += 1;
-    return counts;
-  }, [matching, scale]);
-  const minPos = positionOf(minValue, scale);
-  const maxPos = positionOf(maxValue, scale);
-
-  return (
-    <div className="range">
-      <div className="range-hist" aria-hidden="true">
-        {scale.counts.map((count, i) => {
-          const start = i * scale.step;
-          const end = (i + 1) * scale.step;
-          return (
-            <div
-              key={i}
-              className={`range-bar${end >= minValue && start <= maxValue ? ' in' : ''}`}
-              // Square-rooted, not proportional. The busiest bucket holds thousands
-              // of venues and the quietest a handful; drawn to scale the tail would
-              // be a one-pixel line, and the tail is the half of the range someone
-              // opening this control is trying to see into.
-              style={{ height: `${Math.max(3, 100 * Math.sqrt(count / tallest))}%` }}
-            >
-              <div
-                className="range-bar-match"
-                style={{ height: `${matchCounts[i] === 0 ? 0 : Math.max(3, 100 * Math.sqrt(matchCounts[i] / count))}%` }}
-              />
-            </div>
-          );
-        })}
-      </div>
-
-      <div
-        className="range-track"
-        ref={trackRef}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-      >
-        <div
-          className="range-fill"
-          style={{ left: `${minPos * 100}%`, right: `${(1 - maxPos) * 100}%` }}
-        />
-        <div
-          className="range-handle"
-          data-handle="min"
-          style={{ left: `${minPos * 100}%` }}
-          role="slider"
-          tabIndex={0}
-          aria-label={minLabel}
-          aria-valuemin={scale.lo}
-          aria-valuemax={maxValue}
-          aria-valuenow={minValue}
-          aria-valuetext={format(minValue)}
-          onKeyDown={onHandleKey('min')}
-        />
-        <div
-          className="range-handle"
-          data-handle="max"
-          style={{ left: `${maxPos * 100}%` }}
-          role="slider"
-          tabIndex={0}
-          aria-label={maxLabel}
-          aria-valuemin={minValue}
-          aria-valuemax={scale.hi}
-          aria-valuenow={maxValue}
-          aria-valuetext={maxIndex === lastIndex ? `${format(maxValue)} or more` : format(maxValue)}
-          onKeyDown={onHandleKey('max')}
-        />
-      </div>
-
-      <div className="range-scale small muted" aria-hidden="true">
-        <span>{format(scale.lo)}</span>
-        <span>{scale.truncated ? `${format(scale.hi)}+` : format(scale.hi)}</span>
-      </div>
-
-      <div className="range-readouts">
-        <div className="range-readout">
-          <span className="range-readout-label">Minimum</span>
-          <span className="range-readout-value">{format(minValue)}</span>
-        </div>
-        <div className="range-readout">
-          <span className="range-readout-label">Maximum</span>
-          <span className="range-readout-value">
-            {maxIndex === lastIndex ? `${format(maxValue)}+` : format(maxValue)}
-          </span>
-        </div>
-      </div>
-    </div>
   );
 }
 

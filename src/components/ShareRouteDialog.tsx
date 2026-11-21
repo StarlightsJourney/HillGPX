@@ -5,6 +5,15 @@ import { CheckIcon, CopyIcon, MailIcon, ShareIcon } from './icons';
 import { Modal } from './Modal';
 import { useUnits } from './UnitsContext';
 
+interface ShareDialogProps {
+  title: string;
+  name: string;
+  stats: string;
+  text: string;
+  url: string;
+  onClose: () => void;
+}
+
 interface ShareRouteDialogProps {
   route: Route;
   /** The EG the panel shows, or null when the route's elevation is not known. */
@@ -12,17 +21,27 @@ interface ShareRouteDialogProps {
   onClose: () => void;
 }
 
+export function ShareRouteDialog({ route, gainM, onClose }: ShareRouteDialogProps) {
+  const units = useUnits();
+  return (
+    <ShareDialog
+      title="Share this route"
+      name={route.name}
+      stats={`${units.distance(route.distanceM)}${gainM != null ? ` · ${units.height(gainM)} EG` : ''}`}
+      text={`${route.name}: ${units.distance(route.distanceM)}${gainM != null ? `, ${units.height(gainM)} elevation gain` : ''} on HillGPX`}
+      url={routeLink(route.slug)}
+      onClose={onClose}
+    />
+  );
+}
+
 /**
  * "Share this route": the route, then the ways to pass its link on. Copy link
  * is always there; the phone's own share sheet is offered when the browser has
  * one; email works everywhere. The link carries no tracking parameters.
  */
-export function ShareRouteDialog({ route, gainM, onClose }: ShareRouteDialogProps) {
-  const units = useUnits();
-  const url = routeLink(route.slug);
+export function ShareDialog({ title, name, stats, text, url, onClose }: ShareDialogProps) {
   const canShare = typeof navigator.share === 'function';
-  const stats = `${units.distance(route.distanceM)}${gainM != null ? ` · ${units.height(gainM)} EG` : ''}`;
-  const text = `${route.name}: ${units.distance(route.distanceM)}${gainM != null ? `, ${units.height(gainM)} elevation gain` : ''} on HillGPX`;
   const [copied, setCopied] = useState(false);
   // Copying can be blocked: show the link to copy by hand.
   const [manual, setManual] = useState(false);
@@ -45,13 +64,13 @@ export function ShareRouteDialog({ route, gainM, onClose }: ShareRouteDialogProp
 
   const shareSheet = () => {
     // Cancelling the sheet is not an error.
-    void navigator.share({ title: route.name, text, url }).then(onClose, () => undefined);
+    void navigator.share({ title: name, text, url }).then(onClose, () => undefined);
   };
 
   return (
-    <Modal title="Share this route" onClose={onClose}>
+    <Modal title={title} onClose={onClose}>
       <div className="share-route">
-        <p className="share-route-name">{route.name}</p>
+        <p className="share-route-name">{name}</p>
         <p className="share-route-stats">{stats}</p>
       </div>
       {/* One main action in the brand colour, the rest as quiet pills. */}
@@ -72,7 +91,7 @@ export function ShareRouteDialog({ route, gainM, onClose }: ShareRouteDialogProp
         </button>
         <a
           className="btn share-pill share-pill-quiet"
-          href={`mailto:?subject=${encodeURIComponent(route.name)}&body=${encodeURIComponent(`${text}\n${url}`)}`}
+          href={`mailto:?subject=${encodeURIComponent(name)}&body=${encodeURIComponent(`${text}\n${url}`)}`}
         >
           <MailIcon size={18} />
           Email

@@ -5,7 +5,9 @@ import { HEIGHT_LABEL, townName, venueHeight, venueKindLabel, venuePhotos } from
 import { PhotoCredit, VenueThumb } from './VenueThumb';
 import { useUnits } from './UnitsContext';
 import { RatingLabel } from './ResultsList';
-import { CloseIcon, HeartIcon } from './icons';
+import { ChevronRightIcon, CloseIcon, HeartIcon, ShareIcon } from './icons';
+import { ShareDialog } from './ShareRouteDialog';
+import { useState } from 'react';
 import { toGpx } from '../lib/gpx';
 import { saveFile } from '../lib/dom';
 
@@ -36,6 +38,7 @@ export function VenueCard({
   className,
 }: VenueCardProps) {
   const height = venueHeight(venue);
+  const [sharing, setSharing] = useState(false);
   const units = useUnits();
   const cover = venuePhotos(venue)[0];
   const detail = [
@@ -67,6 +70,19 @@ export function VenueCard({
           <HeartIcon size={24} filled={isFavorite} />
         </button>
       )}
+      <button
+        type="button"
+        className="icon-btn card-share"
+        onClick={(event) => {
+          event.stopPropagation();
+          setSharing(true);
+        }}
+        aria-label="Share this place"
+        aria-haspopup="dialog"
+        title="Share"
+      >
+        <ShareIcon size={15} />
+      </button>
       <button className="icon-btn card-close" onClick={onClose} aria-label="Close">
         <CloseIcon size={14} />
       </button>
@@ -91,7 +107,21 @@ export function VenueCard({
           <p className="card-height muted">No height recorded{routeLabel}</p>
         )}
       </a>
+      <a className="route-more-toggle venue-more-toggle" href={`#venue/${venue.slug}`} target="_blank" rel="noopener" aria-label={`More details about ${venue.name}`}>
+        <span>More details</span>
+        <ChevronRightIcon size={13} />
+      </a>
       {cover && <PhotoCredit photo={cover} />}
+      {sharing && (
+        <ShareDialog
+          title="Share this place"
+          name={venue.name}
+          stats={[venueKindLabel(venue), height ? `${units.height(height.value)} ${HEIGHT_LABEL[height.kind]}` : null].filter(Boolean).join(' · ')}
+          text={`${venue.name}${height ? `: ${units.height(height.value)} ${HEIGHT_LABEL[height.kind]}` : ''} on HillGPX`}
+          url={`${window.location.origin}${import.meta.env.BASE_URL}#venue/${encodeURIComponent(venue.slug)}`}
+          onClose={() => setSharing(false)}
+        />
+      )}
     </aside>
   );
 }

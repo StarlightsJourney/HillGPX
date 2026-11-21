@@ -401,24 +401,6 @@ button {
   background: #f2f2f2;
   color: #6a6a6a;
 }
-.pin.is-mini {
-  width: 26px;
-  height: 16px;
-  padding: 0;
-}
-.pin.is-mini > * {
-  display: none;
-}
-.pin.is-mini.is-hover,
-.pin.is-mini:hover {
-  width: auto;
-  height: 32px;
-  padding: 0 12px 0 9px;
-}
-.pin.is-mini.is-hover > *,
-.pin.is-mini:hover > * {
-  display: inline-flex;
-}
 .pin-glyph {
   display: inline-flex;
   flex: 0 0 18px;

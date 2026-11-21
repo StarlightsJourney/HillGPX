@@ -40,8 +40,6 @@ function intersects(a: CollisionRect, b: CollisionRect): boolean {
   return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 }
 
-const MAX_MINI = 6;
-
 export class VenueMarkers {
   private readonly map: MlMap;
   private readonly handlers: MarkerHandlers;
@@ -120,8 +118,6 @@ export class VenueMarkers {
       return priority(b) - priority(a) || rankingHeight(b.venue) - rankingHeight(a.venue);
     });
     const fullRects: CollisionRect[] = [];
-    const miniRects: CollisionRect[] = [];
-    let miniCount = 0;
 
     for (const entry of entries) {
       const point = this.map.project([entry.venue.lng, entry.venue.lat]);
@@ -135,31 +131,15 @@ export class VenueMarkers {
       const protectedMarker =
         entry.venue.slug === this.state.selected || entry.venue.slug === this.state.hovered;
       const collides = !protectedMarker && fullRects.some((placed) => intersects(fullRect, placed));
-      const miniRect = {
-        left: point.x - 15,
-        right: point.x + 15,
-        top: point.y - 10,
-        bottom: point.y + 10,
-      };
-      const isMini =
-        collides && miniCount < MAX_MINI && !miniRects.some((placed) => intersects(miniRect, placed));
-      const isHidden = collides && !isMini;
-
-      entry.element.classList.toggle('is-mini', isMini);
-      entry.anchor.classList.toggle('is-hidden', isHidden);
+      // A pin that loses the pass is hidden whole, never left as an empty capsule.
+      entry.anchor.classList.toggle('is-hidden', collides);
       if (!collides) fullRects.push(fullRect);
-      if (isMini) {
-        miniRects.push(miniRect);
-        miniCount += 1;
-      }
       entry.anchor.style.zIndex = String(
         entry.venue.slug === this.state.selected
           ? 4
           : entry.venue.slug === this.state.hovered
             ? 3
-            : isMini
-              ? 1
-              : 2,
+            : 2,
       );
     }
   }

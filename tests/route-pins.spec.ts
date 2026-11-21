@@ -102,6 +102,23 @@ async function expectNoOverlaps(page: Page): Promise<number> {
   return boxes.length;
 }
 
+/** A pin that is on screen must show its label: never an empty capsule. */
+async function expectNoEmptyPins(page: Page): Promise<number> {
+  const pins = await page.locator('.pin-anchor:not(.is-hidden) .pin').evaluateAll((els) =>
+    els.map((el) => {
+      const label = el.querySelector<HTMLElement>('.pin-label');
+      const shown = !!label && label.getClientRects().length > 0 && getComputedStyle(label).display !== 'none';
+      return { text: label?.textContent?.trim() ?? '', shown, width: el.getBoundingClientRect().width };
+    }),
+  );
+  for (const p of pins) {
+    expect(p.text).not.toBe('');
+    expect(p.shown).toBe(true);
+    expect(p.width).toBeGreaterThan(40);
+  }
+  return pins.length;
+}
+
 async function zoomIn(page: Page) {
   const canvas = (await page.locator('.maplibregl-canvas').first().boundingBox())!;
   await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
@@ -128,6 +145,7 @@ test('zoomed in on a busy city, route pins never cover each other; the hovered a
   await expect(async () => {
     expect(await page.locator('.pin-anchor.is-hidden .route-pin[data-slug^="crowd-"]').count()).toBeGreaterThan(0);
     expect(await expectNoOverlaps(page)).toBeGreaterThan(0);
+    await expectNoEmptyPins(page);
   }).toPass({ timeout: 10_000 });
   const shownBefore = await shownPins(page).count();
 
@@ -155,5 +173,19 @@ test('zoomed in on a busy city, route pins never cover each other; the hovered a
   await expect(async () => {
     await expect(pin(page, hiddenSlug)).toBeVisible({ timeout: 1_000 });
     await expectNoOverlaps(page);
+  }).toPass({ timeout: 10_000 });
+});
+
+test('on the climbs map, crowded pins are hidden whole: no visible pin is an empty capsule', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/#map');
+  await dismissNotice(page);
+  await expect(page.locator('.pin-anchor:not(.is-hidden) .pin').first()).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(3_000);
+
+  // Singapore at the default zoom is crowded: some pins must have given way.
+  await expect(async () => {
+    expect(await page.locator('.pin-anchor.is-hidden').count()).toBeGreaterThan(0);
+    expect(await expectNoEmptyPins(page)).toBeGreaterThan(0);
   }).toPass({ timeout: 10_000 });
 });

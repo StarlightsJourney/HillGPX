@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { parseGpx } from './gpx';
 import { routeFromPoints } from './routes';
 import { DEFAULT_PACE_S_PER_KM, matchRoutes, type RunNeeds } from './routeMatch';
+import { routeEstimateS } from './routeTime';
 
 const load = (name: string, gpx: string) => routeFromPoints(name, parseGpx(gpx).points, []);
 // Real routes, as parsed: Southern Ridges 10.7 km, 305 m EG, 28 m/km
@@ -45,25 +46,27 @@ describe('matchRoutes', () => {
   describe('time', () => {
     const at = (name: string, n: RunNeeds) => matchRoutes(all, n).matches.find((m) => m.route.name === name)!;
 
-    it("estimates duration from the route's activity pace plus a climbing allowance", () => {
-      // Southern Ridges climbs 28 m/km here, so it is a trail: 10.74 km at
-      // 9:00/km is 96.7 min, plus 305 m of climb at 45 s per 10 m is 22.9 min.
-      expect(at('Southern Ridges', needs({})).durationS / 60).toBeCloseTo(119.5, 0);
-      // A slower runner (8:00/km instead of 6:30) stretches the flat pace by
-      // 480/390 and leaves the climbing allowance alone: 96.7 * 1.231 + 22.9.
-      expect(at('Southern Ridges', needs({ paceSPerKm: 480 })).durationS / 60).toBeCloseTo(141.9, 0);
+    it('estimates duration with the same model the cards and panel use', () => {
+      // Southern Ridges is a trail: 10.7 km at 7.5 km/h with a little over 200 m of climbing that counts after smoothing.
+      const minutes = at('Southern Ridges', needs({})).durationS / 60;
+      expect(minutes).toBe(routeEstimateS(ridges) / 60);
+      expect(minutes).toBeGreaterThan(95);
+      expect(minutes).toBeLessThan(115);
+      // A slower runner (8:00/km against the 6:40 default) takes 20% longer.
+      const slower = at('Southern Ridges', needs({ paceSPerKm: 480 })).durationS / 60;
+      expect(slower).toBeCloseTo(minutes * (480 / DEFAULT_PACE_S_PER_KM), -1);
     });
 
-    it('keeps a road run at the run pace and climb allowance it always had', () => {
-      // UTSG climbs 15 m/km, so it is a run: its distance at 6:30/km plus its climb at 30 s per 10 m.
-      const expected = ((utsg.distanceM / 1000) * 390 + (utsg.gainM / 10) * 30) / 60;
-      expect(at('UTSG', needs({})).durationS / 60).toBeCloseTo(expected, 0);
+    it('lets a long run slow down: UTSG takes more than its distance at the base speed', () => {
+      const minutes = at('UTSG', needs({})).durationS / 60;
+      expect(minutes).toBe(routeEstimateS(utsg) / 60);
+      expect(minutes).toBeGreaterThan((utsg.distanceM / 1000 / 9) * 60 * 1.2);
     });
 
     it('matches a target time against the estimate, so a hilly route of the same length counts as longer', () => {
-      // 45 min at 6:30/km is 6.9 km, which on length alone is HK Trail 4
-      // (6.8 km). Its 344 m of climb adds 17 min (62 min all in), so the
-      // shorter section 2 (40 min all in) fits 45 minutes better.
+      // 45 min is about 6.9 km on the flat, which on length alone is HK Trail 4
+      // (6.8 km). Its climbing makes it over an hour all in, so the shorter
+      // section 2 (about 40 min all in) fits 45 minutes better.
       expect(order(needs({ length: { kind: 'distance', metres: 6_900 } }))[0]).toBe('Hong Kong Trail 4');
       expect(order(needs({ length: { kind: 'time', minutes: 45 } }))[0]).toBe('Hong Kong Trail 2');
     });
@@ -174,9 +177,9 @@ describe('matchRoutes', () => {
       it('is a Partial match when far off what was asked, and says what is off', () => {
         const m = ridgesFrom({ length: { kind: 'time', minutes: 45 }, terrain: 'flat' });
         expect(m.label).toBe('partial');
-        // 120 min estimated (a trail) against 45 asked.
+        // About 105 min estimated against 45 asked.
         expect(m.misses[0]).toMatchObject({ kind: 'length', unit: 'time', longer: true });
-        expect(Math.round((m.misses[0] as { by: number }).by / 60)).toBe(75);
+        expect(Math.round((m.misses[0] as { by: number }).by / 60)).toBe(Math.round(routeEstimateS(ridges) / 60 - 45));
         expect(m.misses[1]).toEqual({ kind: 'terrain', wanted: 'flat', band: 'rolling' });
       });
 

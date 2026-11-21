@@ -21,7 +21,7 @@ import { ElevationProfile } from './ElevationProfile';
 import { TypeGlyph } from './TypeGlyph';
 import { useUnits } from './UnitsContext';
 import { downloadRoute } from './VenueCard';
-import { ESTIMATE_NOTE, estimateRouteTimeS, formatEstimate } from '../lib/routeTime';
+import { estimateTrackDuration, formatEstimate } from '../lib/routeTime';
 import { ArrowLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon, MapIcon, PencilIcon, ShareIcon } from './icons';
 import { ShareRouteDialog } from './ShareRouteDialog';
 import type { RoutePhoto } from '../lib/api';
@@ -452,6 +452,11 @@ export function RoutePanel({ placement = 'map', onToggleDock, route, venuesBySlu
   const [sharing, setSharing] = useState(false);
   const elevation = useTerrainFill(route);
   const hasElevation = routeHasElevation(route) || elevation.fromTerrain;
+  // Terrain-filled elevation counts once it has arrived; the estimate is by distance alone until then.
+  const estimate = useMemo(
+    () => estimateTrackDuration(elevation.points, routeActivity(route), 1, hasElevation),
+    [elevation.points, route, hasElevation],
+  );
   const endpoints = useMemo(() => routeEndpoints(route.coordinates), [route.coordinates]);
   // Said once when the route opens: the markers are only on the map, where a screen reader cannot see them.
   const [announced, setAnnounced] = useState('');
@@ -566,9 +571,9 @@ export function RoutePanel({ placement = 'map', onToggleDock, route, venuesBySlu
           ['EL', hasElevation ? units.height(elevation.lossM) : unavailable],
           // Community routes only: curated files have no counter.
           ...(route.downloads !== undefined ? [['Downloads', String(route.downloads)]] : []),
-          ['Est. time', formatEstimate(estimateRouteTimeS(route.distanceM, hasElevation ? elevation.gainM : 0, routeActivity(route)))],
+          ['Est. time', formatEstimate(estimate.minutes * 60)],
         ].map(([label, value]) => (
-          <div className="gpx-stat" key={label} title={label === 'Est. time' ? ESTIMATE_NOTE[routeActivity(route)] : undefined}>
+          <div className="gpx-stat" key={label} title={label === 'Est. time' ? estimate.caption : undefined}>
             <strong>{value}</strong>
             <span>{label}</span>
           </div>

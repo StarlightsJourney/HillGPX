@@ -26,7 +26,7 @@ test('typing a minimum and maximum distance filters the routes and moves the han
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toContainText('UTSG');
   await expect(page.getByRole('slider', { name: 'Minimum distance' })).toHaveAttribute('aria-valuenow', '20000');
-  await expect(min).toHaveValue('20 km');
+  await expect(min).toHaveValue('20.0 km');
 
   // A maximum below the minimum takes the minimum down with it.
   await max.fill('12.5');
@@ -48,7 +48,7 @@ test('what cannot be read puts the value back, and says so', async ({ page }) =>
   await min.fill('soon');
   await min.press('Enter');
   await expect(min).toHaveAttribute('aria-invalid', 'true');
-  await expect(min).toHaveValue('0 km');
+  await expect(min).toHaveValue('0 m');
   await expect(rows(page)).toHaveCount(2);
   // Typing again clears the complaint.
   await min.fill('4');
@@ -60,7 +60,7 @@ test('Escape in a field puts the value back without closing the dialog; elsewher
   const min = field(page, 'Minimum distance');
   await min.fill('30');
   await min.press('Escape');
-  await expect(min).toHaveValue('0 km');
+  await expect(min).toHaveValue('0 m');
   await expect(page.getByRole('dialog', { name: 'Route filters' })).toBeVisible();
   await expect(rows(page)).toHaveCount(2);
   await page.getByRole('dialog', { name: 'Route filters' }).getByRole('heading', { name: 'Route filters' }).click();
@@ -73,7 +73,7 @@ test('a maximum past the top of the track is a real bound; the handle waits at t
   const max = field(page, 'Maximum distance');
   await max.fill('500');
   await max.press('Enter');
-  await expect(max).toHaveValue('500 km');
+  await expect(max).toHaveValue('500.0 km');
   await expect(page.getByRole('slider', { name: 'Maximum distance' })).toHaveAttribute('aria-valuenow', '500000');
   await expect(rows(page)).toHaveCount(2);
 });
@@ -84,7 +84,7 @@ test('time and elevation gain take typed values too', async ({ page }) => {
   const maxTime = field(page, 'Maximum estimated time');
   await maxTime.fill('3h');
   await maxTime.press('Enter');
-  await expect(maxTime).toHaveValue('3 h');
+  await expect(maxTime).toHaveValue('~3 h');
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).first()).toContainText('Southern Ridges');
   await maxTime.fill('');

@@ -2165,32 +2165,34 @@ button {
 .range-hist {
   display: flex;
   align-items: flex-end;
-  gap: 3px;
-  height: 60px;
+  gap: 2px;
+  height: 74px;
 }
 
-/* One bar per slice of the track. The bar is everything out there (pale), the
-   fill the share that passes the other filters: colour between the handles,
-   grey outside them. An empty slice is a low, quiet stub, so the row stays an
-   even run of bars. */
 .range-bar {
   position: relative;
   flex: 1 1 0;
   min-width: 0;
-  background: #efefef;
-  border-radius: 3px 3px 0 0;
+  background: #f2f2f2;
+  border-radius: 2px 2px 0 0;
 }
-.range-bar.none { background: #e8e8e8; }
+.range-bar.in {
+  background: color-mix(in srgb, var(--accent) 22%, white);
+}
+/* The routes in this bucket that pass the other filters, over the faint ghost
+   of the ones they hide. */
 .range-bar-match {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  background: #d4d4d4;
-  border-radius: 3px 3px 0 0;
+  background: #e5e5e5;
+  border-radius: 2px 2px 0 0;
   transition: height 150ms ease;
 }
-.range-bar.in .range-bar-match { background: var(--accent); }
+.range-bar.in .range-bar-match {
+  background: var(--accent);
+}
 @media (prefers-reduced-motion: reduce) {
   .range-bar-match { transition: none; }
 }
@@ -2198,7 +2200,7 @@ button {
 .range-track {
   position: relative;
   height: 4px;
-  margin-top: 6px;
+  margin-top: 2px;
   border-radius: 999px;
   background: #e5e5e5;
   cursor: pointer;
@@ -2240,8 +2242,6 @@ button {
   display: flex;
   justify-content: space-between;
   margin-top: 12px;
-  color: var(--muted);
-  font-size: 13px;
 }
 
 .range-fields {

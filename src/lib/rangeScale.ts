@@ -1,4 +1,5 @@
-import { M_TO_FT, METRES_PER_MILE, type Units } from './units';
+import { M_TO_FT, METRES_PER_MILE, formatDistanceIn, formatHeight, type Units } from './units';
+import { formatEstimate } from './routeTime';
 
 /**
  * The scale behind the range filters (distance, elevation gain, time): where
@@ -7,59 +8,53 @@ import { M_TO_FT, METRES_PER_MILE, type Units } from './units';
  * browser.
  */
 
-/** Times go to the slider in five-minute units, so every stop is a time that prints exactly. */
+/** Times go to the slider in five-minute units, so every stop it can land on is a time the label can print exactly. */
 export const DURATION_UNIT_MIN = 5;
 export const DURATION_UNIT_S = DURATION_UNIT_MIN * 60;
 
+/** Bars in the histogram. Twenty is the most this data supports without gaps:
+ *  HDB heights are storeys × 2.8 m, so buckets narrower than that at the low
+ *  end fall between two rungs of the ladder the data is actually on and come
+ *  out empty, which reads as missing data rather than as a bucketing artefact. */
+export const BUCKETS = 20;
+
 export interface RangeScale {
-  /** The top of the track: the 95th percentile, rounded up to a whole bar. */
+  lo: number;
   hi: number;
-  /** Distance between stops, a round number in the unit the reader sees. */
+  /** Bucket width in the pool's own units. */
   step: number;
-  /** Every value a dragged handle can stop on, ascending, from 0 to `hi`. */
+  /** Every value a handle can stop on, ascending. */
   stops: number[];
-  /** Width of one histogram bar: a whole number of steps, so a bar's edges are stops. */
-  bar: number;
-  /** How many bars there are: `hi / bar`. */
-  bars: number;
-  /** Some values lie beyond `hi`, folded into the last bar. */
+  /** Some pool values lie beyond `hi`, folded into the last bucket. */
   truncated: boolean;
 }
 
-/** Fewest and most bars. Below six a histogram says little; above twenty the bars go thin and gappy. */
-const MIN_BARS = 6;
-const MAX_BARS = 20;
-
 /**
- * A linear scale from 0, its stops on round numbers and its bars sized to the data.
+ * Linear scale starting from 0 so the histogram reads intuitively.
  *
- * The top is the 95th percentile, not the maximum: one 1,900 km ride among
- * five-kilometre runs would otherwise stretch the track until every stop was a
- * hundred kilometres apart. The step is the first of `steps` that keeps the
- * stops to twenty, so a 70 km spread reads 5 km, 10 km … rather than 4.2 km,
- * 8.4 km …
- *
- * How many bars to draw depends on how many values there are (the Rice rule,
- * 2 × the cube root of the count): a few dozen routes in twenty thin bars is
- * mostly empty gaps, while a thousand venues can carry all twenty. Each bar
- * spans a whole number of steps, so every bar edge is a place a handle can stop.
+ * The top is the 95th percentile, not the maximum: one 1,900 km ride or
+ * 26,000 m Everesting among five-kilometre runs would otherwise stretch the
+ * track so far that every handle stop landed a hundred kilometres apart and
+ * no real bound could be picked. The tail folds into the last bucket and is
+ * still reachable: the top stop means "no bound", and a min handle there
+ * keeps everything at and above `hi`.
  */
-export function buildScale(values: readonly number[], steps: readonly number[]): RangeScale {
+export function buildScale(values: readonly number[]): RangeScale {
   let max = 0;
-  for (const v of values) if (v > max) max = v;
-  if (max <= 0) return { hi: steps[0], step: steps[0], stops: [0, steps[0]], bar: steps[0], bars: 1, truncated: false };
+  for (const h of values) {
+    if (h > max) max = h;
+  }
+  if (max <= 1) return { lo: 0, hi: 1, step: 1, stops: [0, 1], truncated: false };
   const sorted = [...values].sort((a, b) => a - b);
   const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
-  const top = Math.min(max, p95);
-  const step = steps.find((s) => Math.ceil(top / s) <= MAX_BARS) ?? Math.ceil(top / MAX_BARS);
-  const intervals = Math.max(1, Math.ceil(top / step));
-  const wanted = Math.min(MAX_BARS, Math.max(MIN_BARS, Math.round(2 * Math.cbrt(values.length))));
-  const perBar = Math.max(1, Math.round(intervals / wanted));
-  const bar = perBar * step;
-  const bars = Math.max(1, Math.ceil(top / bar));
-  const stopCount = bars * perBar;
-  const stops = Array.from({ length: stopCount + 1 }, (_, i) => Number((i * step).toFixed(6)));
-  return { hi: stops[stopCount], step, stops, bar, bars, truncated: max > stops[stopCount] };
+  const hi = Math.ceil(Math.max(1, Math.min(max, p95)));
+  const step = Math.max(1, Math.ceil(hi / BUCKETS));
+
+  const stops: number[] = [0];
+  for (let v = step; v <= hi; v += step) stops.push(v);
+  if (stops[stops.length - 1] < hi) stops.push(hi);
+
+  return { lo: 0, hi, step, stops, truncated: max > hi };
 }
 
 /** Where a value sits along the track, 0 to 1 (past the top reads as the end). */
@@ -90,95 +85,71 @@ export function neighbourStop(value: number, direction: 1 | -1, scale: RangeScal
   return null;
 }
 
-/** How many values fall in each bar; anything past the top counts in the last. */
+/** How many values fall in each of the twenty buckets; anything past the top counts in the last. */
 export function histogram(values: readonly number[], scale: RangeScale): number[] {
-  const counts = new Array<number>(scale.bars).fill(0);
-  for (const v of values) counts[Math.min(scale.bars - 1, Math.max(0, Math.floor(v / scale.bar)))] += 1;
+  const counts = new Array<number>(BUCKETS).fill(0);
+  for (const h of values) counts[Math.min(BUCKETS - 1, Math.max(0, Math.floor(h / scale.step)))] += 1;
   return counts;
-}
-
-/**
- * A bar's height from 0 to 1. Square-rooted: the busiest bar holds many times
- * the quietest, and the thin tail is the half of the range someone opening this
- * control is trying to see into. A bar with anything in it is never shorter than
- * a stub; an empty one is a still shorter, quiet baseline, so the row reads as
- * evenly spaced bars rather than as missing data.
- */
-export function barHeight(count: number, tallest: number): number {
-  if (count <= 0 || tallest <= 0) return EMPTY_BAR;
-  return Math.min(1, Math.max(MIN_BAR, Math.sqrt(count / tallest)));
-}
-const EMPTY_BAR = 0.05;
-const MIN_BAR = 0.14;
-
-/** The share of a bar the matching values fill, 0 to 1 (linear: it is a share of that bar). */
-export function matchShare(matching: number, count: number): number {
-  if (matching <= 0 || count <= 0) return 0;
-  return Math.min(1, Math.max(0.1, matching / count));
 }
 
 /* ─── What a bound looks like ─────────────────────────────────────────── */
 
 /** How one kind of bound is shown, typed and kept. Values are in the slider's own unit. */
 export interface RangeKind {
-  /** Candidate step sizes for the scale, ascending: round numbers in the unit the reader sees. */
-  steps: readonly number[];
   /** The keypad a phone shows for a field: numbers only, or text where a time is typed as "1h30". */
   inputMode: 'decimal' | 'text';
-  /** A bound for a label: "12.5 km", "1 h 30 min". */
+  /** A bound as the filters print it: "12.4 km", "535 ft", "~1 h 30 min". */
   label: (value: number) => string;
   /** What was typed, as a bound. Null when it is not a number this field understands. */
   fromField: (text: string) => number | null;
 }
 
-/** "12.5", "12", never "12.0". */
-function trim(n: number, digits = 1): string {
-  return String(Number(n.toFixed(digits)));
+/**
+ * A plain non-negative number with a comma or a point for the decimal, and the
+ * unit that followed it (empty when none). Null when it is not a number.
+ */
+function parseQuantity(text: string): { n: number; unit: string } | null {
+  const cleaned = text.trim().toLowerCase().replace(/\s+/g, '');
+  const match = /^(\d+(?:[.,]\d+)?|[.,]\d+)([a-z]*)$/.exec(cleaned);
+  if (!match) return null;
+  const n = Number(match[1].replace(',', '.'));
+  return Number.isFinite(n) ? { n, unit: match[2] } : null;
 }
 
 /**
- * A plain non-negative number, with a comma or a point for the decimal. A unit
- * may follow it, but only one of `units` (the field's own): "12 mi" in a km
- * field is not 12.
+ * A distance in metres. A bare number is kilometres (or miles); a unit may
+ * follow, in the system the reader is using: "12.5", "12 km", "800 m", "3 mi", "500 ft".
  */
-function parseNumber(text: string, units: readonly string[] = []): number | null {
-  const cleaned = text.trim().toLowerCase().replace(/\s+/g, '');
-  const match = /^(\d+(?:[.,]\d+)?|[.,]\d+)([a-z]*)$/.exec(cleaned);
-  if (!match || (match[2] && !units.includes(match[2]))) return null;
-  const n = Number(match[1].replace(',', '.'));
-  return Number.isFinite(n) ? n : null;
-}
-
-const toMetres = { metric: 1000, imperial: METRES_PER_MILE } as const;
-
 export function distanceKind(units: Units): RangeKind {
-  const perUnit = toMetres[units];
-  const unit = units === 'imperial' ? 'mi' : 'km';
-  const stepsInUnit = [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500];
   return {
-    steps: stepsInUnit.map((s) => s * perUnit),
     inputMode: 'decimal',
-    label: (m) => `${trim(m / perUnit)} ${unit}`,
-    // To the tenth of a km or mile, which is as precise as a route's length is.
+    label: (m) => formatDistanceIn(m, units),
     fromField: (text) => {
-      const n = parseNumber(text, units === 'imperial' ? ['mi', 'miles'] : ['km', 'k']);
-      return n == null ? null : Math.round(n * 10) / 10 * perUnit;
+      const q = parseQuantity(text);
+      if (!q) return null;
+      if (units === 'imperial') {
+        if (q.unit === 'ft' || q.unit === 'feet') return Math.round(q.n) / M_TO_FT;
+        if (q.unit === '' || q.unit === 'mi' || q.unit === 'miles') return (Math.round(q.n * 10) / 10) * METRES_PER_MILE;
+        return null;
+      }
+      if (q.unit === 'm') return Math.round(q.n);
+      if (q.unit === '' || q.unit === 'km' || q.unit === 'k') return (Math.round(q.n * 10) / 10) * 1000;
+      return null;
     },
   };
 }
 
+/** A height in metres, typed in whole metres or feet. */
 export function heightKind(units: Units): RangeKind {
   const perUnit = units === 'imperial' ? 1 / M_TO_FT : 1;
-  const unit = units === 'imperial' ? 'ft' : 'm';
-  const stepsInUnit = units === 'imperial' ? [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000] : [5, 10, 20, 25, 50, 100, 200, 500, 1000, 2000];
+  const own = units === 'imperial' ? ['ft', 'feet'] : ['m'];
   return {
-    steps: stepsInUnit.map((s) => s * perUnit),
     inputMode: 'decimal',
-    label: (m) => `${Math.round(m / perUnit)} ${unit}`,
+    label: (m) => formatHeight(m, units),
     // Whole metres or feet: the data has metres of error in it already.
     fromField: (text) => {
-      const n = parseNumber(text, units === 'imperial' ? ['ft', 'feet'] : ['m']);
-      return n == null ? null : Math.round(n) * perUnit;
+      const q = parseQuantity(text);
+      return q && (q.unit === '' || own.includes(q.unit)) ? Math.round(q.n) * perUnit : null;
     },
   };
 }
@@ -193,10 +164,10 @@ export function minutesLabel(minutes: number): string {
 
 /**
  * Minutes from what someone types: "90", "1:30", "1h30", "1h 30m", "1.5h",
- * "45 min". A bare number is minutes. Null when it is none of these.
+ * "45 min", "~1 h 30 min". A bare number is minutes. Null when it is none of these.
  */
 export function parseMinutes(text: string): number | null {
-  const t = text.trim().toLowerCase().replace(/\s+/g, '');
+  const t = text.trim().toLowerCase().replace(/^~/, '').replace(/\s+/g, '');
   if (!t) return null;
   const clock = /^(\d+):(\d{1,2})$/.exec(t);
   if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
@@ -207,9 +178,8 @@ export function parseMinutes(text: string): number | null {
 
 /** Time: the slider's unit is five minutes, so what is typed is rounded to five. */
 export const durationKind: RangeKind = {
-  steps: [5, 10, 15, 30, 60, 120, 180, 360, 720, 1440].map((minutes) => minutes / DURATION_UNIT_MIN),
   inputMode: 'text',
-  label: (units) => minutesLabel(units * DURATION_UNIT_MIN),
+  label: (units) => (units === 0 ? '0 min' : formatEstimate(units * DURATION_UNIT_S)),
   fromField: (text) => {
     const minutes = parseMinutes(text);
     return minutes == null ? null : Math.round(minutes / DURATION_UNIT_MIN);

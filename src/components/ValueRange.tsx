@@ -1,14 +1,5 @@
 import { useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import {
-  barHeight,
-  buildScale,
-  histogram,
-  matchShare,
-  neighbourStop,
-  positionOf,
-  stopAt,
-  type RangeKind,
-} from '../lib/rangeScale';
+import { buildScale, histogram, neighbourStop, positionOf, stopAt, type RangeKind } from '../lib/rangeScale';
 
 export interface ValueRangeProps {
   /** The pool the scale and silhouette are built from, in the slider's own unit. */
@@ -16,7 +7,7 @@ export interface ValueRangeProps {
   /**
    * The part of `values` that passes every other filter. The axis stays built
    * from `values` (so handles never move by themselves); these drive the solid
-   * fill of each bar, and the rest of the bar shows as a faint ghost. Omit to show all.
+   * bars, and the rest of each bucket shows as a faint ghost. Omit to show all.
    */
   matching?: number[];
   min: number | null;
@@ -35,7 +26,7 @@ export interface ValueRangeProps {
  * track means "no bound" (null); a typed bound can lie beyond the top.
  */
 export function ValueRange({ values, matching, min, max, kind, minLabel, maxLabel, onChange }: ValueRangeProps) {
-  const scale = useMemo(() => buildScale(values, kind.steps), [values, kind]);
+  const scale = useMemo(() => buildScale(values), [values]);
   const trackRef = useRef<HTMLDivElement>(null);
   const dragging = useRef<'min' | 'max' | null>(null);
 
@@ -130,20 +121,9 @@ export function ValueRange({ values, matching, min, max, kind, minLabel, maxLabe
     return true;
   };
 
-  // One bar per slice of the track: its height says how many are out there, the
-  // fill how many of those pass the other filters.
-  const bars = useMemo(() => {
-    const pool = histogram(values, scale);
-    const matched = matching ? histogram(matching, scale) : pool;
-    const tallest = Math.max(0, ...pool);
-    return pool.map((count, i) => ({
-      start: i * scale.bar,
-      end: (i + 1) * scale.bar,
-      height: barHeight(count, tallest),
-      share: matchShare(matched[i], count),
-      empty: count === 0,
-    }));
-  }, [values, matching, scale]);
+  const counts = useMemo(() => histogram(values, scale), [values, scale]);
+  const matchCounts = useMemo(() => (matching ? histogram(matching, scale) : counts), [matching, scale, counts]);
+  const tallest = Math.max(1, ...counts);
 
   // What each field shows, unit and all: "0 km", "85 km+" for no maximum.
   const minShown = kind.label(minValue);
@@ -152,16 +132,26 @@ export function ValueRange({ values, matching, min, max, kind, minLabel, maxLabe
   return (
     <div className="range">
       <div className="range-hist" aria-hidden="true">
-        {bars.map((bar, i) => (
-          <div
-            key={i}
-            // Strictly inside, so a handle resting on a bar's edge does not light its neighbour.
-            className={`range-bar${bar.end > minValue && bar.start < maxValue ? ' in' : ''}${bar.empty ? ' none' : ''}`}
-            style={{ height: `${bar.height * 100}%` }}
-          >
-            <div className="range-bar-match" style={{ height: `${bar.share * 100}%` }} />
-          </div>
-        ))}
+        {counts.map((count, i) => {
+          const start = i * scale.step;
+          const end = (i + 1) * scale.step;
+          return (
+            <div
+              key={i}
+              className={`range-bar${end >= minValue && start <= maxValue ? ' in' : ''}`}
+              // Square-rooted, not proportional. The busiest bucket holds thousands
+              // of venues and the quietest a handful; drawn to scale the tail would
+              // be a one-pixel line, and the tail is the half of the range someone
+              // opening this control is trying to see into.
+              style={{ height: `${Math.max(3, 100 * Math.sqrt(count / tallest))}%` }}
+            >
+              <div
+                className="range-bar-match"
+                style={{ height: `${matchCounts[i] === 0 ? 0 : Math.max(3, 100 * Math.sqrt(matchCounts[i] / count))}%` }}
+              />
+            </div>
+          );
+        })}
       </div>
 
       <div
@@ -201,9 +191,9 @@ export function ValueRange({ values, matching, min, max, kind, minLabel, maxLabe
         />
       </div>
 
-      <div className="range-scale" aria-hidden="true">
-        <span>{kind.label(0)}</span>
-        <span>{kind.label(scale.hi)}{scale.truncated ? '+' : ''}</span>
+      <div className="range-scale small muted" aria-hidden="true">
+        <span>{kind.label(scale.lo)}</span>
+        <span>{scale.truncated ? `${kind.label(scale.hi)}+` : kind.label(scale.hi)}</span>
       </div>
 
       <div className="range-fields">

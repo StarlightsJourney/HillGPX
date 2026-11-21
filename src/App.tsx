@@ -5,7 +5,7 @@ import { GpxDropzone, type LoadedGpx } from './components/GpxDropzone';
 import { GpxPanel } from './components/GpxPanel';
 import { SearchBar } from './components/SearchBar';
 import { FilterBar, type BrowseMode } from './components/FilterBar';
-import { VenueDetail, VenueDetailSkeleton } from './components/VenueDetail';
+import { VenueDetail, VenueDetailSkeleton, VenueNotFound } from './components/VenueDetail';
 import { RoutesList } from './components/RoutesList';
 import { RoutePanel } from './components/RoutePanel';
 import { useMediaQuery } from './lib/useMediaQuery';
@@ -231,6 +231,8 @@ function MapApp() {
   const [worldPeaks, setWorldPeaks] = useState<Venue[]>(NO_VENUES);
   // A summit opened by link or favourite whose tile is not on screen.
   const [linkedPeak, setLinkedPeak] = useState<Venue | null>(null);
+  // The slug whose world-summit lookup has finished, found or not.
+  const [peakLooked, setPeakLooked] = useState<string | null>(null);
   const [filters, setFilters] = useState<VenueFilters>(NO_FILTERS);
   const [mode, setMode] = useState<BrowseMode>(() =>
     window.location.hash === '#routes' || routeSlugFromHash(window.location.hash) || sessionStorage.getItem('hillgpx:mode') === 'routes' ? 'routes' : 'climbs',
@@ -317,7 +319,9 @@ function MapApp() {
     if (!detailSlug || !isWorldPeakSlug(detailSlug)) return;
     let cancelled = false;
     void worldPeakBySlug(detailSlug).then((peak) => {
-      if (!cancelled) setLinkedPeak(peak);
+      if (cancelled) return;
+      setLinkedPeak(peak);
+      setPeakLooked(detailSlug);
     });
     return () => {
       cancelled = true;
@@ -408,7 +412,11 @@ function MapApp() {
   // A place page opened from a card (its own tab) shows a skeleton of itself
   // until its data arrives, rather than the map page underneath it; and the
   // map is only built once you actually leave the place page for it.
-  const detailPending = Boolean(detailSlug && !detailVenue && (!dataset || (isWorldPeakSlug(detailSlug) && !linkedPeak)));
+  const detailPending = Boolean(
+    detailSlug && !detailVenue && (!dataset || (isWorldPeakSlug(detailSlug) && peakLooked !== detailSlug)),
+  );
+  // Loaded, looked up, and nothing matches: say so instead of showing a bare map.
+  const detailMissing = Boolean(detailSlug && !detailVenue && !detailPending);
   const [mapNeeded, setMapNeeded] = useState(!detailSlug);
   if (!detailSlug && !mapNeeded) setMapNeeded(true);
 
@@ -1199,6 +1207,8 @@ function MapApp() {
         )}
 
         {detailPending && <VenueDetailSkeleton />}
+
+        {detailMissing && <VenueNotFound />}
 
         {detailVenue && (
           <VenueDetail

@@ -1422,7 +1422,9 @@ button {
   bottom: 92px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 6;
+  /* Above an open place card (a map popup, z-index 10): the note says why the
+     map shows what it shows, and the card must not hide it. */
+  z-index: 11;
   display: flex;
   align-items: flex-start;
   gap: 12px;

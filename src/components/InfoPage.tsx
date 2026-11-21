@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { CONTACT_EMAIL } from '../lib/contribute';
 import { ANALYTICS } from '../lib/analytics';
+import { usePageTitle } from '../lib/pageTitle';
 import { ContactForm } from './ContactForm';
 import { SiteSearch } from './SearchBar';
 import { SiteFooter, SiteHeader } from './SiteChrome';
@@ -232,11 +233,8 @@ function Contact() {
 export function InfoPage({ page }: { page: InfoPageId }) {
   useEffect(() => {
     window.scrollTo({ top: 0 });
-    document.title = `${TABS.find((tab) => tab.id === page)?.label ?? 'About'} · hillGPX`;
-    return () => {
-      document.title = 'hillGPX: hills, mountains and GPX routes worldwide';
-    };
   }, [page]);
+  usePageTitle(TABS.find((tab) => tab.id === page)?.label ?? 'About');
   return (
     <div className="info-page">
       <SiteHeader sticky center={<SiteSearch />} />

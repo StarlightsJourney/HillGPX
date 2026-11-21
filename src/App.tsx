@@ -16,7 +16,8 @@ import { useRunPlanner } from './lib/useRunPlanner';
 import { usePanelFold } from './lib/usePanelFold';
 import { askAgain, locate, locationProblemText, NEAR_ME_OPTIONS, type LocateHint } from './lib/geolocation';
 import { NEAR_ME_RADII_M, NO_ROUTE_FILTERS, filterRoutes, linkVenues, radiusBounds, routesBounds, routesNear, routesWithin, routeIntersects, routeSlugFromHash, type RouteFilters } from './lib/routes';
-import { boundsFromHash } from './lib/regions';
+import { boundsFromHash, regionOf } from './lib/regions';
+import { usePageTitle } from './lib/pageTitle';
 import { ElevationModel } from './lib/elevation';
 import {
   NO_FILTERS,
@@ -439,6 +440,16 @@ function MapApp() {
   const filteredRoutes = useMemo(() => filterRoutes(allRoutes, routeFilters, routeBookmarks), [allRoutes, routeFilters, routeBookmarks]);
   const selectedRoute = selectedRouteSlug ? allRoutes.find((route) => route.slug === selectedRouteSlug) ?? null : null;
   const panelFold = usePanelFold(selectedRoute?.slug ?? null);
+
+  // What the map is showing, named by the country at its centre (the coarse
+  // boxes in regions.ts); where there is none it says "on the map".
+  const areaName = viewport ? regionOf((viewport.west + viewport.east) / 2, (viewport.south + viewport.north) / 2) : null;
+  const mapHeading = `${mode === 'routes' ? 'Routes' : 'Climbs'} ${areaName ? `in ${areaName}` : 'on the map'}`;
+  // The tab names the place, the open route, or else the map; while a place
+  // link is still loading it keeps the default.
+  usePageTitle(
+    detailVenue ? detailVenue.name : detailSlug ? null : selectedRoute ? selectedRoute.name : mapHeading,
+  );
 
   // A dropped GPX wins the map over a stored route — it is what you just did.
   const activeRoutePoints: RoutePoint[] | null = useMemo(() => {
@@ -987,6 +998,8 @@ function MapApp() {
   return (
     <div className={`app map-page${mapFullWidth ? ' is-expanded' : ''}${routeOpen && mapFullWidth ? ' bar-folded' : ''}`} ref={pageRef}>
       {/* Header and category bar stay put while the page scrolls the list. */}
+      {/* The page's one heading (the place page has its own). */}
+      {!detailSlug && <h1 className="visually-hidden">{mapHeading}</h1>}
       <div className="map-top" ref={topRef}>
         <SiteHeader center={<SearchBar venues={allVenues} routes={allRoutes} onPick={pickFromSearch} onPickRoute={pickRouteFromSearch} onFitBounds={searchArea} onLocate={handleLocate} />} />
 

@@ -106,11 +106,12 @@ describe('filterRoutes: distance and gain bounds', () => {
     expect(slugs(filterRoutes(pool, { ...NO_ROUTE_FILTERS, maxDurationS: 3_300 }))).toContain('no-elev');
   });
 
-  it('times a trail like a run of the same shape, and a ride as quicker', () => {
+  it('times a trail slower than a run of the same shape, and a ride quicker', () => {
     const trail = { ...short, slug: 'trail-short', activity: 'trail' as const };
     const ride = { ...short, slug: 'ride-short', activity: 'cycle' as const };
-    expect(slugs(filterRoutes([short, trail, ride], { ...NO_ROUTE_FILTERS, maxDurationS: 1_800 }))).toEqual(['short', 'trail-short', 'ride-short']);
-    expect(slugs(filterRoutes([short, trail, ride], { ...NO_ROUTE_FILTERS, minDurationS: 1_500 }))).toEqual(['short', 'trail-short']);
+    // 4.8 km effective: run 30 min, trail 40 min, ride 15 min.
+    expect(slugs(filterRoutes([short, trail, ride], { ...NO_ROUTE_FILTERS, maxDurationS: 1_800 }))).toEqual(['short', 'ride-short']);
+    expect(slugs(filterRoutes([short, trail, ride], { ...NO_ROUTE_FILTERS, minDurationS: 1_800 }))).toEqual(['short', 'trail-short']);
   });
 
   it('brackets routes between a gain floor and cap', () => {

@@ -47,11 +47,11 @@ describe('matchRoutes', () => {
     const at = (name: string, n: RunNeeds) => matchRoutes(all, n).matches.find((m) => m.route.name === name)!;
 
     it('estimates duration with the same model the cards and panel use', () => {
-      // Southern Ridges is 10.7 km with a little over 200 m of climbing that counts after smoothing.
+      // Southern Ridges is a trail: 10.7 km at 7.5 km/h with a little over 200 m of climbing that counts after smoothing.
       const minutes = at('Southern Ridges', needs({})).durationS / 60;
       expect(minutes).toBe(routeEstimateS(ridges) / 60);
-      expect(minutes).toBeGreaterThan(80);
-      expect(minutes).toBeLessThan(100);
+      expect(minutes).toBeGreaterThan(95);
+      expect(minutes).toBeLessThan(115);
       // A slower runner (8:00/km against the 6:40 default) takes 20% longer.
       const slower = at('Southern Ridges', needs({ paceSPerKm: 480 })).durationS / 60;
       expect(slower).toBeCloseTo(minutes * (480 / DEFAULT_PACE_S_PER_KM), -1);
@@ -65,8 +65,8 @@ describe('matchRoutes', () => {
 
     it('matches a target time against the estimate, so a hilly route of the same length counts as longer', () => {
       // 45 min is about 6.9 km on the flat, which on length alone is HK Trail 4
-      // (6.8 km). Its climbing makes it an hour or so all in, so the shorter
-      // section 2 (about 35 min all in) fits 45 minutes better.
+      // (6.8 km). Its climbing makes it over an hour all in, so the shorter
+      // section 2 (about 40 min all in) fits 45 minutes better.
       expect(order(needs({ length: { kind: 'distance', metres: 6_900 } }))[0]).toBe('Hong Kong Trail 4');
       expect(order(needs({ length: { kind: 'time', minutes: 45 } }))[0]).toBe('Hong Kong Trail 2');
     });
@@ -177,7 +177,7 @@ describe('matchRoutes', () => {
       it('is a Partial match when far off what was asked, and says what is off', () => {
         const m = ridgesFrom({ length: { kind: 'time', minutes: 45 }, terrain: 'flat' });
         expect(m.label).toBe('partial');
-        // About 85 min estimated against 45 asked.
+        // About 105 min estimated against 45 asked.
         expect(m.misses[0]).toMatchObject({ kind: 'length', unit: 'time', longer: true });
         expect(Math.round((m.misses[0] as { by: number }).by / 60)).toBe(Math.round(routeEstimateS(ridges) / 60 - 45));
         expect(m.misses[1]).toEqual({ kind: 'terrain', wanted: 'flat', band: 'rolling' });

@@ -19,8 +19,8 @@ import { routeActivity } from './routeAnalysis';
  *    6 h, 15 min beyond.
  */
 
-/** Base speed on flat ground, km/h. Road and trail running share one. */
-export const BASE_SPEED_KMH: Record<RouteActivity, number> = { run: 9, trail: 9, cycle: 22.5 };
+/** Base speed on flat ground, km/h. A trail is about 17% slower than the road: rougher ground, more scrambling. */
+export const BASE_SPEED_KMH: Record<RouteActivity, number> = { run: 9, trail: 7.5, cycle: 22.5 };
 
 /** The run planner's default pace, s per km: the running base speed (9 km/h). */
 export const DEFAULT_PACE_S_PER_KM = 3600 / BASE_SPEED_KMH.run;

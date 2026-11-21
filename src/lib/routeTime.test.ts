@@ -118,10 +118,10 @@ describe('estimating a duration', () => {
     expect(gentleTrail.effectiveDistanceKm).toBeLessThanOrEqual(6 + 3.01);
   });
 
-  it('rides faster than it runs, and runs and trails share one base speed', () => {
+  it('rides faster than it runs, and a trail takes longer than the road over the same ground', () => {
     const track = slope(20, 200);
     expect(minutes(track, 'cycle')).toBeLessThan(minutes(track, 'run'));
-    expect(minutes(track, 'trail')).toBe(minutes(track, 'run'));
+    expect(minutes(track, 'trail')).toBeGreaterThan(minutes(track, 'run'));
     expect(minutes(track, undefined)).toBe(minutes(track, 'run'));
   });
 

@@ -8,6 +8,7 @@ import { FilterBar, type BrowseMode } from './components/FilterBar';
 import { VenueDetail, VenueDetailSkeleton } from './components/VenueDetail';
 import { RoutesList } from './components/RoutesList';
 import { RoutePanel } from './components/RoutePanel';
+import { useMediaQuery } from './lib/useMediaQuery';
 import { RunNeedsBar } from './components/RunNeedsBar';
 import { useRouteBookmarks } from './lib/useRouteBookmarks';
 import { toggleSavedPlace, useSavedPlaces } from './lib/saved';
@@ -468,13 +469,15 @@ function MapApp() {
       setSpotlight(null);
       setRouteEdit(null);
       if (slug) {
+        // Back to the list lands where it was left (the panel scrolls the page to its top).
+        if (listScrollRef.current === 0) rememberListScroll();
         track('route_open', slug);
         setSelectedSlug(null);
         setDroppedGpx(null);
         setListOpen(false);
       }
     },
-    [],
+    [rememberListScroll],
   );
 
   const frameRoutes = useCallback((routes: Route[]) => {
@@ -688,6 +691,32 @@ function MapApp() {
 
   const routeOpen = Boolean(droppedGpx || selectedRoute);
   const mapFullWidth = mapExpanded;
+  // On a split page (list left, map right) an open route takes the left column in
+  // place of the list, every detail open, so the map beside it is clear to frame
+  // the whole route. "Fewer details" floats it back as a card over the map; that
+  // choice lasts for the visit. The expanded map and narrow screens keep the card.
+  const [dockRoute, setDockRoute] = useState(true);
+  const canDock = useMediaQuery('(min-width: 900px)') && !mapFullWidth;
+  const sidebarRoute = canDock && dockRoute;
+  const hadSidebarRoute = useRef(false);
+  useEffect(() => {
+    const open = sidebarRoute && Boolean(selectedRouteSlug);
+    if (open) {
+      window.scrollTo({ top: 0 });
+      // The row under the pointer is gone, so it will never report the pointer leaving.
+      setHoveredRouteSlug(null);
+    } else if (hadSidebarRoute.current && !selectedRouteSlug) restoreListScroll();
+    hadSidebarRoute.current = open;
+  }, [sidebarRoute, selectedRouteSlug, restoreListScroll]);
+
+  // Docking (or floating the card back) changes how much of the map the details
+  // cover, so fit the route again: the whole of it, in the space that is left.
+  const wasSidebarRoute = useRef(sidebarRoute);
+  useEffect(() => {
+    if (wasSidebarRoute.current === sidebarRoute) return;
+    wasSidebarRoute.current = sidebarRoute;
+    if (selectedRoute) frameRoutes([selectedRoute]);
+  }, [sidebarRoute, selectedRoute, frameRoutes]);
 
   // The sticky header and category bar are measured so the sticky map below
   // them can be exactly as tall as the rest of the window. The height is
@@ -915,6 +944,41 @@ function MapApp() {
     else pickFromSearch(intent.slug, false);
   }, [dataset, routesReady, intentNonce, handleLocate, searchArea, pickFromSearch, pickRouteFromSearch, selectRoute, allRoutes, allVenues, routeBookmarks, favorites, openVenue]);
 
+  const routePanel =
+    !droppedGpx && selectedRoute ? (
+    <RoutePanel
+                    placement={sidebarRoute ? 'sidebar' : 'map'}
+                onToggleDock={canDock ? () => setDockRoute((docked) => !docked) : undefined}
+                    route={selectedRoute}
+                    venuesBySlug={venueBySlug}
+                    allRoutes={allRoutes}
+                    hoverIndex={routeHoverIndex}
+                    onHoverIndex={setRouteHoverIndex}
+                    onClose={() => selectRoute(null)}
+                    folded={!sidebarRoute && panelFold.folded}
+                    onUnfold={panelFold.unfold}
+                    spotlightSlug={spotlight?.slug ?? null}
+                    onShowVenue={showPassedVenue}
+                    onShowRoute={selectRoute}
+                    routePhotos={routePhotos}
+                    onFocusPhoto={(photo) => setPhotoFocus({ id: photo.id, nonce: Date.now() })}
+                    onPhotoAdded={(photo) => {
+                      setMyRoutePhotos((current) => [photo, ...current]);
+                      setPhotoFocus({ id: photo.id, nonce: Date.now() });
+                    }}
+                    editing={routeEdit?.slug === selectedRoute.slug}
+                    editTrim={routeEdit?.trim ?? null}
+                    onEditTrimChange={(trim) => setRouteEdit((current) => (current ? { ...current, trim } : current))}
+                    onEditStart={() => setRouteEdit({ slug: selectedRoute.slug, trim: null })}
+                    onEditEnd={(updated) => {
+                      setRouteEdit(null);
+                      if (updated) {
+                        setCommunityRoutes((current) => current.map((existing) => (existing.slug === updated.slug ? updated : existing)));
+                      }
+                    }}
+                  />
+    ) : null;
+
   return (
     <div className={`app map-page${mapFullWidth ? ' is-expanded' : ''}${routeOpen && mapFullWidth ? ' bar-folded' : ''}`} ref={pageRef}>
       {/* Header and category bar stay put while the page scrolls the list. */}
@@ -962,7 +1026,8 @@ function MapApp() {
         {/* Wide screens start split and can expand the map; small screens toggle views. */}
         <div className={`list-pane${listOpen ? ' open' : ''}`}>
           {!dataset && !loadError && <ListSkeleton />}
-          {dataset && mode === 'climbs' && (
+          {sidebarRoute && routePanel}
+          {!(sidebarRoute && routePanel) && dataset && mode === 'climbs' && (
             <ResultsList
               venues={venues}
               bounds={viewport}
@@ -977,7 +1042,7 @@ function MapApp() {
               }}
             />
           )}
-          {dataset && mode === 'routes' && (
+          {!(sidebarRoute && routePanel) && dataset && mode === 'routes' && (
             <>
             <RunNeedsBar
               whereLabel={planner.whereLabel}
@@ -1084,37 +1149,7 @@ function MapApp() {
               />
             )}
 
-            {!droppedGpx && selectedRoute && (
-              <RoutePanel
-                route={selectedRoute}
-                venuesBySlug={venueBySlug}
-                allRoutes={allRoutes}
-                hoverIndex={routeHoverIndex}
-                onHoverIndex={setRouteHoverIndex}
-                onClose={() => selectRoute(null)}
-                folded={panelFold.folded}
-                onUnfold={panelFold.unfold}
-                spotlightSlug={spotlight?.slug ?? null}
-                onShowVenue={showPassedVenue}
-                onShowRoute={selectRoute}
-                routePhotos={routePhotos}
-                onFocusPhoto={(photo) => setPhotoFocus({ id: photo.id, nonce: Date.now() })}
-                onPhotoAdded={(photo) => {
-                  setMyRoutePhotos((current) => [photo, ...current]);
-                  setPhotoFocus({ id: photo.id, nonce: Date.now() });
-                }}
-                editing={routeEdit?.slug === selectedRoute.slug}
-                editTrim={routeEdit?.trim ?? null}
-                onEditTrimChange={(trim) => setRouteEdit((current) => (current ? { ...current, trim } : current))}
-                onEditStart={() => setRouteEdit({ slug: selectedRoute.slug, trim: null })}
-                onEditEnd={(updated) => {
-                  setRouteEdit(null);
-                  if (updated) {
-                    setCommunityRoutes((current) => current.map((existing) => (existing.slug === updated.slug ? updated : existing)));
-                  }
-                }}
-              />
-            )}
+            {!sidebarRoute && routePanel}
 
             {droppedGpx && (
               <GpxPanel

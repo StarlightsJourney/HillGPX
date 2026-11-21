@@ -22,7 +22,7 @@ import { TypeGlyph } from './TypeGlyph';
 import { useUnits } from './UnitsContext';
 import { downloadRoute } from './VenueCard';
 import { ESTIMATE_NOTE, estimateRouteTimeS, formatEstimate } from '../lib/routeTime';
-import { ChevronRightIcon, CloseIcon, DownloadIcon, PencilIcon, ShareIcon } from './icons';
+import { ArrowLeftIcon, ChevronRightIcon, CloseIcon, DownloadIcon, PencilIcon, ShareIcon } from './icons';
 import { ShareRouteDialog } from './ShareRouteDialog';
 import type { RoutePhoto } from '../lib/api';
 import { RoutePhotoModal } from './RoutePhotoModal';
@@ -73,6 +73,18 @@ interface RoutePanelProps {
   hoverIndex: number | null;
   onHoverIndex: (index: number | null) => void;
   onClose: () => void;
+  /**
+   * `map`: a card over the map (the expanded map, or a narrow screen).
+   * `sidebar`: the left column of a split page, in place of the list, with every
+   * detail open, so the map beside it can frame the whole route.
+   */
+  placement?: 'map' | 'sidebar';
+  /**
+   * Where both layouts fit (a wide split page), "More details" docks the details into the left
+   * column and "Fewer details" floats the compact card back over the map. Absent where only the
+   * card fits (narrow screens, the expanded map): there it opens in place.
+   */
+  onToggleDock?: () => void;
   /** Folded to a slim strip (name and the three numbers) while the map is moved by hand. */
   folded?: boolean;
   onUnfold?: () => void;
@@ -414,10 +426,12 @@ function RouteEditForm({ route, venues, username, trim, onTrimChange, hoverIndex
  * rests. Its size changes never re-frame the map: framing reads the panel
  * only when the app itself moves the camera.
  */
-export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHoverIndex, onClose, folded = false, onUnfold, spotlightSlug, onShowVenue, onShowRoute, routePhotos, onFocusPhoto, onPhotoAdded, editing = false, editTrim = null, onEditTrimChange, onEditStart, onEditEnd }: RoutePanelProps) {
+export function RoutePanel({ placement = 'map', onToggleDock, route, venuesBySlug, allRoutes, hoverIndex, onHoverIndex, onClose, folded = false, onUnfold, spotlightSlug, onShowVenue, onShowRoute, routePhotos, onFocusPhoto, onPhotoAdded, editing = false, editTrim = null, onEditTrimChange, onEditStart, onEditEnd }: RoutePanelProps) {
   const [adding, setAdding] = useState(false);
   const [reporting, setReporting] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const sidebar = placement === 'sidebar';
+  const [expandedByHand, setExpanded] = useState(false);
+  const expanded = sidebar || expandedByHand;
   const user = useAuthUser();
   const { routes: myUploads } = useMyRoutes();
   // Only the owner may edit a community route; the upload list is the
@@ -458,9 +472,16 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
   const unavailable = elevation.pending ? 'Measuring…' : 'Unavailable';
 
   return (
-    <section className={`gpx-panel route-panel ${expanded ? 'expanded' : 'compact'}${folded ? ' folded' : ''}`} aria-label={`Route: ${route.name}`} key={route.slug}>
-      {/* A light runs once round the card's edge when a route opens. */}
-      <span className="route-panel-orbit" aria-hidden="true" />
+    <section className={`gpx-panel route-panel ${expanded ? 'expanded' : 'compact'}${folded ? ' folded' : ''}${sidebar ? ' in-sidebar' : ''}`} aria-label={`Route: ${route.name}`} key={route.slug}>
+      {sidebar ? (
+        <button type="button" className="route-back" onClick={onClose}>
+          <ArrowLeftIcon size={16} />
+          All routes
+        </button>
+      ) : (
+        /* A light runs once round the card's edge when a route opens. */
+        <span className="route-panel-orbit" aria-hidden="true" />
+      )}
       {folded && (
         <button type="button" className="route-panel-unfold" onClick={onUnfold} aria-label={`Show details for ${route.name}`} />
       )}
@@ -502,9 +523,11 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
           <button type="button" className="gpx-icon-btn" onClick={() => downloadRoute(route)} aria-label="Download GPX" data-tip="Download GPX">
             <DownloadIcon size={15} />
           </button>
-          <button type="button" className="gpx-close" onClick={onClose} aria-label="Close route">
-            <CloseIcon size={12} />
-          </button>
+          {!sidebar && (
+            <button type="button" className="gpx-close" onClick={onClose} aria-label="Close route">
+              <CloseIcon size={12} />
+            </button>
+          )}
         </div>
       </header>
       <span className="visually-hidden" role="status">{announced}</span>
@@ -552,7 +575,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
       </div>
 
       {hasElevation ? (
-        <ElevationProfile points={elevation.points} height={72} hoverIndex={hoverIndex} onHoverIndex={onHoverIndex} />
+        <ElevationProfile points={elevation.points} height={sidebar ? 132 : 72} hoverIndex={hoverIndex} onHoverIndex={onHoverIndex} />
       ) : (
         <p className="route-elevation-unavailable">{elevation.pending ? 'Measuring elevation from terrain data…' : 'Elevation is unavailable for this route.'}</p>
       )}
@@ -630,7 +653,7 @@ export function RoutePanel({ route, venuesBySlug, allRoutes, hoverIndex, onHover
       <button
         type="button"
         className="route-more-toggle"
-        onClick={() => setExpanded((value) => !value)}
+        onClick={() => (onToggleDock ? onToggleDock() : setExpanded((value) => !value))}
         aria-expanded={expanded}
         aria-controls={`route-more-${route.slug}`}
         aria-label={expanded ? 'Show fewer route details' : 'Show more route details'}

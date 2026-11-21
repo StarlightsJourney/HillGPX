@@ -42,7 +42,8 @@ async function openAddDialog(page: Page) {
   await page.goto('/#routes');
   await dismissNotice(page);
   await page.locator('.result-card', { hasText: 'Southern Ridges Walk' }).click();
-  await page.getByRole('button', { name: 'Show more route details' }).click();
+  const more = page.getByRole('button', { name: 'Show more route details' });
+  if (await more.isVisible()) await more.click();
   await page.getByRole('button', { name: 'Photo or hazard' }).click();
   return page.getByRole('dialog', { name: 'Add to Southern Ridges Walk' });
 }

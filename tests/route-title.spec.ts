@@ -40,6 +40,9 @@ const heading = (page: Page) => page.locator('.route-panel-title h2');
 for (const [label, width, height] of [['375 px phone', 375, 812], ['1280 px desktop', 1280, 800]] as const) {
   test(`${label}: a long name wraps to two lines with … and opens in full when tapped`, async ({ page }) => {
     await openRoute(page, LONG, width, height);
+    // On a wide page a route opens docked; this is the floating card's title.
+    const fewer = page.getByRole('button', { name: 'Show fewer route details' });
+    if (await fewer.isVisible()) await fewer.click();
     const text = heading(page).locator('.route-name');
     // The full name is always there for hover and for screen readers.
     await expect(heading(page)).toHaveAttribute('title', LONG);

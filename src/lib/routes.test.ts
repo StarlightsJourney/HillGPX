@@ -88,8 +88,8 @@ describe('filterRoutes: distance and gain bounds', () => {
     expect(slugs(filterRoutes(pool, { ...NO_ROUTE_FILTERS, minDistanceM: 5_000, maxDistanceM: 20_000 }))).toEqual(['mid', 'no-elev']);
   });
 
-  // Estimated times at run pace (6:30/km + 30 s per 10 m): short 30 min, no-elev
-  // (distance only) 52 min, mid 93 min, long 305 min.
+  // Estimated times (no tracks here, so climbing counts as gentle): short 30 min,
+  // no-elev (distance only) 55 min, mid 105 min, long 375 min.
   it('keeps only routes under a maximum estimated time', () => {
     expect(slugs(filterRoutes(pool, { ...NO_ROUTE_FILTERS, maxDurationS: 3_600 }))).toEqual(['short', 'no-elev']);
   });
@@ -106,9 +106,11 @@ describe('filterRoutes: distance and gain bounds', () => {
     expect(slugs(filterRoutes(pool, { ...NO_ROUTE_FILTERS, maxDurationS: 3_300 }))).toContain('no-elev');
   });
 
-  it('times a trail slower than a run of the same shape', () => {
+  it('times a trail like a run of the same shape, and a ride as quicker', () => {
     const trail = { ...short, slug: 'trail-short', activity: 'trail' as const };
-    expect(slugs(filterRoutes([short, trail], { ...NO_ROUTE_FILTERS, maxDurationS: 2_000 }))).toEqual(['short']);
+    const ride = { ...short, slug: 'ride-short', activity: 'cycle' as const };
+    expect(slugs(filterRoutes([short, trail, ride], { ...NO_ROUTE_FILTERS, maxDurationS: 1_800 }))).toEqual(['short', 'trail-short', 'ride-short']);
+    expect(slugs(filterRoutes([short, trail, ride], { ...NO_ROUTE_FILTERS, minDurationS: 1_500 }))).toEqual(['short', 'trail-short']);
   });
 
   it('brackets routes between a gain floor and cap', () => {
